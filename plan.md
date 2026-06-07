@@ -209,7 +209,7 @@ F11 is the **single biggest sprint** (Sprint 3). Everything else is "just" wirin
 - **Demo:** Create a volume, attach it to a running container, create a custom bridge network, run a second container on it, pull a private image from a test registry, registry auth UI saves and reapplies credentials across restarts.
 
 ### Sprint 5 — Installer, Signing, Onboarding, Settings (F1, F10)
-- F1 Onboarding wizard: 4 cards (WSL, Virt, Insider, WSL Preview), "Install WSL Preview" button via `ms-windows-store://pdp/?ProductId=9P9TQF7MRM4R` URI + `winget install Microsoft.WSLPreview`, "Verify installation" runs a hello-world container
+- F1 Onboarding wizard: 4 cards (WSL, Virt, Insider, WSL Preview), "Install WSL Preview" button via `ms-windows-store://pdp/?ProductId=9P9TQF7MRM4R` URI + `winget install Microsoft.WSL.PreRelease --source winget`, "Verify installation" runs a hello-world container
 - F10 Settings screen: theme (system/light/dark), terminal font, terminal history size, default registry, startup behavior
 - Velopack integration: `vpk pack` produces `WinContainers-1.0.0.exe` (installer) + delta updates
 - SignPath.io integration: signtool step in `release.yml`
