@@ -1,0 +1,175 @@
+Prompt to give your AI coder
+Title  
+Build a Windows Container GUI App to Replace Docker Desktop
+
+Context  
+We need an app that provides a user‑friendly GUI for managing Windows and Linux containers on Windows without using Docker Desktop. The app must integrate with WSL2 and native Windows container runtimes (containerd/nerdctl, Moby/containerd, or Windows Server containers), provide image/volume/network management, support compose workflows, and offer an installer and background service so non‑technical users can run containers reliably.
+
+Primary Goal  
+Produce a complete plan, architecture, implementation tasks, and deliverables to build a production‑ready GUI application that replicates the core UX of Docker Desktop (images, containers, volumes, networks, logs, terminal, settings, auto‑start) while using open runtimes and avoiding Docker Desktop licensing and bundled services.
+
+Requirements for the AI coder output
+High level architecture diagram showing components and interactions: GUI, local service/daemon, runtime adapter, WSL2 bridge, CLI shim, auto‑update, telemetry opt‑in, and installer.
+
+Technology choices with pros/cons and a recommended stack (one opinionated stack to implement now).
+
+Detailed feature list prioritized (MVP → v1 → v2).
+
+Implementation plan broken into sprints (2–4 week sprints), with tasks, owners, and estimated effort.
+
+APIs and contracts between GUI and local service (REST/WebSocket), and between local service and runtimes (containerd gRPC, nerdctl CLI, WSL2 HTTP).
+
+Installer and service design for Windows (MSI/EXE, Windows Service, optional system tray).
+
+Security and permissions plan (least privilege, UAC, certificate handling, secrets storage).
+
+Testing and acceptance criteria (unit, integration, e2e, performance, upgrade tests).
+
+DevOps and CI/CD pipeline for builds, signing, and release.
+
+Migration and user data strategy for users moving from Docker Desktop (images, volumes, compose files).
+
+UX mockups for main screens (Dashboard, Images, Containers, Volumes, Networks, Settings, Logs, Terminal).
+
+CLI compatibility plan (support docker/nerdctl/compose commands via shim).
+
+Kubernetes story (optional integration path for k3s/k3d in WSL2).
+
+Acceptance tests and verification commands to validate the runtime works (commands to run locally).
+
+Deliverables per sprint and a minimal demo to ship.
+
+Constraints and nonfunctional requirements
+Do not use Docker Desktop or any proprietary Docker Desktop binaries.
+
+Must run on Windows 11 (and Windows Server where feasible) and integrate with WSL2 for Linux containers.
+
+Prefer containerd + nerdctl or Moby/containerd as the runtime.
+
+GUI should be cross‑platform ready but Windows‑first. Recommend .NET MAUI or Electron + WebView2; pick one in the plan and justify.
+
+Installer must support corporate deployment (MSI + silent install).
+
+Respect licensing for bundled components; include license audit step.
+
+Provide telemetry only opt‑in and GDPR friendly defaults.
+
+Recommended opinionated stack (pick this unless you want alternatives)
+Runtime: containerd + nerdctl (for Open container compatibility). Use containerd on Windows via the Microsoft containerd builds and WSL2 for Linux containers.
+
+WSL Bridge: use a small local service that proxies OpenAI‑compatible HTTP/gRPC calls into WSL2 via wsl.exe or a persistent socket.
+
+Local Service: ASP.NET Core minimal API running as a Windows Service (or background process) exposing a REST + WebSocket API to the GUI.
+
+GUI: .NET MAUI (Windows target) using WebView2 for advanced UI components; fallback: Electron with native installers.
+
+CLI shim: nerdctl wrapper and compose compatibility via compose-cli or docker‑compose replacement.
+
+Storage: use Windows user profile for config; volumes mapped to WSL2 ext4 or Windows paths as appropriate.
+
+Kubernetes: optional k3s in WSL2 or k3d with containerd backend.
+
+Installer: WiX/MSI for enterprise, with optional EXE bootstrapper.
+
+MVP feature list (must have)
+Installable app + background service that starts containerd/nerdctl or connects to existing runtime.
+
+Dashboard showing running containers, images, CPU/memory usage.
+
+Start/Stop/Restart/Delete containers and images.
+
+Pull/Push images via registry auth.
+
+Terminal attached to container shell (via nerdctl exec -it or wsl).
+
+Volume management (create, inspect, remove).
+
+Network management (list, create, inspect).
+
+Compose support: run docker-compose.yml or compose via shim.
+
+Settings: runtime selection, WSL integration, proxy, auto‑start.
+
+Test suite and acceptance tests.
+
+Sprint plan example (6 sprints)
+Sprint 0 Setup (1 week)
+
+Repo scaffolding, CI, license audit, runtime experiments (containerd on Windows + WSL2).
+
+Sprint 1 Runtime Adapter (2 weeks)
+
+Build local service that can call nerdctl and containerd gRPC; basic REST endpoints.
+
+Sprint 2 GUI Core (2 weeks)
+
+Dashboard, container list, start/stop actions, terminal integration.
+
+Sprint 3 Images Volumes Networks (2 weeks)
+
+Image pull/push, volume UI, network UI.
+
+Sprint 4 Compose and CLI Shim (2 weeks)
+
+Compose support, CLI wrapper, migration tool for Docker Desktop users.
+
+Sprint 5 Installer, Security, Tests (2 weeks)
+
+MSI, Windows Service, UAC handling, automated tests, performance tuning.
+
+Sprint 6 Polish and Demo (2 weeks)
+
+UX polish, telemetry opt‑in, docs, demo video.
+
+API contract examples
+GET /api/containers → list containers (JSON with id, name, status, ports, cpu, mem)
+
+POST /api/containers/{id}/start → start container
+
+POST /api/containers/{id}/exec → spawn exec session, return WebSocket URL for terminal
+
+POST /api/images/pull → body { image: "nginx:latest" }
+
+WebSocket /ws/events → push container lifecycle events and logs
+
+Include authentication for local GUI (JWT with local secret) and ensure only local connections allowed by default.
+
+Acceptance tests and verification commands
+Provide a set of shell commands to verify runtime from a dev machine:
+
+bash
+# Verify containerd is reachable
+ctr --namespace k8s.io images list
+
+# Using nerdctl in WSL2
+wsl -d docker-desktop -- nerdctl --namespace default images ls
+
+# Pull and run a test container
+nerdctl pull nginx:latest
+nerdctl run -d --name test-nginx -p 8080:80 nginx:latest
+
+# Exec into container
+nerdctl exec -it test-nginx /bin/sh -c "echo hello"
+
+# Compose test
+nerdctl compose up -d
+Provide equivalent PowerShell commands for Windows users.
+
+Security checklist
+Run the local service as a non‑privileged user where possible; escalate only for runtime start/stop.
+
+Use named pipes or loopback with strict CORS for GUI communication.
+
+Store credentials in Windows Credential Manager or Azure Key Vault for enterprise.
+
+Harden the installer and sign binaries.
+
+Provide clear uninstall and data wipe options.
+
+Deliverables per sprint
+Sprint artifacts: design docs, API spec (OpenAPI), GUI mockups, working builds, automated tests, MSI installer, README, migration tool, demo video.
+
+Short prompt version to paste into your AI coder
+Short Prompt
+
+Build a production plan and implementation tasks for a Windows GUI app that replaces Docker Desktop. The app must manage Windows and Linux containers on Windows 11 without Docker Desktop, integrate with WSL2 and containerd/nerdctl, provide Dashboard, Images, Containers, Volumes, Networks, Terminal, Compose support, an MSI installer, and a Windows Service. Deliver architecture diagrams, API contracts, UI mockups, sprint plan with tasks and estimates, CI/CD pipeline, security checklist, migration path from Docker Desktop, and acceptance tests with exact verification commands. Recommend a concrete tech stack and provide a ready‑to‑implement first sprint.
