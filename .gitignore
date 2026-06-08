@@ -4,3 +4,4 @@ obj/
 .vs/
 *.user
 *.suo
+.agents/skills/winui3-full-skills

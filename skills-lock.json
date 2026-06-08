@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "winui3-full-skill": {
+      "source": "SudoCode76/winui3-skills",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "e482122aa971e15b691aa82c197fc05cc65907e643b9f85c26a9b7edeed95c04"
+    }
+  }
+}
