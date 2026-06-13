@@ -1,3 +1,7 @@
+
+Now we are adding LXC (13-06-26) 
+
+
 Prompt to give your AI coder
 Title  
 Build a Windows Container GUI App to Replace Docker Desktop
