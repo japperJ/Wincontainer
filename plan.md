@@ -64,7 +64,7 @@ graph TB
     Session["wslcsession.exe<br/>(per-user Windows service)"]
   end
   GUI -->|"HTTP REST + WS<br/>Bearer token"| APIServer
-  GUI --> TerminalUI
+GUI --> TerminalUI
   GUI --> ActivityPanel
   APIServer --> PSRunner
   PSRunner -->|"wslc ..."| WSLC
@@ -88,8 +88,8 @@ graph TB
 
 | Layer | Technology | Why |
 |---|---|---|
-| Language | C# 12, .NET 8 | Required by WinUI 3 + Windows App SDK 1.5+ |
-| GUI | WinUI 3 (Windows App SDK) via `Microsoft.WindowsAppSDK` 1.5+ | Modern Fluent UI, single-project packaging, WebView2 native |
+| Language | C# 13, .NET 10 | Required by WinUI 3 + Windows App SDK 1.8+ |
+| GUI | WinUI 3 (Windows App SDK) via `Microsoft.WindowsAppSDK` 1.8+ | Modern Fluent UI, single-project packaging, WebView2 native |
 | Local service | ASP.NET Core 8 minimal API + Kestrel | In-proc hosting, `WebApplication.CreateBuilder()` |
 | Transport | HTTP/1.1 + WebSocket on loopback, per-launch bearer token | Industry standard, debuggable with curl |
 | Terminal | ConPTY via `Pty.Net` (NuGet) + xterm.js in WebView2 | Real PTY, full ANSI |
@@ -372,6 +372,6 @@ Each entry has `{ "name": "Get-Container", "type": "one-shot", "command": "wslc 
 
 1. Create the GitHub repo `WinContainers` (placeholder name) and push an empty commit
 2. Run `dotnet new sln` and `dotnet new winui3 -n WinContainers.App` to scaffold the WinUI 3 project, then add `WinContainers.Core`, `WinContainers.Service`, `WinContainers.Scripts`, three test projects
-3. Wire `Directory.Build.props` and `Directory.Packages.props` with `Microsoft.WindowsAppSDK` 1.5+, `Microsoft.PowerShell.SDK` 7.4+, `Pty.Net`, `Serilog.AspNetCore`, `xunit`, `FluentAssertions`, `NSubstitute`, `Playwright`
+3. Wire `Directory.Build.props` and `Directory.Packages.props` with `Microsoft.WindowsAppSDK` 1.8+, `Microsoft.PowerShell.SDK` 7.4+, `Pty.Net`, `Serilog.AspNetCore`, `xunit`, `FluentAssertions`, `NSubstitute`, `Playwright`
 4. Apply for SignPath.io OSS project approval (1–2 week lead time, do it now)
 5. File an issue titled "WSLC public preview availability" to track Microsoft's release date
