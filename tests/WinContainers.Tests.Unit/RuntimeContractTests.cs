@@ -192,6 +192,17 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcCommands_ShouldGenerateContainerExecCommands()
+    {
+        WslcCommands.ContainerExecCommand("abc", "ls -lap /")
+            .Should().Be("container exec abc ls -lap /");
+        WslcCommands.ContainerExecShell("abc", "printf 'hello'")
+            .Should().Be("container exec abc sh -c \"printf 'hello'\"");
+        WslcCommands.ContainerExecShell("abc", "echo ok", "bash")
+            .Should().Be("container exec abc bash -c \"echo ok\"");
+    }
+
+    [Fact]
     public void RuntimeTools_ShouldCheckExecutableOnPath()
     {
         RuntimeTools.IsExecutableAvailable("wslc");

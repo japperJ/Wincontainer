@@ -665,56 +665,16 @@ public partial class ContainerDetailViewModel : ViewModelBase
         }
     }
 
-    private static string QuoteArg(string value) =>
-        value.Contains(' ') ? $"\"{value.Replace("\"", "\\\"")}\"" : value;
-
     private async Task WriteFileViaStdin(string filePath, string content)
     {
-        // Mirror ExecShellAsync (without --tty): start interactive shell, write heredoc via stdin
-        var shell = "/bin/sh";
-        var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c wsl -u root --exec /usr/local/bin/nerdctl container exec --interactive {QuoteArg(ContainerId)} -- {shell}")
-        {
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        using var process = new System.Diagnostics.Process { StartInfo = psi };
-        process.Start();
-
-        // Write heredoc to stdin (same pattern as ExecShellAsync)
-        var delimiter = "EOF_" + Guid.NewGuid().ToString("N");
-        var script = $"cat > \"{filePath}\" << \"{delimiter}\"\n{content}\n{delimiter}\nexit\n";
-        await process.StandardInput.WriteAsync(script);
-        await process.StandardInput.FlushAsync();
-        process.StandardInput.Close();
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-
-        using var timeoutCts = new System.Threading.CancellationTokenSource(30000);
-        try
-        {
-            await process.WaitForExitAsync(timeoutCts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            try { process.Kill(true); } catch { }
-            throw new TimeoutException("File write timed out");
-        }
-
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
-
-        _output.Write($"Save result: exit={process.ExitCode}, stdout='{stdout.Trim()}', stderr='{stderr.Trim()}'");
-
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException($"Save failed (exit {process.ExitCode}): {stderr.Trim()}");
-        }
+        var encodedContent = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(content ?? string.Empty));
+        var script = $"printf '%s' '{encodedContent}' | base64 -d > {ShellQuote(filePath)}";
+        var output = await App.ServiceClient.ExecContainerAsync(ContainerId, script, true, "/bin/sh");
+        if (!string.IsNullOrWhiteSpace(output) && output.StartsWith("error", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(output);
     }
+
+    private static string ShellQuote(string value) => $"'{value.Replace("'", "'\\''", StringComparison.Ordinal)}'";
 
     public async Task ChangePermissionsAsync(FileEntryData entry, string mode)
     {

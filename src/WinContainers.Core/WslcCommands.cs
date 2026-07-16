@@ -24,10 +24,10 @@ public static class WslcCommands
 
     public static string ContainerExec(string id) => $"exec --interactive --tty {Quote(id)} sh";
     public static string ContainerExecCommand(string id, string command) => $"container exec {Quote(id)} {command}";
-    public static string ContainerExecShell(string id, string shellCommand)
+    public static string ContainerExecShell(string id, string shellCommand, string shell = "sh")
     {
         var escaped = shellCommand.Replace("\"", "\\\"");
-        return $"container exec {Quote(id)} sh -c \"{escaped}\"";
+        return $"container exec {Quote(id)} {Quote(shell)} -c \"{escaped}\"";
     }
 
     public static string ImageLs() => "image ls --format json";

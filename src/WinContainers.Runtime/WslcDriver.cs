@@ -82,100 +82,16 @@ public sealed class WslcDriver : IDisposable
     public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? restart = null, CancellationToken ct = default) =>
         RunAndCaptureAsync(WslcCommands.Run(image, name, ports, volumes, env, restart), DefaultTimeoutMs, ct);
 
-    private const string WslBase = "wsl -u root --exec /usr/local/bin/nerdctl";
-
     public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default)
     {
-        var args = $"{WslBase} container exec {QuoteArg(id)} {command}";
-        return RunWslAndCaptureAsync(args, DefaultTimeoutMs, ct);
+        return RunAndCaptureAsync(WslcCommands.ContainerExecCommand(id, command), DefaultTimeoutMs, ct);
     }
 
-    public async Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default)
+    public Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default)
     {
         shell ??= "sh";
-        var psi = new ProcessStartInfo("cmd.exe", $"/c {WslBase} container exec --interactive {QuoteArg(id)} -- {shell}")
-        {
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        using var process = new Process { StartInfo = psi };
-        process.Start();
-
-        await process.StandardInput.WriteAsync(shellCommand + '\n');
-        await process.StandardInput.FlushAsync();
-        await process.StandardInput.WriteAsync("exit\n");
-        await process.StandardInput.FlushAsync();
-        process.StandardInput.Close();
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-
-        using var timeoutCts = new CancellationTokenSource(DefaultTimeoutMs);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
-
-        try
-        {
-            await process.WaitForExitAsync(linkedCts.Token);
-            var stdout = (await stdoutTask).Trim();
-            var stderr = (await stderrTask).Trim();
-            var combined = string.IsNullOrEmpty(stderr) ? stdout : $"{stdout}\n{stderr}".Trim();
-            return process.ExitCode == 0 ? combined : $"error ({process.ExitCode}): {combined}";
-        }
-        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
-        {
-            TryKill(process);
-            return $"Shell command timed out after {DefaultTimeoutMs}ms.";
-        }
+        return RunAndCaptureAsync(WslcCommands.ContainerExecShell(id, shellCommand, shell), DefaultTimeoutMs, ct);
     }
-
-    private static async Task<string> RunWslAndCaptureAsync(string arguments, int timeoutMs, CancellationToken ct)
-    {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo("cmd.exe", $"/c {arguments}")
-            {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            },
-            EnableRaisingEvents = true
-        };
-
-        process.Start();
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-
-        using var timeoutCts = new CancellationTokenSource(timeoutMs);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
-
-        try
-        {
-            await process.WaitForExitAsync(linkedCts.Token);
-            var stdout = (await stdoutTask).Trim();
-            var stderr = (await stderrTask).Trim();
-
-            if (process.ExitCode != 0)
-            {
-                var error = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
-                return $"wslc error ({process.ExitCode}): {error.Trim()}";
-            }
-            return stdout;
-        }
-        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
-        {
-            TryKill(process);
-            return $"wslc error (-1): Command timed out after {timeoutMs}ms.";
-        }
-    }
-
-    private static string QuoteArg(string value) =>
-        value.Contains(' ') ? $"\"{value.Replace("\"", "\\\"")}\"" : value;
 
     public Process StartStreamingProcess(string arguments)
     {
