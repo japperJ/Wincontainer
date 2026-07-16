@@ -1,0 +1,243 @@
+using System.Text.Json;
+using FluentAssertions;
+using WinContainers.Core;
+using WinContainers.Core.Models;
+using WinContainers.Runtime;
+using WinContainers.Runtime.Models;
+
+namespace WinContainers.Tests.Unit;
+
+public class RuntimeContractTests
+{
+    [Fact]
+    public void ServiceInfo_ShouldRoundTripPortTokenAndScripts()
+    {
+        var info = new ServiceInfo("12345", "secret-token")
+        {
+            Scripts = ["Get-Container", "Pull-Image"]
+        };
+
+        info.Port.Should().Be("12345");
+        info.Token.Should().Be("secret-token");
+        info.Scripts.Should().Contain("Get-Container");
+        info.Scripts.Should().Contain("Pull-Image");
+    }
+
+    [Fact]
+    public void WslcDriver_ShouldExist()
+    {
+        typeof(WslcDriver).Should().NotBeNull();
+    }
+
+    [Fact]
+    public void WslcDriver_ShouldExposeExpectedMethods()
+    {
+        var methods = typeof(WslcDriver).GetMethods()
+            .Where(m => m.DeclaringType == typeof(WslcDriver))
+            .Select(m => m.Name)
+            .Distinct()
+            .ToHashSet();
+
+        methods.Should().Contain(nameof(WslcDriver.GetVersionAsync));
+        methods.Should().Contain(nameof(WslcDriver.GetContainersAsync));
+        methods.Should().Contain(nameof(WslcDriver.StartContainerAsync));
+        methods.Should().Contain(nameof(WslcDriver.StopContainerAsync));
+        methods.Should().Contain(nameof(WslcDriver.RemoveContainerAsync));
+        methods.Should().Contain(nameof(WslcDriver.GetImagesAsync));
+        methods.Should().Contain(nameof(WslcDriver.PullImageAsync));
+        methods.Should().Contain(nameof(WslcDriver.RemoveImageAsync));
+        methods.Should().Contain(nameof(WslcDriver.GetVolumesAsync));
+        methods.Should().Contain(nameof(WslcDriver.CreateVolumeAsync));
+        methods.Should().Contain(nameof(WslcDriver.RemoveVolumeAsync));
+        methods.Should().Contain(nameof(WslcDriver.GetNetworksAsync));
+        methods.Should().Contain(nameof(WslcDriver.CreateNetworkAsync));
+        methods.Should().Contain(nameof(WslcDriver.RemoveNetworkAsync));
+    }
+
+    [Fact]
+    public void WslcContainerParser_ShouldParseContainerJson()
+    {
+        var json = """
+[
+  {
+    "ID": "abc123",
+    "Names": "my-container",
+    "Image": "nginx:alpine",
+    "Status": "Running 2 hours",
+    "Ports": "0.0.0.0:8080->80/tcp",
+    "CreatedAt": "2025-01-01"
+  },
+  {
+    "ID": "def456",
+    "Names": "stopped-app",
+    "Image": "alpine:latest",
+    "Status": "Exited (0)",
+    "Ports": "",
+    "CreatedAt": "2025-01-02"
+  }
+]
+""";
+
+        var containers = WslcContainerParser.ParseContainers(json);
+
+        containers.Should().HaveCount(2);
+        containers[0].Id.Should().Be("abc123");
+        containers[0].Name.Should().Be("my-container");
+        containers[0].Image.Should().Be("nginx:alpine");
+        containers[0].Status.Should().Be("Running 2 hours");
+        containers[0].Ports.Should().Be("0.0.0.0:8080->80/tcp");
+        containers[0].PortLinks.Should().ContainSingle(l => l.Url == "localhost:8080");
+
+        containers[1].Id.Should().Be("def456");
+        containers[1].Name.Should().Be("stopped-app");
+        containers[1].Ports.Should().Be("No ports");
+    }
+
+    [Fact]
+    public void WslcContainerParser_ShouldParseCaseInsensitiveContainerFields()
+    {
+        var json = "[{\"id\":\"abc123\",\"name\":\"clean-host\",\"image\":\"nginx:latest\",\"status\":\"Up\",\"ports\":\"\"}]";
+
+        var containers = WslcContainerParser.ParseContainers(json);
+
+        containers.Should().ContainSingle();
+        containers[0].Id.Should().Be("abc123");
+        containers[0].Name.Should().Be("clean-host");
+        containers[0].Image.Should().Be("nginx:latest");
+        containers[0].Status.Should().Be("Up");
+    }
+
+    [Fact]
+    public void WslcContainerParser_ShouldParseStructuredPortsAndNumericState()
+    {
+        var json = "[{\"Id\":\"abc123\",\"Image\":\"nodered/node-red:latest\",\"Name\":\"nodered1\",\"Ports\":[{\"BindingAddress\":\"127.0.0.1\",\"ContainerPort\":1880,\"HostPort\":1880,\"Protocol\":6}],\"State\":2}]";
+
+        var containers = WslcContainerParser.ParseContainers(json);
+
+        containers.Should().ContainSingle();
+        containers[0].Name.Should().Be("nodered1");
+        containers[0].Status.Should().Be("Up");
+        containers[0].Ports.Should().Be("127.0.0.1:1880->1880/tcp");
+        containers[0].PortLinks.Should().ContainSingle(link => link.Url == "localhost:1880");
+    }
+
+    [Fact]
+    public void WslcContainerParser_ShouldParseImageJson()
+    {
+        var json = """
+[
+  {
+    "ID": "sha256:abc123",
+    "Repository": "nginx",
+    "Tag": "alpine",
+    "Size": "42MB",
+    "CreatedSince": "2 weeks ago"
+  }
+]
+""";
+
+        var images = WslcContainerParser.ParseImages(json);
+
+        images.Should().ContainSingle();
+        images[0].Repository.Should().Be("nginx");
+        images[0].Tag.Should().Be("alpine");
+        images[0].ID.Should().Be("sha256:abc123");
+        images[0].Size.Should().Be("42MB");
+    }
+
+    [Fact]
+    public void WslcContainerParser_ShouldHandleEmptyJson()
+    {
+        WslcContainerParser.ParseContainers("[]").Should().BeEmpty();
+        WslcContainerParser.ParseContainers("").Should().BeEmpty();
+        WslcContainerParser.ParseContainers(null!).Should().BeEmpty();
+        WslcContainerParser.ParseImages("[]").Should().BeEmpty();
+        WslcContainerParser.ParseImages("").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ImageListFormatter_ShouldRenderReadableImageSummary()
+    {
+        const string rawOutput = """
+{"ID":"8b1e78743a03","Repository":"nginx","Tag":"alpine","Name":"docker.io/library/nginx:alpine"}
+{"ID":"5b10f432ef3d","Repository":"alpine","Tag":"latest","Name":"docker.io/library/alpine:latest"}
+""";
+
+        var formatted = ImageListFormatter.Format(rawOutput);
+
+        formatted.Should().Contain("Images: 2");
+        formatted.Should().Contain("nginx:alpine");
+        formatted.Should().Contain("alpine:latest");
+        formatted.Should().NotContain("\"ID\":\"8b1e78743a03\"");
+    }
+
+    [Fact]
+    public void WslcCommands_ShouldGenerateExpectedCommandStrings()
+    {
+        WslcCommands.Version().Should().Be("--version");
+        WslcCommands.ContainerPs().Should().Be("container ps --all --format json");
+        WslcCommands.ContainerStart("abc").Should().Be("container start abc");
+        WslcCommands.ContainerStop("abc").Should().Be("container stop abc");
+        WslcCommands.ImageLs().Should().Be("image ls --format json");
+        WslcCommands.ImagePull("nginx").Should().Be("image pull nginx");
+        WslcCommands.VolumeLs().Should().Be("volume ls --format json");
+        WslcCommands.NetworkLs().Should().Be("network ls --format json");
+    }
+
+    [Fact]
+    public void WslcCommands_ShouldQuoteSpacesInArgs()
+    {
+        WslcCommands.ContainerStart("my container").Should().Contain("\"my container\"");
+        WslcCommands.ImagePull("my image:v2").Should().Be("image pull \"my image:v2\"");
+    }
+
+    [Fact]
+    public void RuntimeTools_ShouldCheckExecutableOnPath()
+    {
+        RuntimeTools.IsExecutableAvailable("wslc");
+    }
+
+    [Fact]
+    public void ServiceEndpointResolver_ShouldHonorEnvironmentPortOverride()
+    {
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "5155");
+
+        try
+        {
+            var endpoint = ServiceEndpointResolver.Resolve();
+
+            endpoint.Should().Be("http://127.0.0.1:5155");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", null);
+        }
+    }
+
+    [Fact]
+    public void ServiceEndpointResolver_ShouldResolveBearerToken()
+    {
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", "test-token");
+
+        try
+        {
+            ServiceEndpointResolver.ResolveToken().Should().Be("test-token");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", null);
+        }
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldAuthorizeBearerTokenRequests()
+    {
+        BearerTokenValidator.IsAuthorized("Bearer secret-token", "secret-token").Should().BeTrue();
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldRejectInvalidBearerTokens()
+    {
+        BearerTokenValidator.IsAuthorized("Bearer wrong-token", "secret-token").Should().BeFalse();
+    }
+}

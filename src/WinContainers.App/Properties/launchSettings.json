@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "WinContainers.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "WinContainers.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

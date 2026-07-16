@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WinContainers.App/WinContainers.App.csproj" />
+    <Project Path="src/WinContainers.Core/WinContainers.Core.csproj" />
+    <Project Path="src/WinContainers.Runtime/WinContainers.Runtime.csproj" />
+    <Project Path="src/WinContainers.Service/WinContainers.Service.csproj" />
+    <Project Path="src/BuildTasks/BuildTasks.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WinContainers.Tests.Integration/WinContainers.Tests.Integration.csproj" />
+    <Project Path="tests/WinContainers.Tests.Playwright/WinContainers.Tests.Playwright.csproj" />
+    <Project Path="tests/WinContainers.Tests.Unit/WinContainers.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

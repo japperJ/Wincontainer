@@ -4,3 +4,6 @@ obj/
 .vs/
 *.user
 *.suo
+*.pfx
+release/
+tools/WinContainers-dev.pfx

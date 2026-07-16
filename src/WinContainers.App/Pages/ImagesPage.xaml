@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="WinContainers_App.Pages.ImagesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:WinContainers.Runtime.Models"
+    xmlns:converters="using:WinContainers_App.Converters"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
+    </Page.Resources>
+
+    <Grid Padding="24" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Padding="20" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <StackPanel Spacing="12">
+                <TextBlock Text="Images" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Image list -->
+        <ListView Grid.Row="1" x:Name="ImageListView" ItemsSource="{x:Bind ViewModel.Images, Mode=OneWay}" IsItemClickEnabled="True" SelectionMode="Single" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="16" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="0" ItemClick="ImageListView_ItemClick" Visibility="{x:Bind ViewModel.ShowDetail, Mode=OneWay, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+            <ListView.Header>
+                <Grid ColumnDefinitions="32,*,120,120,100,80,70" Padding="16,12,16,8">
+                    <TextBlock Grid.Column="0" Text="" />
+                    <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Grid.Column="2" Text="Image ID" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Grid.Column="3" Text="Created" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Grid.Column="4" Text="Size" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Grid>
+            </ListView.Header>
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="models:ImageEntryData">
+                    <Grid ColumnDefinitions="32,*,120,120,100,80" Padding="16,8">
+                        <Ellipse Grid.Column="0" Width="8" Height="8" Fill="#2ea043" Visibility="{x:Bind InUse, Converter={StaticResource BoolToVisibilityConverter}}" VerticalAlignment="Center" ToolTipService.ToolTip="In use by a container" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Repository}" FontWeight="SemiBold" />
+                            <TextBlock Text="{x:Bind Tag}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{x:Bind ID}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="3" Text="{x:Bind CreatedAt}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="4" Text="{x:Bind Size}" VerticalAlignment="Center" />
+                        <Button Grid.Column="5" Content="Delete" Click="DeleteImageFromList_Click"
+                                AutomationProperties.Name="Delete image" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <!-- Image detail panel -->
+        <Border Grid.Row="1" Padding="20" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Visibility="{x:Bind ViewModel.ShowDetail, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                 <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto">
+                     <Button Grid.Column="0" Content="Back" Click="BackToImageList_Click" AutomationProperties.Name="Back to image list" />
+                     <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.SelectedImage.FullTag, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                     <Button Grid.Column="2" Content="Delete" Click="DeleteSelectedImage_Click" AutomationProperties.Name="Delete selected image" Margin="8,0,0,0" />
+                     <Button Grid.Column="3" Content="Refresh" Click="RefreshImages_Click" AutomationProperties.Name="Refresh images" Margin="8,0,0,0" />
+                 </Grid>
+
+
+                <ScrollViewer Grid.Row="1">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="{x:Bind ViewModel.LayersCountText, Mode=OneWay}" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Layers, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:ImageLayerData">
+                                    <Border Padding="12,8" Margin="0,0,0,4" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                        <Grid RowSpacing="4" ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="80" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{x:Bind Size}" FontWeight="SemiBold" FontSize="12" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{x:Bind CreatedSince}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{x:Bind CreatedBy}" FontSize="12" TextWrapping="Wrap" FontFamily="Consolas" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Inspect" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Border Padding="12" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                            <TextBlock Text="{x:Bind ViewModel.InspectJson, Mode=OneWay}" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>
