@@ -21,6 +21,18 @@
                     <TextBlock Text="Create a container" Style="{StaticResource TitleTextBlockStyle}" />
                     <TextBlock Text="Select an image and configure ports, volumes, environment variables, and restart policy. Then create and start your container." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
+                    <InfoBar Severity="Warning" IsOpen="{Binding HasConflicts, Mode=OneWay}" Message="{Binding ConflictSummary, Mode=OneWay}" IsClosable="False">
+                        <InfoBar.Content>
+                            <ItemsControl ItemsSource="{Binding ConflictWarnings, Mode=OneWay}" Margin="0,4,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </InfoBar.Content>
+                    </InfoBar>
+
                     <Grid Width="520" ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />

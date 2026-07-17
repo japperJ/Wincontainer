@@ -1,8 +1,10 @@
+using System.ComponentModel;
 using System.Net.Http;
 using System.Text.Json;
 using Microsoft.UI.Dispatching;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
+using WinContainers.Runtime.Models;
 using WinContainers_App.Services;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -113,6 +115,8 @@ public partial class QuickActionsViewModel : ViewModelBase
         EnvVars = [];
         TemplateCatalog = new ObservableCollection<TemplateCatalogItem>();
         Categories = new ObservableCollection<string>();
+        ConflictWarnings = new ObservableCollection<string>();
+        AttachConflictListeners();
         _ = LoadTemplatesAsync();
     }
 
@@ -220,7 +224,11 @@ public partial class QuickActionsViewModel : ViewModelBase
     public string? ContainerNameText
     {
         get => _containerNameText;
-        set => SetProperty(ref _containerNameText, value);
+        set
+        {
+            if (SetProperty(ref _containerNameText, value))
+                _ = RefreshConflictsAsync();
+        }
     }
 
     private string? _projectNameText;
@@ -333,6 +341,27 @@ public partial class QuickActionsViewModel : ViewModelBase
     {
         get => _templateCatalog;
         set => SetProperty(ref _templateCatalog, value);
+    }
+
+    private ObservableCollection<string> _conflictWarnings = [];
+    public ObservableCollection<string> ConflictWarnings
+    {
+        get => _conflictWarnings;
+        set => SetProperty(ref _conflictWarnings, value);
+    }
+
+    private bool _hasConflicts;
+    public bool HasConflicts
+    {
+        get => _hasConflicts;
+        set => SetProperty(ref _hasConflicts, value);
+    }
+
+    private string _conflictSummary = string.Empty;
+    public string ConflictSummary
+    {
+        get => _conflictSummary;
+        set => SetProperty(ref _conflictSummary, value);
     }
 
     private TemplateCatalogItem? _selectedTemplate;
@@ -519,6 +548,7 @@ public partial class QuickActionsViewModel : ViewModelBase
                 RestartPolicy = first.RestartPolicy;
             });
             PopulateFormFromService(first);
+            _ = RefreshConflictsAsync();
 
             _dispatcherQueue?.TryEnqueue(() =>
             {
@@ -550,6 +580,67 @@ public partial class QuickActionsViewModel : ViewModelBase
         EnvVars.Clear();
         foreach (var (name, value) in svc.EnvVars)
             EnvVars.Add(new EnvVarEntry { Name = name, Value = value });
+
+        AttachConflictListeners();
+    }
+
+    private void AttachConflictListeners()
+    {
+        Ports.CollectionChanged -= OnPortsCollectionChanged;
+        Volumes.CollectionChanged -= OnVolumesCollectionChanged;
+        Ports.CollectionChanged += OnPortsCollectionChanged;
+        Volumes.CollectionChanged += OnVolumesCollectionChanged;
+
+        foreach (var entry in Ports)
+            entry.PropertyChanged -= OnPortPropertyChanged;
+        foreach (var entry in Volumes)
+            entry.PropertyChanged -= OnVolumePropertyChanged;
+        foreach (var entry in Ports)
+            entry.PropertyChanged += OnPortPropertyChanged;
+        foreach (var entry in Volumes)
+            entry.PropertyChanged += OnVolumePropertyChanged;
+    }
+
+    private void OnPortsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (PortEntry item in e.OldItems)
+                item.PropertyChanged -= OnPortPropertyChanged;
+        }
+        if (e.NewItems is not null)
+        {
+            foreach (PortEntry item in e.NewItems)
+                item.PropertyChanged += OnPortPropertyChanged;
+        }
+        _ = RefreshConflictsAsync();
+    }
+
+    private void OnVolumesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (VolumeEntry item in e.OldItems)
+                item.PropertyChanged -= OnVolumePropertyChanged;
+        }
+        if (e.NewItems is not null)
+        {
+            foreach (VolumeEntry item in e.NewItems)
+                item.PropertyChanged += OnVolumePropertyChanged;
+        }
+        _ = RefreshConflictsAsync();
+    }
+
+    private void OnPortPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PortEntry.Host))
+            _ = RefreshConflictsAsync();
+    }
+
+    private void OnVolumePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(VolumeEntry.Source) || e.PropertyName == nameof(VolumeEntry.Target))
+            _ = RefreshConflictsAsync();
     }
 
     public async Task CreateAllFromComposeAsync()
@@ -854,7 +945,123 @@ public partial class QuickActionsViewModel : ViewModelBase
         ContainerNameText = template.ContainerName;
         ComposeYamlText = template.Compose;
         ParseComposeYaml();
+        _ = RefreshConflictsAsync();
         _output.Write($"Applied template '{template.Name}'");
+    }
+
+    public async Task RefreshConflictsAsync()
+    {
+        try
+        {
+            var output = await App.ServiceClient.GetContainersAsync();
+            var running = WslcContainerParser.ParseContainers(output ?? "")
+                .Where(c => ContainerService.IsRunningStatus(c.Status))
+                .ToList();
+
+            var warnings = new List<string>();
+
+            var name = ContainerNameText?.Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var match = running.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (match is not null)
+                    warnings.Add($"Container name '{name}' is already used by running container '{match.Name}' ({match.Image}).");
+            }
+
+            var usedHostPorts = running
+                .SelectMany(c => c.PortLinks)
+                .Select(l => l.Url?[("localhost:".Length)..])
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p!.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var port in Ports)
+            {
+                if (string.IsNullOrWhiteSpace(port.Host)) continue;
+                var hostPort = ExtractPortNumber(port.Host);
+                if (!string.IsNullOrWhiteSpace(hostPort) && usedHostPorts.Contains(hostPort))
+                    warnings.Add($"Host port {hostPort} is already mapped by a running container.");
+            }
+
+            var usedMounts = new List<MountInfo>();
+            foreach (var container in running)
+            {
+                try
+                {
+                    var inspectOutput = await App.ServiceClient.InspectContainerAsync(container.Id);
+                    usedMounts.AddRange(WslcContainerParser.ParseMountsFromInspect(inspectOutput ?? ""));
+                }
+                catch { }
+            }
+
+            // Fallback to any mounts already present in the ps output
+            usedMounts.AddRange(running.SelectMany(c => c.MountInfos));
+
+            var normalizedMounts = usedMounts
+                .Select(m => (Source: NormalizeMountPath(m.Source), Target: NormalizeMountPath(m.Target)))
+                .ToHashSet();
+
+            foreach (var volume in Volumes)
+            {
+                var hasSource = !string.IsNullOrWhiteSpace(volume.Source);
+                var hasTarget = !string.IsNullOrWhiteSpace(volume.Target);
+                if (!hasSource && !hasTarget) continue;
+
+                var normalizedSource = NormalizeMountPath(volume.Source);
+                var normalizedTarget = NormalizeMountPath(volume.Target);
+
+                foreach (var mount in normalizedMounts)
+                {
+                    var sourceClash = hasSource &&
+                                      !string.IsNullOrWhiteSpace(mount.Source) &&
+                                      mount.Source.Equals(normalizedSource, StringComparison.OrdinalIgnoreCase);
+
+                    var targetClash = hasTarget &&
+                                      !string.IsNullOrWhiteSpace(mount.Target) &&
+                                      mount.Target.Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase);
+
+                    if (sourceClash && targetClash)
+                    {
+                        warnings.Add($"Volume '{volume.Source}:{volume.Target}' is already mounted by a running container.");
+                    }
+                    else if (sourceClash)
+                    {
+                        warnings.Add($"Volume source '{volume.Source}' is already mounted to '{mount.Target}' by a running container.");
+                    }
+                    else if (targetClash)
+                    {
+                        warnings.Add($"Volume target '{volume.Target}' is already in use by a running container (source: '{mount.Source}').");
+                    }
+                }
+            }
+
+            _dispatcherQueue?.TryEnqueue(() =>
+            {
+                ConflictWarnings = new ObservableCollection<string>(warnings);
+                HasConflicts = warnings.Count > 0;
+                ConflictSummary = warnings.Count > 0
+                    ? $"{warnings.Count} potential conflict(s) detected with running containers"
+                    : string.Empty;
+            });
+        }
+        catch (Exception ex)
+        {
+            _output.Write($"Conflict check failed: {ex.Message}", ServiceLogLevel.Warning);
+        }
+    }
+
+    private static string ExtractPortNumber(string hostPart)
+    {
+        if (string.IsNullOrWhiteSpace(hostPart)) return string.Empty;
+        var lastColon = hostPart.LastIndexOf(':');
+        var candidate = lastColon >= 0 ? hostPart[(lastColon + 1)..] : hostPart;
+        return candidate.Trim();
+    }
+
+    private static string NormalizeMountPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+        return path.Replace('\\', '/').Trim().TrimEnd('/');
     }
 
     #endregion

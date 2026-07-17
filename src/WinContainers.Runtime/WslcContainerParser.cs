@@ -62,6 +62,7 @@ public static class WslcContainerParser
             name = GetField(el, "Name", id);
 
         var labels = ParseLabels(el);
+        var mounts = GetMounts(el);
 
         return new ContainerCardData
         {
@@ -72,7 +73,8 @@ public static class WslcContainerParser
             Ports = string.IsNullOrWhiteSpace(ports) ? "No ports" : ports,
             CreatedAt = GetField(el, "CreatedAt", ""),
             PortLinks = ContainerCardData.ParsePortLinksStatic(ports),
-            Labels = labels.Count > 0 ? labels : null
+            Labels = labels.Count > 0 ? labels : null,
+            MountInfos = mounts
         };
     }
 
@@ -179,6 +181,61 @@ public static class WslcContainerParser
             _ when !string.IsNullOrWhiteSpace(value) => value!,
             _ => ""
         };
+    }
+
+    private static List<MountInfo> GetMounts(JsonElement element)
+    {
+        var mounts = new List<MountInfo>();
+        if (!element.TryGetProperty("Mounts", out var mountsElement) || mountsElement.ValueKind != JsonValueKind.Array)
+            return mounts;
+
+        foreach (var mount in mountsElement.EnumerateArray())
+        {
+            if (mount.ValueKind != JsonValueKind.Object)
+                continue;
+
+            var source = GetField(mount, "Source");
+            if (string.IsNullOrWhiteSpace(source))
+                source = GetField(mount, "SourcePath");
+
+            var name = GetField(mount, "Name");
+            var target = GetField(mount, "Destination");
+            if (string.IsNullOrWhiteSpace(target))
+                target = GetField(mount, "Target");
+
+            var effectiveSource = !string.IsNullOrWhiteSpace(name) && GetField(mount, "Type").Equals("volume", StringComparison.OrdinalIgnoreCase)
+                ? name
+                : source;
+
+            if (!string.IsNullOrWhiteSpace(effectiveSource) || !string.IsNullOrWhiteSpace(target))
+                mounts.Add(new MountInfo(effectiveSource ?? "", target ?? ""));
+        }
+
+        return mounts;
+    }
+
+    public static List<MountInfo> ParseMountsFromInspect(string rawOutput)
+    {
+        var mounts = new List<MountInfo>();
+        if (string.IsNullOrWhiteSpace(rawOutput))
+            return mounts;
+
+        var cleaned = rawOutput.Trim();
+        if (cleaned == "[]") return mounts;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(cleaned);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+                root = root[0];
+
+            if (root.ValueKind == JsonValueKind.Object)
+                mounts.AddRange(GetMounts(root));
+        }
+        catch { }
+
+        return mounts;
     }
 
     private static string GetPorts(JsonElement element)

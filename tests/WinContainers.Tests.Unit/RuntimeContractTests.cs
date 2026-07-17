@@ -122,6 +122,32 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcContainerParser_ShouldParseContainerMounts()
+    {
+        var json = """
+[
+  {
+    "ID": "mnt123",
+    "Names": "data-app",
+    "Image": "busybox:latest",
+    "Status": "Up",
+    "Ports": "",
+    "Mounts": [
+      { "Source": "app-data", "Destination": "/data" },
+      { "SourcePath": "/host/config", "Destination": "/config" }
+    ]
+  }
+]
+""";
+
+        var containers = WslcContainerParser.ParseContainers(json);
+
+        containers.Should().ContainSingle();
+        containers[0].MountInfos.Should().Contain(m => m.Source == "app-data" && m.Target == "/data");
+        containers[0].MountInfos.Should().Contain(m => m.Source == "/host/config" && m.Target == "/config");
+    }
+
+    [Fact]
     public void WslcContainerParser_ShouldParseImageJson()
     {
         var json = """

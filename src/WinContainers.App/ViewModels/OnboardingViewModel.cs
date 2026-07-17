@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using WinContainers.Core;
 using WinContainers_App.Services;
 using LogLevel = WinContainers_App.Services.LogLevel;
 
@@ -140,7 +141,7 @@ public partial class OnboardingViewModel : ViewModelBase
             var result = await RunPowerShellCommandAsync("wslc --version");
             var output = NormalizeCommandOutput(result.Output);
             WslcAvailable = result.ExitCode == 0;
-            WslcStatus = WslcAvailable ? $"WSLC is installed: {output}" : $"WSLC is not installed ({output})";
+            WslcStatus = WslcAvailable ? FormatWslcStatus(output) : $"WSLC is not installed ({output})";
         }
         catch
         {
@@ -148,6 +149,9 @@ public partial class OnboardingViewModel : ViewModelBase
             WslcStatus = "WSLC is not available";
         }
     }
+
+    private static string FormatWslcStatus(string output) =>
+        $"WSLC is installed: version {WslcVersionFormatter.Format(output)}";
 
     private async Task CheckVirtualizationAsync()
     {

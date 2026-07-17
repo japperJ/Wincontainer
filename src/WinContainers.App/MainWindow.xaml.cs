@@ -5,8 +5,10 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Windows.Graphics;
+using WinContainers.Core;
 using WinContainers_App.Pages;
 using WinContainers_App.Services;
 using WinContainers_App.ViewModels;
@@ -251,20 +253,144 @@ public sealed partial class MainWindow : Window
         var versionBtn = new Button { Content = "Check WSLC version" };
         versionBtn.Click += async (_, _) =>
         {
+            EnsureOutputPaneVisible();
             _output.Write("Checking WSLC version...");
             var version = await App.ServiceClient.GetVersionAsync();
-            _output.Write($"WSLC: {version}");
+            _output.Write($"WSLC: {WslcVersionFormatter.Format(version)}");
         };
         stack.Children.Add(versionBtn);
 
         var wslStatusBtn = new Button { Content = "Check WSL status" };
         wslStatusBtn.Click += async (_, _) =>
         {
-            _output.Write("WSL status not available via WSLC. Run `wsl --status` in terminal.");
+            EnsureOutputPaneVisible();
+            _output.Write("Checking WSL status...");
+            var status = await GetWslStatusAsync();
+            foreach (var line in status)
+            {
+                _output.Write($"  {line}");
+            }
         };
         stack.Children.Add(wslStatusBtn);
 
         flyout.Content = stack;
         flyout.ShowAt(HelpButton);
     }
+
+    private static async Task<List<string>> GetWslStatusAsync()
+    {
+        var statusResult = await RunCommandAsync("wsl.exe", "--status", timeoutSeconds: 15);
+        var versionResult = await RunCommandAsync("wsl.exe", "--version", timeoutSeconds: 15);
+
+        var allLines = new List<string>();
+
+        if (statusResult.ExitCode == 0)
+        {
+            var output = NormalizeCommandOutput(statusResult.Output);
+            var statusLines = ExtractInterestingLines(output, new[]
+            {
+                "Default Distribution",
+                "Default Version"
+            });
+            allLines.AddRange(statusLines);
+        }
+
+        if (versionResult.ExitCode == 0)
+        {
+            var output = NormalizeCommandOutput(versionResult.Output);
+            var versionLines = ExtractInterestingLines(output, new[]
+            {
+                "WSL version",
+                "WSLg version",
+                "MSRDC version",
+                "Direct3D version",
+                "DXCore version",
+                "Windows version",
+                "Kernel version"
+            });
+            allLines.AddRange(versionLines);
+        }
+
+        if (allLines.Count > 0)
+        {
+            return allLines;
+        }
+
+        var error = string.IsNullOrWhiteSpace(statusResult.Output)
+            ? "WSL is not installed or `wsl --status` failed."
+            : statusResult.Output;
+        return new List<string> { error };
+    }
+
+    private static List<string> ExtractInterestingLines(string output, string[] keywords)
+    {
+        return output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => keywords.Any(keyword => line.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunCommandAsync(string fileName, string arguments, int timeoutSeconds)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch { }
+
+            return (-1, $"Command timed out after {timeoutSeconds} seconds.");
+        }
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+        var combined = string.IsNullOrEmpty(stderr) ? stdout : $"{stdout}\n{stderr}";
+        return (process.ExitCode, combined.Trim());
+    }
+
+    private static string NormalizeCommandOutput(string output) =>
+        output.Replace("\0", string.Empty, StringComparison.Ordinal).Trim();
+
+    private void EnsureOutputPaneVisible()
+    {
+        if (_outputPaneState == OutputPaneState.Expanded)
+        {
+            return;
+        }
+
+        _outputPaneState = OutputPaneState.Expanded;
+        ContentRow.Height = new GridLength(1, GridUnitType.Star);
+        BottomContentRow.Height = new GridLength(240);
+        OutputScrollViewer.Visibility = Visibility.Visible;
+        ToggleBottomPaneButton.Content = "Hide output";
+        ToolTipService.SetToolTip(ToggleBottomPaneButton, "Hide output pane");
+    }
+
 }

@@ -70,27 +70,53 @@
                         </Button>
                     </Grid>
 
-                    <Border Visibility="{x:Bind ViewModel.HasCommandPreview, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
-                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="8">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox Grid.Column="0" Text="{x:Bind ViewModel.CommandPreview, Mode=OneWay}"
-                                     FontFamily="Consolas" FontSize="12"
-                                     IsReadOnly="True"
-                                     TextWrapping="NoWrap"
-                                     BorderThickness="0"
-                                     VerticalAlignment="Center"
-                                     AutomationProperties.Name="Command preview" />
-                            <Button Grid.Column="1" Margin="8,0,0,0" x:Name="CopyCommandButton" Content="Copy" Click="CopyCommandButton_Click" />
-                        </Grid>
-                    </Border>
+                    <StackPanel Spacing="8">
+                        <Border Visibility="{x:Bind ViewModel.HasCommandPreview, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="API" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.7" Style="{StaticResource CaptionTextBlockStyle}" />
+                                <TextBox Grid.Column="1" Text="{x:Bind ViewModel.CommandPreview, Mode=OneWay}"
+                                         FontFamily="Consolas" FontSize="12"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         BorderThickness="0"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="Command preview" />
+                                <Button Grid.Column="2" Margin="8,0,0,0" x:Name="CopyCommandButton" Content="Copy" Click="CopyCommandButton_Click" />
+                            </Grid>
+                        </Border>
+
+                        <Border Visibility="{x:Bind ViewModel.HasWslcCommandPreview, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="WSLC" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.7" Style="{StaticResource CaptionTextBlockStyle}" />
+                                <TextBox Grid.Column="1" Text="{x:Bind ViewModel.WslcCommandPreview, Mode=OneWay}"
+                                         FontFamily="Consolas" FontSize="12"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         BorderThickness="0"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="WSLC command preview" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
 
                     <Border Visibility="{x:Bind ViewModel.HasOutput, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"

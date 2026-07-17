@@ -101,9 +101,6 @@ public sealed partial class OnboardingPage : Page
     {
         _viewModel.MarkOnboardingComplete();
 
-        if (Window.Current is MainWindow mainWnd)
-        {
-            mainWnd.NavigateToMainContent();
-        }
+        MainWindow.Instance?.NavigateToMainContent();
     }
 }

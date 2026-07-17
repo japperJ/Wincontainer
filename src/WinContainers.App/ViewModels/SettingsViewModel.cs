@@ -1,3 +1,4 @@
+using WinContainers.Core;
 using WinContainers_App.Services;
 
 namespace WinContainers_App.ViewModels;
@@ -55,7 +56,7 @@ public partial class SettingsViewModel : ViewModelBase
         {
             ServiceHealthy = await App.ServiceClient.IsHealthyAsync();
             var version = await App.ServiceClient.GetVersionAsync();
-            VersionText = ServiceHealthy ? $"WSLC version: {version}" : "Service unavailable";
+            VersionText = ServiceHealthy ? $"WSLC version: {WslcVersionFormatter.Format(version)}" : "Service unavailable";
             ServiceStatusText = ServiceHealthy ? "WSLC service is running" : "WSLC service is not responding";
         }
         catch
