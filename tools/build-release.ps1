@@ -33,6 +33,7 @@ if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 # 3. Publish self-contained folder (required for reliable WinUI 3 unpackaged deployment)
 Write-Host "--- Step 3: Publishing self-contained folder ---" -ForegroundColor Yellow
 $publishDir = Join-Path $solutionDir "publish\win-x64"
+# publish/ is generated output and ignored by git; release/ is the distributable output.
 
 # Clean previous publish
 if (Test-Path $publishDir) {
