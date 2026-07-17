@@ -14,6 +14,7 @@
           "Microsoft.Extensions.Logging": "11.0.0-preview.4.26230.115",
           "Microsoft.Extensions.Logging.Debug": "11.0.0-preview.4.26230.115",
           "Microsoft.WindowsAppSDK": "2.1.3",
+          "Velopack": "0.0.1049",
           "WinContainers.Core": "1.0.0",
           "WinContainers.Runtime": "1.0.0",
           "WinContainers.Service": "1.0.0",
@@ -1428,6 +1429,17 @@
             "assemblyVersion": "2.1.1.9760",
             "fileVersion": "2.1.1.9760"
           }
+        },
+        "native": {
+          "runtimes/win-x64/native/DirectML.dll": {
+            "fileVersion": "1.15.4.0"
+          },
+          "runtimes/win-x64/native/Microsoft.Windows.AI.MachineLearning.dll": {
+            "fileVersion": "2.1.1.9760"
+          },
+          "runtimes/win-x64/native/onnxruntime.dll": {
+            "fileVersion": "1.24.26.504"
+          }
         }
       },
       "Microsoft.WindowsAppSDK/2.1.3": {
@@ -1597,6 +1609,14 @@
           }
         }
       },
+      "NuGet.Versioning/6.12.1": {
+        "runtime": {
+          "lib/netstandard2.0/NuGet.Versioning.dll": {
+            "assemblyVersion": "6.12.1.1",
+            "fileVersion": "6.12.1.1"
+          }
+        }
+      },
       "System.Diagnostics.DiagnosticSource/11.0.0-preview.4.26230.115": {
         "runtime": {
           "lib/net10.0/System.Diagnostics.DiagnosticSource.dll": {
@@ -1610,6 +1630,18 @@
           "lib/net9.0/System.Numerics.Tensors.dll": {
             "assemblyVersion": "9.0.0.0",
             "fileVersion": "9.0.24.52809"
+          }
+        }
+      },
+      "Velopack/0.0.1049": {
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "11.0.0-preview.4.26230.115",
+          "NuGet.Versioning": "6.12.1"
+        },
+        "runtime": {
+          "lib/net9.0/Velopack.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.1049.55847"
           }
         }
       },
@@ -1803,6 +1835,13 @@
       "path": "microsoft.windowsappsdk.winui/2.1.0",
       "hashPath": "microsoft.windowsappsdk.winui.2.1.0.nupkg.sha512"
     },
+    "NuGet.Versioning/6.12.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-fJ6rFYANDnohFsdpaY79FvrJxI6murmoOxXz6nZlf819F48+IBKMnAIg3oIBRtZq5y498ObMtKnro5IitvizUg==",
+      "path": "nuget.versioning/6.12.1",
+      "hashPath": "nuget.versioning.6.12.1.nupkg.sha512"
+    },
     "System.Diagnostics.DiagnosticSource/11.0.0-preview.4.26230.115": {
       "type": "package",
       "serviceable": true,
@@ -1816,6 +1855,13 @@
       "sha512": "sha512-hyJB4UlpAi19Xr9AXzu2NuagKC4lPfHObNMEAA0HmqFz2rX7wKgzeYzO/jM/eBHDhnUGFFEjk5cOoJaxqg5J4A==",
       "path": "system.numerics.tensors/9.0.0",
       "hashPath": "system.numerics.tensors.9.0.0.nupkg.sha512"
+    },
+    "Velopack/0.0.1049": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-NdnuYmN2X+27rGUaZ/3fdTPJgXRLXQrDNMwn6A0jySSrjOwh/IXYYkuRW6I+vE5ab/fAT/QudmxDEtt2+xLZmA==",
+      "path": "velopack/0.0.1049",
+      "hashPath": "velopack.0.0.1049.nupkg.sha512"
     },
     "YamlDotNet/16.3.0": {
       "type": "package",
