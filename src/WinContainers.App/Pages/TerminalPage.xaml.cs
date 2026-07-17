@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -198,10 +199,16 @@ public sealed partial class TerminalPage : Page
 
     private void CopyCommandButton_Click(object sender, RoutedEventArgs e)
     {
+        var lines = new List<string>();
         if (!string.IsNullOrWhiteSpace(_viewModel.CommandPreview))
+            lines.Add(_viewModel.CommandPreview);
+        if (!string.IsNullOrWhiteSpace(_viewModel.WslcCommandPreview))
+            lines.Add(_viewModel.WslcCommandPreview);
+
+        if (lines.Count > 0)
         {
             var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            pkg.SetText(_viewModel.CommandPreview);
+            pkg.SetText(string.Join(Environment.NewLine, lines));
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
         }
     }

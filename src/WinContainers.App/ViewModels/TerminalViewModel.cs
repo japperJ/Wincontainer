@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Runtime.Models;
@@ -98,6 +99,19 @@ public partial class TerminalViewModel : ViewModelBase
 
     public bool HasCommandPreview => !string.IsNullOrWhiteSpace(_commandPreview);
 
+    private string? _wslcCommandPreview;
+    public string? WslcCommandPreview
+    {
+        get => _wslcCommandPreview;
+        set
+        {
+            if (SetProperty(ref _wslcCommandPreview, value))
+                OnPropertyChanged(nameof(HasWslcCommandPreview));
+        }
+    }
+
+    public bool HasWslcCommandPreview => !string.IsNullOrWhiteSpace(_wslcCommandPreview);
+
     #endregion
 
     #region Command Management
@@ -128,15 +142,18 @@ public partial class TerminalViewModel : ViewModelBase
         if (SelectedCommand is null || !CommandTemplates.TryGetValue(SelectedCommand.Name, out var template))
         {
             CommandPreview = null;
+            WslcCommandPreview = null;
             return;
         }
 
         var result = template;
+        var parameters = new Dictionary<string, string>();
         foreach (var pv in ParameterValues)
         {
             if (!string.IsNullOrWhiteSpace(pv.Value))
             {
                 result = result.Replace("{" + pv.Name + "}", pv.Value);
+                parameters[pv.Name] = pv.Value;
             }
             else if (pv.Required)
             {
@@ -148,6 +165,41 @@ public partial class TerminalViewModel : ViewModelBase
             }
         }
         CommandPreview = result;
+        WslcCommandPreview = BuildWslcCommandPreview(SelectedCommand.Name, parameters);
+    }
+
+    private static string? BuildWslcCommandPreview(string scriptName, Dictionary<string, string> parameters)
+    {
+        var id = parameters.GetValueOrDefault("Id", "<id>");
+        var name = parameters.GetValueOrDefault("Name", "<name>");
+        var image = parameters.GetValueOrDefault("Image", "<image>");
+        var tail = parameters.GetValueOrDefault("Tail", "500");
+
+        var args = scriptName switch
+        {
+            "Get-Container" => WslcCommands.ContainerPs(),
+            "Start-Container" => WslcCommands.ContainerStart(id),
+            "Stop-Container" => WslcCommands.ContainerStop(id),
+            "Restart-Container" => WslcCommands.ContainerRestart(id),
+            "Remove-Container" => WslcCommands.ContainerRemove(id),
+            "Get-ContainerLogs" => int.TryParse(tail, out var tailValue)
+                ? WslcCommands.ContainerLogs(id, tailValue)
+                : WslcCommands.ContainerLogs(id),
+            "Get-Image" => WslcCommands.ImageLs(),
+            "Pull-Image" => WslcCommands.ImagePull(image),
+            "Remove-Image" => WslcCommands.ImageRemove(id),
+            "Get-Volumes" => WslcCommands.VolumeLs(),
+            "Create-Volume" => WslcCommands.VolumeCreate(name),
+            "Remove-Volume" => WslcCommands.VolumeRemove(name),
+            "Get-Networks" => WslcCommands.NetworkLs(),
+            "Create-Network" => WslcCommands.NetworkCreate(name),
+            "Remove-Network" => WslcCommands.NetworkRemove(name),
+            "Get-Version" => WslcCommands.Version(),
+            "Get-Health" => WslcCommands.Version(),
+            _ => null
+        };
+
+        return args is null ? null : $"wslc {args}";
     }
 
     public async Task InitializeAsync()
@@ -196,6 +248,7 @@ public partial class TerminalViewModel : ViewModelBase
         ParameterValues.Clear();
         OutputText = null;
         CommandPreview = null;
+        WslcCommandPreview = null;
 
         if (SelectedCommand is null) return;
 
