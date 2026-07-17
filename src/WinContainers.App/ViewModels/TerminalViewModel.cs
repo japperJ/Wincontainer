@@ -116,88 +116,221 @@ public partial class TerminalViewModel : ViewModelBase
 
     #region Command Management
 
-    private static readonly Dictionary<string, string> CommandTemplates = new()
-    {
-        ["Get-Container"] = "GET /api/containers",
-        ["Start-Container"] = "POST /api/containers/{Id}/start",
-        ["Stop-Container"] = "POST /api/containers/{Id}/stop",
-        ["Restart-Container"] = "POST /api/containers/{Id}/restart",
-        ["Remove-Container"] = "DELETE /api/containers/{Id}",
-        ["Get-ContainerLogs"] = "GET /api/containers/{Id}/logs",
-        ["Get-Image"] = "GET /api/images",
-        ["Pull-Image"] = "POST /api/images/pull",
-        ["Remove-Image"] = "DELETE /api/images/{Id}",
-        ["Get-Volumes"] = "GET /api/volumes",
-        ["Create-Volume"] = "POST /api/volumes",
-        ["Remove-Volume"] = "DELETE /api/volumes/{Name}",
-        ["Get-Networks"] = "GET /api/networks",
-        ["Create-Network"] = "POST /api/networks",
-        ["Remove-Network"] = "DELETE /api/networks/{Name}",
-        ["Get-Version"] = "GET /api/runtime/version",
-        ["Get-Health"] = "GET /api/health",
-    };
+    private sealed record CommandParameterMetadata(
+        string Name,
+        string DisplayName,
+        CommandParamType Type,
+        bool Required = true);
+
+    private sealed record TerminalCommandMetadata(
+        string Name,
+        string DisplayName,
+        string Category,
+        string Description,
+        string ApiTemplate,
+        IReadOnlyList<CommandParameterMetadata> Parameters,
+        Func<IReadOnlyDictionary<string, string>, string?> BuildWslcArgs,
+        Func<IReadOnlyDictionary<string, string>, Task<string>> ExecuteAsync);
+
+    private static readonly IReadOnlyList<TerminalCommandMetadata> CommandDefinitions =
+    [
+        new(
+            Name: "Get-Health",
+            DisplayName: "Check Health",
+            Category: "System",
+            Description: "Check if WSLC service is healthy",
+            ApiTemplate: "GET /api/health",
+            Parameters: [],
+            BuildWslcArgs: _ => WslcCommands.Version(),
+            ExecuteAsync: async _ => await App.ServiceClient.IsHealthyAsync() ? "Healthy" : "Unhealthy"),
+        new(
+            Name: "Get-Version",
+            DisplayName: "Get Version",
+            Category: "System",
+            Description: "Show WSLC runtime version",
+            ApiTemplate: "GET /api/runtime/version",
+            Parameters: [],
+            BuildWslcArgs: _ => WslcCommands.Version(),
+            ExecuteAsync: async _ => await App.ServiceClient.GetVersionAsync()),
+        new(
+            Name: "Get-Container",
+            DisplayName: "List Containers",
+            Category: "Containers",
+            Description: "List all containers",
+            ApiTemplate: "GET /api/containers",
+            Parameters: [new("Format", "Output Format", CommandParamType.Format, Required: false)],
+            BuildWslcArgs: _ => WslcCommands.ContainerPs(),
+            ExecuteAsync: async _ => await App.ServiceClient.GetContainersAsync()),
+        new(
+            Name: "Start-Container",
+            DisplayName: "Start Container",
+            Category: "Containers",
+            Description: "Start a stopped container",
+            ApiTemplate: "POST /api/containers/{Id}/start",
+            Parameters: [new("Id", "Container", CommandParamType.ContainerId)],
+            BuildWslcArgs: p => WslcCommands.ContainerStart(GetParam(p, "Id", "<id>")),
+            ExecuteAsync: async p => await App.ServiceClient.StartContainerAsync(GetParam(p, "Id"))),
+        new(
+            Name: "Stop-Container",
+            DisplayName: "Stop Container",
+            Category: "Containers",
+            Description: "Stop a running container",
+            ApiTemplate: "POST /api/containers/{Id}/stop",
+            Parameters: [new("Id", "Container", CommandParamType.ContainerId)],
+            BuildWslcArgs: p => WslcCommands.ContainerStop(GetParam(p, "Id", "<id>")),
+            ExecuteAsync: async p => await App.ServiceClient.StopContainerAsync(GetParam(p, "Id"))),
+        new(
+            Name: "Restart-Container",
+            DisplayName: "Restart Container",
+            Category: "Containers",
+            Description: "Restart a container",
+            ApiTemplate: "POST /api/containers/{Id}/restart",
+            Parameters: [new("Id", "Container", CommandParamType.ContainerId)],
+            BuildWslcArgs: p => WslcCommands.ContainerRestart(GetParam(p, "Id", "<id>")),
+            ExecuteAsync: async p => await App.ServiceClient.RestartContainerAsync(GetParam(p, "Id"))),
+        new(
+            Name: "Remove-Container",
+            DisplayName: "Remove Container",
+            Category: "Containers",
+            Description: "Delete a container",
+            ApiTemplate: "DELETE /api/containers/{Id}",
+            Parameters: [new("Id", "Container", CommandParamType.ContainerId)],
+            BuildWslcArgs: p => WslcCommands.ContainerRemove(GetParam(p, "Id", "<id>")),
+            ExecuteAsync: async p => await App.ServiceClient.RemoveContainerAsync(GetParam(p, "Id"))),
+        new(
+            Name: "Get-ContainerLogs",
+            DisplayName: "Container Logs",
+            Category: "Containers",
+            Description: "Show container logs",
+            ApiTemplate: "GET /api/containers/{Id}/logs",
+            Parameters:
+            [
+                new("Id", "Container", CommandParamType.ContainerId),
+                new("Tail", "Tail Lines", CommandParamType.Text, Required: false)
+            ],
+            BuildWslcArgs: p => WslcCommands.ContainerLogs(GetParam(p, "Id", "<id>"), GetTailLines(p, 500)),
+            ExecuteAsync: async p => await App.ServiceClient.GetContainerLogsAsync(GetParam(p, "Id"), GetTailLines(p, 500))),
+        new(
+            Name: "Get-Image",
+            DisplayName: "List Images",
+            Category: "Images",
+            Description: "List pulled images",
+            ApiTemplate: "GET /api/images",
+            Parameters: [],
+            BuildWslcArgs: _ => WslcCommands.ImageLs(),
+            ExecuteAsync: async _ => await App.ServiceClient.GetImagesAsync()),
+        new(
+            Name: "Pull-Image",
+            DisplayName: "Pull Image",
+            Category: "Images",
+            Description: "Download an image from a registry",
+            ApiTemplate: "POST /api/images/pull",
+            Parameters: [new("Image", "Image", CommandParamType.ImageName)],
+            BuildWslcArgs: p => WslcCommands.ImagePull(GetParam(p, "Image", "<image>")),
+            ExecuteAsync: async p => await App.ServiceClient.PullImageAsync(GetParam(p, "Image"))),
+        new(
+            Name: "Remove-Image",
+            DisplayName: "Remove Image",
+            Category: "Images",
+            Description: "Delete an image from local storage",
+            ApiTemplate: "DELETE /api/images/{Id}",
+            Parameters: [new("Id", "Container", CommandParamType.ContainerId)],
+            BuildWslcArgs: p => WslcCommands.ImageRemove(GetParam(p, "Id", "<id>")),
+            ExecuteAsync: async p => await App.ServiceClient.RemoveImageAsync(GetParam(p, "Id"))),
+        new(
+            Name: "Get-Volumes",
+            DisplayName: "List Volumes",
+            Category: "Volumes",
+            Description: "List all volumes",
+            ApiTemplate: "GET /api/volumes",
+            Parameters: [],
+            BuildWslcArgs: _ => WslcCommands.VolumeLs(),
+            ExecuteAsync: async _ => await App.ServiceClient.GetVolumesAsync()),
+        new(
+            Name: "Create-Volume",
+            DisplayName: "Create Volume",
+            Category: "Volumes",
+            Description: "Create a new volume",
+            ApiTemplate: "POST /api/volumes",
+            Parameters: [new("Name", "Name", CommandParamType.Text)],
+            BuildWslcArgs: p => WslcCommands.VolumeCreate(GetParam(p, "Name", "<name>")),
+            ExecuteAsync: async p => await App.ServiceClient.CreateVolumeAsync(GetParam(p, "Name"))),
+        new(
+            Name: "Remove-Volume",
+            DisplayName: "Remove Volume",
+            Category: "Volumes",
+            Description: "Delete a volume",
+            ApiTemplate: "DELETE /api/volumes/{Name}",
+            Parameters: [new("Name", "Name", CommandParamType.Text)],
+            BuildWslcArgs: p => WslcCommands.VolumeRemove(GetParam(p, "Name", "<name>")),
+            ExecuteAsync: async p => await App.ServiceClient.RemoveVolumeAsync(GetParam(p, "Name"))),
+        new(
+            Name: "Get-Networks",
+            DisplayName: "List Networks",
+            Category: "Networks",
+            Description: "List all networks",
+            ApiTemplate: "GET /api/networks",
+            Parameters: [],
+            BuildWslcArgs: _ => WslcCommands.NetworkLs(),
+            ExecuteAsync: async _ => await App.ServiceClient.GetNetworksAsync()),
+        new(
+            Name: "Create-Network",
+            DisplayName: "Create Network",
+            Category: "Networks",
+            Description: "Create a new network",
+            ApiTemplate: "POST /api/networks",
+            Parameters: [new("Name", "Name", CommandParamType.Text)],
+            BuildWslcArgs: p => WslcCommands.NetworkCreate(GetParam(p, "Name", "<name>")),
+            ExecuteAsync: async p => await App.ServiceClient.CreateNetworkAsync(GetParam(p, "Name"))),
+        new(
+            Name: "Remove-Network",
+            DisplayName: "Remove Network",
+            Category: "Networks",
+            Description: "Delete a network",
+            ApiTemplate: "DELETE /api/networks/{Name}",
+            Parameters: [new("Name", "Name", CommandParamType.Text)],
+            BuildWslcArgs: p => WslcCommands.NetworkRemove(GetParam(p, "Name", "<name>")),
+            ExecuteAsync: async p => await App.ServiceClient.RemoveNetworkAsync(GetParam(p, "Name")))
+    ];
+
+    private static readonly IReadOnlyDictionary<string, TerminalCommandMetadata> CommandDefinitionsByName =
+        CommandDefinitions.ToDictionary(cmd => cmd.Name, StringComparer.Ordinal);
 
     private void BuildCommandPreview()
     {
-        if (SelectedCommand is null || !CommandTemplates.TryGetValue(SelectedCommand.Name, out var template))
+        if (SelectedCommand is null || !CommandDefinitionsByName.TryGetValue(SelectedCommand.Name, out var commandDef))
         {
             CommandPreview = null;
             WslcCommandPreview = null;
             return;
         }
 
-        var result = template;
         var parameters = new Dictionary<string, string>();
         foreach (var pv in ParameterValues)
         {
             if (!string.IsNullOrWhiteSpace(pv.Value))
-            {
-                result = result.Replace("{" + pv.Name + "}", pv.Value);
                 parameters[pv.Name] = pv.Value;
-            }
-            else if (pv.Required)
-            {
-                result = result.Replace("{" + pv.Name + "}", $"<{pv.DisplayName}>");
-            }
-            else
-            {
-                result = result.Replace("{" + pv.Name + "}", "");
-            }
         }
+
+        var parametersByName = ParameterValues.ToDictionary(p => p.Name, StringComparer.Ordinal);
+        var result = ParamRegex.Replace(commandDef.ApiTemplate, match =>
+        {
+            var parameterName = match.Groups[1].Value;
+            if (parameters.TryGetValue(parameterName, out var value))
+                return value;
+
+            return parametersByName.TryGetValue(parameterName, out var parameter) && parameter.Required
+                ? $"<{parameter.DisplayName}>"
+                : string.Empty;
+        });
+
         CommandPreview = result;
-        WslcCommandPreview = BuildWslcCommandPreview(SelectedCommand.Name, parameters);
+        WslcCommandPreview = BuildWslcCommandPreview(commandDef, parameters);
     }
 
-    private static string? BuildWslcCommandPreview(string scriptName, Dictionary<string, string> parameters)
+    private static string? BuildWslcCommandPreview(TerminalCommandMetadata commandDef, IReadOnlyDictionary<string, string> parameters)
     {
-        var id = parameters.GetValueOrDefault("Id", "<id>");
-        var name = parameters.GetValueOrDefault("Name", "<name>");
-        var image = parameters.GetValueOrDefault("Image", "<image>");
-        var tail = parameters.GetValueOrDefault("Tail", "500");
-
-        var args = scriptName switch
-        {
-            "Get-Container" => WslcCommands.ContainerPs(),
-            "Start-Container" => WslcCommands.ContainerStart(id),
-            "Stop-Container" => WslcCommands.ContainerStop(id),
-            "Restart-Container" => WslcCommands.ContainerRestart(id),
-            "Remove-Container" => WslcCommands.ContainerRemove(id),
-            "Get-ContainerLogs" => int.TryParse(tail, out var tailValue)
-                ? WslcCommands.ContainerLogs(id, tailValue)
-                : WslcCommands.ContainerLogs(id),
-            "Get-Image" => WslcCommands.ImageLs(),
-            "Pull-Image" => WslcCommands.ImagePull(image),
-            "Remove-Image" => WslcCommands.ImageRemove(id),
-            "Get-Volumes" => WslcCommands.VolumeLs(),
-            "Create-Volume" => WslcCommands.VolumeCreate(name),
-            "Remove-Volume" => WslcCommands.VolumeRemove(name),
-            "Get-Networks" => WslcCommands.NetworkLs(),
-            "Create-Network" => WslcCommands.NetworkCreate(name),
-            "Remove-Network" => WslcCommands.NetworkRemove(name),
-            "Get-Version" => WslcCommands.Version(),
-            "Get-Health" => WslcCommands.Version(),
-            _ => null
-        };
+        var args = commandDef.BuildWslcArgs(parameters);
 
         return args is null ? null : $"wslc {args}";
     }
@@ -430,31 +563,21 @@ public partial class TerminalViewModel : ViewModelBase
 
     private async Task<string> ExecuteCommandAsync(string scriptName, Dictionary<string, string> parameters)
     {
-        return scriptName switch
-        {
-            "Get-Container" => await App.ServiceClient.GetContainersAsync(),
-            "Start-Container" => await App.ServiceClient.StartContainerAsync(GetParam(parameters, "Id")),
-            "Stop-Container" => await App.ServiceClient.StopContainerAsync(GetParam(parameters, "Id")),
-            "Restart-Container" => await App.ServiceClient.RestartContainerAsync(GetParam(parameters, "Id")),
-            "Remove-Container" => await App.ServiceClient.RemoveContainerAsync(GetParam(parameters, "Id")),
-            "Get-ContainerLogs" => await App.ServiceClient.GetContainerLogsAsync(GetParam(parameters, "Id"), 500),
-            "Get-Image" => await App.ServiceClient.GetImagesAsync(),
-            "Pull-Image" => await App.ServiceClient.PullImageAsync(GetParam(parameters, "Image")),
-            "Remove-Image" => await App.ServiceClient.RemoveImageAsync(GetParam(parameters, "Id")),
-            "Get-Volumes" => await App.ServiceClient.GetVolumesAsync(),
-            "Create-Volume" => await App.ServiceClient.CreateVolumeAsync(GetParam(parameters, "Name")),
-            "Remove-Volume" => await App.ServiceClient.RemoveVolumeAsync(GetParam(parameters, "Name")),
-            "Get-Networks" => await App.ServiceClient.GetNetworksAsync(),
-            "Create-Network" => await App.ServiceClient.CreateNetworkAsync(GetParam(parameters, "Name")),
-            "Remove-Network" => await App.ServiceClient.RemoveNetworkAsync(GetParam(parameters, "Name")),
-            "Get-Version" => await App.ServiceClient.GetVersionAsync(),
-            "Get-Health" => await App.ServiceClient.IsHealthyAsync().ContinueWith(t => t.Result ? "Healthy" : "Unhealthy"),
-            _ => throw new NotSupportedException($"Command '{scriptName}' is not supported via WSLC API")
-        };
+        if (!CommandDefinitionsByName.TryGetValue(scriptName, out var commandDef))
+            throw new NotSupportedException($"Command '{scriptName}' is not supported via WSLC API");
+
+        return await commandDef.ExecuteAsync(parameters);
     }
 
-    private static string GetParam(Dictionary<string, string> parameters, string key)
-        => parameters.TryGetValue(key, out var val) ? val : "";
+    private static string GetParam(IReadOnlyDictionary<string, string> parameters, string key, string fallback = "")
+        => parameters.TryGetValue(key, out var val) ? val : fallback;
+
+    private static int GetTailLines(IReadOnlyDictionary<string, string> parameters, int fallback)
+    {
+        return int.TryParse(GetParam(parameters, "Tail"), out var tail) && tail > 0
+            ? tail
+            : fallback;
+    }
 
     #endregion
 
@@ -464,121 +587,35 @@ public partial class TerminalViewModel : ViewModelBase
 
     private void BuildCommandList()
     {
-        var categories = new Dictionary<string, TerminalCategory>
+        Categories.Clear();
+        foreach (var group in CommandDefinitions.GroupBy(def => def.Category).OrderBy(group => group.Key))
         {
-            ["System"] = new() { Name = "System" },
-            ["Containers"] = new() { Name = "Containers" },
-            ["Images"] = new() { Name = "Images" },
-            ["Volumes"] = new() { Name = "Volumes" },
-            ["Networks"] = new() { Name = "Networks" }
-        };
-
-        var byCategory = new Dictionary<string, List<(string ScriptName, string DisplayName, string Desc)>>
-        {
-            ["System"] = new()
+            var cat = new TerminalCategory { Name = group.Key };
+            foreach (var commandDef in group)
             {
-                ("Get-Health", "Check Health", "Check if WSLC service is healthy"),
-                ("Get-Version", "Get Version", "Show WSLC runtime version")
-            },
-            ["Containers"] = new()
-            {
-                ("Get-Container", "List Containers", "List all containers"),
-                ("Start-Container", "Start Container", "Start a stopped container"),
-                ("Stop-Container", "Stop Container", "Stop a running container"),
-                ("Restart-Container", "Restart Container", "Restart a container"),
-                ("Remove-Container", "Remove Container", "Delete a container"),
-                ("Get-ContainerLogs", "Container Logs", "Show container logs")
-            },
-            ["Images"] = new()
-            {
-                ("Get-Image", "List Images", "List pulled images"),
-                ("Pull-Image", "Pull Image", "Download an image from a registry"),
-                ("Remove-Image", "Remove Image", "Delete an image from local storage")
-            },
-            ["Volumes"] = new()
-            {
-                ("Get-Volumes", "List Volumes", "List all volumes"),
-                ("Create-Volume", "Create Volume", "Create a new volume"),
-                ("Remove-Volume", "Remove Volume", "Delete a volume")
-            },
-            ["Networks"] = new()
-            {
-                ("Get-Networks", "List Networks", "List all networks"),
-                ("Create-Network", "Create Network", "Create a new network"),
-                ("Remove-Network", "Remove Network", "Delete a network")
-            }
-        };
-
-        var psParamNames = new Dictionary<string, string[]>
-        {
-            ["Get-Container"] = new[] { "Format" },
-            ["Start-Container"] = new[] { "Id" },
-            ["Stop-Container"] = new[] { "Id" },
-            ["Restart-Container"] = new[] { "Id" },
-            ["Remove-Container"] = new[] { "Id" },
-            ["Get-ContainerLogs"] = new[] { "Id", "Tail" },
-            ["Pull-Image"] = new[] { "Image" },
-            ["Remove-Image"] = new[] { "Id" },
-            ["Create-Volume"] = new[] { "Name" },
-            ["Remove-Volume"] = new[] { "Name" },
-            ["Create-Network"] = new[] { "Name" },
-            ["Remove-Network"] = new[] { "Name" }
-        };
-
-        var paramTypes = new Dictionary<string, CommandParamType>
-        {
-            ["Id"] = CommandParamType.ContainerId,
-            ["Image"] = CommandParamType.ImageName,
-            ["Format"] = CommandParamType.Format,
-            ["Name"] = CommandParamType.Text,
-            ["Tail"] = CommandParamType.Text
-        };
-
-        var displayNames = new Dictionary<string, string>
-        {
-            ["Format"] = "Output Format",
-            ["Id"] = "Container",
-            ["Image"] = "Image",
-            ["Name"] = "Name",
-            ["Tail"] = "Tail Lines"
-        };
-
-        foreach (var (catName, entries) in byCategory)
-        {
-            var category = categories[catName];
-
-            foreach (var (scriptName, displayName, desc) in entries)
-            {
-                var cmd = new TerminalCommand
+                var command = new TerminalCommand
                 {
-                    Name = scriptName,
-                    DisplayName = displayName,
-                    Category = catName,
-                    Description = desc,
-                    HasOutput = true
+                    Name = commandDef.Name,
+                    DisplayName = commandDef.DisplayName,
+                    Category = commandDef.Category,
+                    Description = commandDef.Description,
+                    HasOutput = true,
+                    Parameters = commandDef.Parameters
+                        .Select(parameter => new CommandParamDef
+                        {
+                            Name = parameter.Name,
+                            DisplayName = parameter.DisplayName,
+                            Type = parameter.Type,
+                            Required = parameter.Required
+                        })
+                        .ToList()
                 };
 
-                if (psParamNames.TryGetValue(scriptName, out var paramNames))
-                {
-                    foreach (var pn in paramNames)
-                    {
-                        cmd.Parameters.Add(new CommandParamDef
-                        {
-                            Name = pn,
-                            DisplayName = displayNames.GetValueOrDefault(pn, pn),
-                            Type = paramTypes.GetValueOrDefault(pn, CommandParamType.Text),
-                            Required = pn != "Format" && pn != "Tail"
-                        });
-                    }
-                }
-
-                category.Commands.Add(cmd);
+                cat.Commands.Add(command);
             }
-        }
 
-        Categories.Clear();
-        foreach (var (_, cat) in categories.OrderBy(kv => kv.Key))
             Categories.Add(cat);
+        }
     }
 
     private async Task<List<string>> FetchContainerIdsAsync()
