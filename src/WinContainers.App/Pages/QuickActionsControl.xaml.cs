@@ -183,6 +183,7 @@ public sealed partial class QuickActionsControl : UserControl
     {
         try
         {
+            MainWindow.Instance?.EnsureOutputPaneVisible();
             await _viewModel.CreateAndStartContainerAsync();
         }
         catch (Exception ex)

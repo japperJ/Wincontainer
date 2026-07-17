@@ -378,7 +378,7 @@ public sealed partial class MainWindow : Window
     private static string NormalizeCommandOutput(string output) =>
         output.Replace("\0", string.Empty, StringComparison.Ordinal).Trim();
 
-    private void EnsureOutputPaneVisible()
+    public void EnsureOutputPaneVisible()
     {
         if (_outputPaneState == OutputPaneState.Expanded)
         {
