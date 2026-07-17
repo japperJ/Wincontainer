@@ -235,7 +235,7 @@ public partial class ContainersViewModel : ViewModelBase
                 "Start" => await App.ServiceClient.StartContainerAsync(id),
                 "Stop" => await App.ServiceClient.StopContainerAsync(id),
                 "Remove" => await App.ServiceClient.RemoveContainerAsync(id),
-                "Rename" => null,
+                "Rename" => await RenameContainerAsync(id, newName),
                 _ => null
             };
 
@@ -249,6 +249,20 @@ public partial class ContainersViewModel : ViewModelBase
         }
 
         await RefreshAsync();
+    }
+
+    private async Task<string?> RenameContainerAsync(string id, string? newName)
+    {
+        var normalized = newName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return "Rename skipped: no new name provided.";
+
+        var container = _allContainers.FirstOrDefault(c => c.Id == id || c.Name == id);
+        if (container is null)
+            return $"Rename skipped: container '{id}' was not found.";
+
+        container.Name = normalized;
+        return await App.ServiceClient.RenameContainerAsync(container.Id, normalized);
     }
 
     public async Task RunGroupActionAsync(string action, ContainerGroup group)

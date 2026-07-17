@@ -67,6 +67,16 @@ public sealed class WslcServiceClient
     public async Task<string> RestartContainerAsync(string id)
         => await PostCommandAsync($"/api/containers/{id}/restart");
 
+    public async Task<string> RenameContainerAsync(string id, string name)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/containers/{id}/rename");
+        ApplyAuth(request);
+        request.Content = JsonContent.Create(new { name });
+        using var response = await _http.SendAsync(request);
+        var json = await response.Content.ReadAsStringAsync();
+        return ExtractField(json, "output") ?? json;
+    }
+
     public async Task<string> InspectContainerAsync(string id)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/containers/{id}/inspect");

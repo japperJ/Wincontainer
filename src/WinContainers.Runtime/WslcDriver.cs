@@ -39,6 +39,9 @@ public sealed class WslcDriver : IDisposable
     public Task<string> RestartContainerAsync(string id, CancellationToken ct) =>
         RunAndCaptureAsync(WslcCommands.ContainerRestart(id), DefaultTimeoutMs, ct);
 
+    public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) =>
+        RunAndCaptureAsync(WslcCommands.ContainerRename(id, name), DefaultTimeoutMs, ct);
+
     public Task<string> RemoveContainerAsync(string id, CancellationToken ct) =>
         RunAndCaptureAsync(WslcCommands.ContainerRemove(id), DefaultTimeoutMs, ct);
 
