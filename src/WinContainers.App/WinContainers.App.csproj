@@ -17,6 +17,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>13</LangVersion>
     <NoWarn>$(NoWarn);CS8618;CS8602;CS8601;CS8604;CS1061;WMC9999</NoWarn>
+    <WinUIBuildToolsVersion Condition="'$(WinUIBuildToolsVersion)' == ''">2.1.0</WinUIBuildToolsVersion>
+    <WinUIBuildToolsDir Condition="'$(WinUIBuildToolsDir)' == ''">$(NuGetPackageRoot)microsoft.windowsappsdk.winui\$(WinUIBuildToolsVersion)\tools\net472</WinUIBuildToolsDir>
   </PropertyGroup>
 
 
@@ -114,5 +116,6 @@
   </PropertyGroup>
   <UsingTask TaskName="WinContainers.Build.FixCulture" AssemblyFile="$(MSBuildThisFileDirectory)..\BuildTasks\bin\$(Configuration)\netstandard2.0\BuildTasks.dll" />
   <Target Name="_FixXamlCulture" BeforeTargets="MarkupCompilePass1;MarkupCompilePass2;DesignTimeMarkupCompilation">
-    <FixCulture ToolsDir="C:\Users\jptrs\.nuget\packages\microsoft.windowsappsdk.winui\2.1.0\tools\net472" />
-  </Target></Project>
+    <FixCulture ToolsDir="$(WinUIBuildToolsDir)" />
+  </Target>
+</Project>
