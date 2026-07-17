@@ -306,12 +306,6 @@ public partial class ContainersViewModel : ViewModelBase
         _navigation.NavigateTo<ContainerDetailPage>(entry);
     }
 
-    public void NavigateToGroupLog(ContainerGroup group)
-    {
-        _output.Write($"Opening group log: {group.DisplayName} ({group.Containers.Count} containers)");
-        _navigation.NavigateTo<GroupLogPage>(group);
-    }
-
     public void StartPolling()
     {
         if (_pollCts is not null) return;

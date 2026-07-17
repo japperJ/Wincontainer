@@ -143,12 +143,6 @@ public sealed partial class ContainersControl : UserControl
         await _viewModel.RunGroupActionAsync("Remove", group);
     }
 
-    private void GroupLogs_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: ContainerGroup group })
-            _viewModel.NavigateToGroupLog(group);
-    }
-
     private void ContainerRow_Tapped(object sender, TappedRoutedEventArgs e)
     {
         var original = e.OriginalSource as DependencyObject;
