@@ -16,7 +16,7 @@ public sealed partial class ContainerCardData : ObservableObject
     public string Name
     {
         get => _name;
-        set => SetProperty(ref _name, value);
+        set => SetProperty(ref _name, value ?? string.Empty);
     }
     public bool IsInGroup { get; set; }
 
