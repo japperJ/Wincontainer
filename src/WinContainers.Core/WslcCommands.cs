@@ -12,6 +12,8 @@ public static class WslcCommands
 
     public static string ContainerRestart(string id) => $"container restart {Quote(id)}";
 
+    public static string ContainerRename(string id, string name) => $"container rename {Quote(id)} {Quote(name)}";
+
     public static string ContainerRemove(string id) => $"container rm {Quote(id)}";
 
     public static string ContainerKill(string id) => $"container kill {Quote(id)}";

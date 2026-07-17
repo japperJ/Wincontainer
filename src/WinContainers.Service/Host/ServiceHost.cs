@@ -85,6 +85,9 @@ public static class ServiceHost
         app.MapPost("/api/containers/{id}/restart", async (string id, CancellationToken ct) =>
             Results.Ok(new { output = await driver.RestartContainerAsync(id, ct) }));
 
+        app.MapPost("/api/containers/{id}/rename", async (string id, RenameContainerRequest request, CancellationToken ct) =>
+            Results.Ok(new { output = await driver.RenameContainerAsync(id, request.Name, ct) }));
+
         app.MapDelete("/api/containers/{id}", async (string id, CancellationToken ct) =>
             Results.Ok(new { output = await driver.RemoveContainerAsync(id, ct) }));
 
@@ -144,6 +147,7 @@ public static class ServiceHost
 
 public sealed record PullImageRequest(string Image);
 public sealed record RunContainerRequest(string Image, string? Name, List<string>? Ports, List<string>? Volumes, List<string>? Env, string? Restart);
+public sealed record RenameContainerRequest(string Name);
 public sealed record CreateVolumeRequest(string Name);
 public sealed record CreateNetworkRequest(string Name);
 public sealed record ExecCommandRequest(string Command, bool UseShell = false, string? Shell = null);
