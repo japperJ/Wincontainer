@@ -5,6 +5,7 @@ using Velopack;
 using WinContainers_App.Pages;
 using WinContainers_App.Services;
 using WinContainers_App.ViewModels;
+using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Service.Host;
 
@@ -81,7 +82,7 @@ public partial class App : Application
         {
             try
             {
-                ServiceClient = new WslcServiceClient("http://127.0.0.1:5123");
+                ServiceClient = new WslcServiceClient(ServiceEndpointResolver.Resolve());
                 ServiceHost.Build([]).Run();
             }
             catch (Exception ex)
