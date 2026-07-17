@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using WinContainers.Core;
@@ -16,8 +17,9 @@ public sealed class WslcDriver : IDisposable
             var result = await RunAsync("--version", DefaultTimeoutMs, ct);
             return result.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            Trace.WriteLine($"[WslcDriver] IsAvailableAsync failed: {ex}");
             return false;
         }
     }
@@ -148,8 +150,19 @@ public sealed class WslcDriver : IDisposable
 
     private static void TryKill(Process process)
     {
-        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
-        catch { }
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Trace.WriteLine($"[WslcDriver] Process kill skipped: {ex.Message}");
+        }
+        catch (Win32Exception ex)
+        {
+            Trace.WriteLine($"[WslcDriver] Process kill failed: {ex.Message}");
+        }
     }
 
     public void Dispose() { }

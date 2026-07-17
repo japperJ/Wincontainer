@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using WinContainers.Runtime.Models;
+using WinContainers_App.Services;
 using WinContainers_App.ViewModels;
 
 namespace WinContainers_App.Pages;
@@ -132,7 +133,14 @@ public sealed partial class TerminalPage : Page
 
     private void RebuildHistory()
     {
-        try { HistoryList.Items.Clear(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        try
+        {
+            HistoryList.Items.Clear();
+        }
+        catch (Exception ex)
+        {
+            OutputService.Instance.Write($"Failed to clear terminal history UI list: {ex.Message}", WinContainers_App.Services.LogLevel.Warning);
+        }
 
         foreach (var entry in _viewModel.History)
         {

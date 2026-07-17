@@ -37,7 +37,10 @@ public sealed class ContainerService
                 }
             }
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (JsonException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ContainerService] ParseFileEntries JSON parse failed: {ex.Message}");
+        }
 
         return entries.OrderBy(e => e.Type != "dir" ? 1 : 0)
                       .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)

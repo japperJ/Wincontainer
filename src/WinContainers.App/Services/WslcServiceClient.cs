@@ -32,7 +32,11 @@ public sealed class WslcServiceClient
             using var response = await _http.SendAsync(request);
             return response.IsSuccessStatusCode;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WslcServiceClient] IsHealthyAsync failed: {ex}");
+            return false;
+        }
     }
 
     public async Task<string> GetVersionAsync()
@@ -199,7 +203,10 @@ public sealed class WslcServiceClient
                 el.ValueKind == JsonValueKind.String)
                 return el.GetString();
         }
-        catch { }
+        catch (JsonException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WslcServiceClient] ExtractField('{field}') parse failed: {ex.Message}");
+        }
         return null;
     }
 }

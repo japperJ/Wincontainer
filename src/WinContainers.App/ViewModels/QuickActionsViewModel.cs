@@ -991,7 +991,10 @@ public partial class QuickActionsViewModel : ViewModelBase
                     var inspectOutput = await App.ServiceClient.InspectContainerAsync(container.Id);
                     usedMounts.AddRange(WslcContainerParser.ParseMountsFromInspect(inspectOutput ?? ""));
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _output.Write($"Mount conflict check skipped for '{container.Name}': {ex.Message}", ServiceLogLevel.Warning);
+                }
             }
 
             // Fallback to any mounts already present in the ps output

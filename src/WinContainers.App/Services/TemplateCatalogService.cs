@@ -109,10 +109,13 @@ public sealed class TemplateCatalogService
                 _output.Write($"Template catalog refreshed ({remote.Count} templates)");
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _output.Write($"Background template refresh failed: {ex.Message}", SvcLogLevel.Warning);
+        }
     }
 
-    private static async Task<List<TemplateCatalogEntry>?> TryFetchFromRemoteAsync()
+    private async Task<List<TemplateCatalogEntry>?> TryFetchFromRemoteAsync()
     {
         try
         {
@@ -122,12 +125,12 @@ public sealed class TemplateCatalogService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Template fetch failed: {ex.Message}");
+            _output.Write($"Template fetch failed: {ex.Message}", SvcLogLevel.Warning);
             return null;
         }
     }
 
-    private static async Task<List<TemplateCatalogEntry>?> TryLoadFromCacheAsync()
+    private async Task<List<TemplateCatalogEntry>?> TryLoadFromCacheAsync()
     {
         try
         {
@@ -141,13 +144,14 @@ public sealed class TemplateCatalogService
             var yaml = await FileIO.ReadTextAsync((StorageFile)file);
             return ParseYaml(yaml);
         }
-        catch
+        catch (Exception ex)
         {
+            _output.Write($"Template cache read failed: {ex.Message}", SvcLogLevel.Warning);
             return null;
         }
     }
 
-    private static async Task SaveToCacheAsync(List<TemplateCatalogEntry> templates)
+    private async Task SaveToCacheAsync(List<TemplateCatalogEntry> templates)
     {
         try
         {
@@ -159,7 +163,10 @@ public sealed class TemplateCatalogService
                 CacheFileName, CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteTextAsync(file, yaml);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _output.Write($"Template cache write failed: {ex.Message}", SvcLogLevel.Warning);
+        }
     }
 
     private static List<TemplateCatalogEntry>? ParseYaml(string yaml)
