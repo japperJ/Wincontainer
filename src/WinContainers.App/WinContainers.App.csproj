@@ -16,7 +16,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>13</LangVersion>
-    <NoWarn>$(NoWarn);CS8618;CS8602;CS8601;CS8604;CS0169;CS0414;CS0649;CS1061;WMC9999</NoWarn>
+    <NoWarn>$(NoWarn);CS8618;CS8602;CS8601;CS8604;CS1061;WMC9999</NoWarn>
   </PropertyGroup>
 
 

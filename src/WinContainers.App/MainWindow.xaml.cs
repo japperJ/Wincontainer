@@ -24,7 +24,6 @@ public sealed partial class MainWindow : Window
 
     private readonly INavigationService _navigation;
     private readonly IOutputService _output;
-    private bool _trayMode;
     private nint _mainHwnd;
 
     public MainWindow()
@@ -54,21 +53,18 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += (_, args) =>
         {
             args.Cancel = true;
-            _trayMode = true;
             ShowWindow(hwnd, SW_HIDE);
             _output.Write("WinContainers minimized to tray. Right-click the tray icon to exit.", LogLevel.Info);
         };
 
         TrayService.ShowWindowRequested += () => DispatcherQueue.TryEnqueue(() =>
         {
-            _trayMode = false;
             ShowWindow(_mainHwnd, SW_SHOW);
             Activate();
         });
 
         TrayService.ExitRequested += () => DispatcherQueue.TryEnqueue(() =>
         {
-            _trayMode = false;
             TrayService.Stop();
             Application.Current.Exit();
         });
