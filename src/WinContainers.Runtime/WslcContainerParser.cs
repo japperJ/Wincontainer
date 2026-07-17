@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using WinContainers.Runtime.Models;
 
@@ -29,7 +30,10 @@ public static class WslcContainerParser
                 return entries;
             }
         }
-        catch { }
+        catch (JsonException ex)
+        {
+            Trace.WriteLine($"[WslcContainerParser] ParseContainers failed, falling back to line parsing: {ex.Message}");
+        }
 
         // wslc container ps outputs newline-delimited JSON objects
         foreach (var line in rawOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -40,7 +44,10 @@ public static class WslcContainerParser
                 if (doc.RootElement.ValueKind == JsonValueKind.Object)
                     entries.Add(ParseContainer(doc.RootElement));
             }
-            catch { }
+            catch (JsonException ex)
+            {
+                Trace.WriteLine($"[WslcContainerParser] Skipping malformed container line: {ex.Message}");
+            }
         }
 
         return entries;
@@ -102,7 +109,10 @@ public static class WslcContainerParser
                 return entries;
             }
         }
-        catch { }
+        catch (JsonException ex)
+        {
+            Trace.WriteLine($"[WslcContainerParser] ParseImages failed, falling back to line parsing: {ex.Message}");
+        }
 
         // wslc image ls outputs newline-delimited JSON objects
         foreach (var line in rawOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -113,7 +123,10 @@ public static class WslcContainerParser
                 if (doc.RootElement.ValueKind == JsonValueKind.Object)
                     entries.Add(ParseImage(doc.RootElement));
             }
-            catch { }
+            catch (JsonException ex)
+            {
+                Trace.WriteLine($"[WslcContainerParser] Skipping malformed image line: {ex.Message}");
+            }
         }
 
         return entries;
@@ -233,7 +246,10 @@ public static class WslcContainerParser
             if (root.ValueKind == JsonValueKind.Object)
                 mounts.AddRange(GetMounts(root));
         }
-        catch { }
+        catch (JsonException ex)
+        {
+            Trace.WriteLine($"[WslcContainerParser] ParseMountsFromInspect failed: {ex.Message}");
+        }
 
         return mounts;
     }

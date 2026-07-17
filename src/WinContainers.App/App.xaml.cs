@@ -113,7 +113,10 @@ public partial class App : Application
             System.Diagnostics.Debug.WriteLine($"UnhandledException: {e.Exception}");
             OutputService.Instance?.Write($"UnhandledException: {e.Exception}", WinContainers_App.Services.LogLevel.Error);
         }
-        catch { }
+        catch (Exception logEx)
+        {
+            System.Diagnostics.Debug.WriteLine($"UnhandledException logging failed: {logEx}");
+        }
         e.Handled = true;
     }
 }

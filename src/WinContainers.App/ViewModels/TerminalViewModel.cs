@@ -373,6 +373,7 @@ public partial class TerminalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            _output.Write($"Run command failed: {ex}", ServiceLogLevel.Warning);
             OutputText = $"Error: {ex.GetType().Name}: {ex.Message}";
         }
         finally
@@ -404,6 +405,7 @@ public partial class TerminalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            _output.Write($"Re-run command failed: {ex}", ServiceLogLevel.Warning);
             OutputText = $"Error: {ex.GetType().Name}: {ex.Message}";
         }
         finally
@@ -579,7 +581,7 @@ public partial class TerminalViewModel : ViewModelBase
             Categories.Add(cat);
     }
 
-    private static async Task<List<string>> FetchContainerIdsAsync()
+    private async Task<List<string>> FetchContainerIdsAsync()
     {
         try
         {
@@ -587,10 +589,14 @@ public partial class TerminalViewModel : ViewModelBase
             var containers = WslcContainerParser.ParseContainers(output ?? "");
             return containers.Select(c => c.Name).ToList();
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); return new(); }
+        catch (Exception ex)
+        {
+            _output.Write($"Failed to load container IDs for terminal dropdown: {ex.Message}", ServiceLogLevel.Warning);
+            return new();
+        }
     }
 
-    private static async Task<List<string>> FetchImageNamesAsync()
+    private async Task<List<string>> FetchImageNamesAsync()
     {
         try
         {
@@ -600,7 +606,11 @@ public partial class TerminalViewModel : ViewModelBase
                 ? i.Repository
                 : $"{i.Repository}:{i.Tag}").ToList();
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); return new(); }
+        catch (Exception ex)
+        {
+            _output.Write($"Failed to load image names for terminal dropdown: {ex.Message}", ServiceLogLevel.Warning);
+            return new();
+        }
     }
 
     #endregion

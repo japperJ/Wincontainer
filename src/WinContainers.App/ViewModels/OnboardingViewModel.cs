@@ -328,7 +328,14 @@ public partial class OnboardingViewModel : ViewModelBase
                     process.Kill(entireProcessTree: true);
                 }
             }
-            catch { }
+            catch (InvalidOperationException ex)
+            {
+                Debug.WriteLine($"[Onboarding] Timed-out process already exited: {ex.Message}");
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                Debug.WriteLine($"[Onboarding] Failed to kill timed-out process: {ex.Message}");
+            }
 
             return (-1, $"Command timed out after {timeoutSeconds} seconds.");
         }
@@ -396,7 +403,14 @@ public partial class OnboardingViewModel : ViewModelBase
                 if (!process.HasExited)
                     process.Kill(entireProcessTree: true);
             }
-            catch { }
+            catch (InvalidOperationException ex)
+            {
+                Debug.WriteLine($"[Onboarding] Elevated timed-out process already exited: {ex.Message}");
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                Debug.WriteLine($"[Onboarding] Failed to kill elevated timed-out process: {ex.Message}");
+            }
 
             return (-1, $"Command timed out after {timeoutSeconds} seconds.");
         }
@@ -408,11 +422,27 @@ public partial class OnboardingViewModel : ViewModelBase
             ? (string.IsNullOrEmpty(stderr) ? stdout : $"{stdout}\n{stderr}")
             : logOutput;
 
-        try { File.Delete(scriptPath); } catch { }
-        try { File.Delete(launcherPath); } catch { }
-        try { File.Delete(logPath); } catch { }
+        TryDeleteTempFile(scriptPath);
+        TryDeleteTempFile(launcherPath);
+        TryDeleteTempFile(logPath);
 
         return (process.ExitCode, combined.Trim());
+    }
+
+    private static void TryDeleteTempFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException ex)
+        {
+            Debug.WriteLine($"[Onboarding] Failed to delete temp file '{path}': {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Debug.WriteLine($"[Onboarding] No permission to delete temp file '{path}': {ex.Message}");
+        }
     }
 
     private static string EscapePowerShellString(string value) =>

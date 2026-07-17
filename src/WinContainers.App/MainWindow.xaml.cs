@@ -364,7 +364,14 @@ public sealed partial class MainWindow : Window
                     process.Kill(entireProcessTree: true);
                 }
             }
-            catch { }
+            catch (InvalidOperationException ex)
+            {
+                Debug.WriteLine($"[MainWindow] Timed-out process already exited: {ex.Message}");
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                Debug.WriteLine($"[MainWindow] Failed to kill timed-out process: {ex.Message}");
+            }
 
             return (-1, $"Command timed out after {timeoutSeconds} seconds.");
         }
@@ -378,7 +385,7 @@ public sealed partial class MainWindow : Window
     private static string NormalizeCommandOutput(string output) =>
         output.Replace("\0", string.Empty, StringComparison.Ordinal).Trim();
 
-    private void EnsureOutputPaneVisible()
+    public void EnsureOutputPaneVisible()
     {
         if (_outputPaneState == OutputPaneState.Expanded)
         {
