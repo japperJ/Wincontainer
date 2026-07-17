@@ -27,5 +27,11 @@
         <PivotItem Header="Compose">
             <local:ComposeControl x:Name="ComposeContent" />
         </PivotItem>
+        <PivotItem Header="Volumes">
+            <local:ResourcesControl x:Name="VolumesContent" ResourceType="Volumes" />
+        </PivotItem>
+        <PivotItem Header="Networks">
+            <local:ResourcesControl x:Name="NetworksContent" ResourceType="Networks" />
+        </PivotItem>
     </Pivot>
 </Page>

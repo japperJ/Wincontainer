@@ -192,6 +192,50 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcResourceParser_ShouldParseVolumeList()
+    {
+        const string output = "DRIVER VOLUME NAME\nlocal app-data\nlocal cache";
+
+        var volumes = WslcResourceParser.ParseVolumes(output);
+
+        volumes.Select(v => v.Name).Should().Equal("app-data", "cache");
+    }
+
+    [Fact]
+    public void WslcResourceParser_ShouldParseJsonVolumeList()
+    {
+        const string output = "{\"Driver\":\"local\",\"Name\":\"app-data\",\"Mountpoint\":\"/var/lib/volumes/app-data/_data\",\"Scope\":\"local\"}\n" +
+            "{\"Driver\":\"local\",\"Name\":\"cache\",\"Mountpoint\":\"/var/lib/volumes/cache/_data\",\"Scope\":\"local\"}";
+
+        var volumes = WslcResourceParser.ParseVolumes(output);
+
+        volumes.Select(v => v.Name).Should().Equal("app-data", "cache");
+    }
+
+    [Fact]
+    public void WslcResourceParser_ShouldParseNetworkList()
+    {
+        const string output = "NETWORK ID NAME DRIVER SCOPE\nabc123 bridge bridge local\ndef456 app-net bridge local";
+
+        var networks = WslcResourceParser.ParseNetworks(output);
+
+        networks.Select(n => n.Name).Should().Equal("bridge", "app-net");
+        networks[0].Details.Should().Contain("abc123");
+    }
+
+    [Fact]
+    public void WslcResourceParser_ShouldProtectBuiltInNetworks()
+    {
+        const string output = "{\"ID\":\"\",\"Name\":\"bridge\",\"Labels\":\"\"}\n" +
+            "{\"ID\":\"custom\",\"Name\":\"app-net\",\"Labels\":\"\"}";
+
+        var networks = WslcResourceParser.ParseNetworks(output);
+
+        networks.Single(n => n.Name == "bridge").CanDelete.Should().BeFalse();
+        networks.Single(n => n.Name == "app-net").CanDelete.Should().BeTrue();
+    }
+
+    [Fact]
     public void WslcCommands_ShouldGenerateContainerExecCommands()
     {
         WslcCommands.ContainerExecCommand("abc", "ls -lap /")
