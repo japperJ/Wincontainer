@@ -54,7 +54,6 @@ public partial class App : Application
         services.AddTransient<TerminalViewModel>();
         services.AddSingleton<QuickActionsViewModel>();
         services.AddTransient<OverviewViewModel>();
-        services.AddTransient<GroupLogViewModel>();
         services.AddTransient<OnboardingViewModel>();
 
         Services = services.BuildServiceProvider();

@@ -7,4 +7,5 @@ obj/
 *.pfx
 WinContainer*.iso
 release/
+publish/
 tools/WinContainers-dev.pfx

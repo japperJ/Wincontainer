@@ -85,7 +85,6 @@
                                         <Button Content="■" Click="StopGroup_Click" AutomationProperties.Name="Stop all in group" Width="36" />
                                         <Button Content="✕" Click="RemoveGroup_Click" AutomationProperties.Name="Remove all in group" Width="36" />
                                         <Button Content="✎" Click="GroupRename_Click" AutomationProperties.Name="Rename group" Width="36" />
-                                        <Button Content="≡" Click="GroupLogs_Click" AutomationProperties.Name="View group logs" ToolTipService.ToolTip="View all logs" Width="36" />
                                     </StackPanel>
                                 </Grid>
                             </Button>
