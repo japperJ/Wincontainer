@@ -7,6 +7,8 @@ namespace WinContainers.Runtime.Models;
 
 public sealed record PortLinkItem(string Url, string Detail);
 
+public sealed record MountInfo(string Source, string Target);
+
 public sealed partial class ContainerCardData : ObservableObject
 {
     public string Id { get; set; } = string.Empty;
@@ -57,6 +59,7 @@ public sealed partial class ContainerCardData : ObservableObject
         && !Status.StartsWith("Running", StringComparison.OrdinalIgnoreCase);
 
     public Dictionary<string, string>? Labels { get; set; }
+    public List<MountInfo> MountInfos { get; set; } = [];
 
     public string? ProjectName
     {
