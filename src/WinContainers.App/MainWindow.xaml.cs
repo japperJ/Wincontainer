@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Input;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Windows.Graphics;
+using WinContainers.Core;
 using WinContainers_App.Pages;
 using WinContainers_App.Services;
 using WinContainers_App.ViewModels;
@@ -255,7 +256,7 @@ public sealed partial class MainWindow : Window
             EnsureOutputPaneVisible();
             _output.Write("Checking WSLC version...");
             var version = await App.ServiceClient.GetVersionAsync();
-            _output.Write($"WSLC: {FormatWslcVersion(version)}");
+            _output.Write($"WSLC: {WslcVersionFormatter.Format(version)}");
         };
         stack.Children.Add(versionBtn);
 
@@ -392,21 +393,4 @@ public sealed partial class MainWindow : Window
         ToolTipService.SetToolTip(ToggleBottomPaneButton, "Hide output pane");
     }
 
-    private static string FormatWslcVersion(string version)
-    {
-        // wslc --version currently prints:
-        //   wslc compatibility bridge (nerdctl backend)
-        //   nerdctl version 2.3.1
-        // We prefer a clean "version X.Y.Z" message.
-        foreach (var line in version.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith("nerdctl version", StringComparison.OrdinalIgnoreCase))
-            {
-                return trimmed["nerdctl version".Length..].Trim();
-            }
-        }
-
-        return version;
-    }
 }

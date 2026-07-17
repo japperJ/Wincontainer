@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using WinContainers.Core;
 using WinContainers_App.Services;
 using LogLevel = WinContainers_App.Services.LogLevel;
 
@@ -149,24 +150,8 @@ public partial class OnboardingViewModel : ViewModelBase
         }
     }
 
-    private static string FormatWslcStatus(string output)
-    {
-        // wslc --version currently prints:
-        //   wslc compatibility bridge (nerdctl backend)
-        //   nerdctl version 2.3.1
-        // We prefer a clean "WSLC version X.Y.Z" message.
-        foreach (var line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith("nerdctl version", StringComparison.OrdinalIgnoreCase))
-            {
-                var version = trimmed["nerdctl version".Length..].Trim();
-                return $"WSLC is installed: version {version}";
-            }
-        }
-
-        return "WSLC is installed";
-    }
+    private static string FormatWslcStatus(string output) =>
+        $"WSLC is installed: version {WslcVersionFormatter.Format(output)}";
 
     private async Task CheckVirtualizationAsync()
     {
