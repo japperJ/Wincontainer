@@ -9,6 +9,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/WinContainers.Tests.Integration/WinContainers.Tests.Integration.csproj" />
     <Project Path="tests/WinContainers.Tests.Playwright/WinContainers.Tests.Playwright.csproj" />
+    <Project Path="tests/WinContainers.Tests.Ui/WinContainers.Tests.Ui.csproj" />
     <Project Path="tests/WinContainers.Tests.Unit/WinContainers.Tests.Unit.csproj" />
   </Folder>
 </Solution>
