@@ -1,4 +1,5 @@
 using WinContainers.Core;
+using WinContainers.Core.Models;
 using WinContainers_App.Services;
 
 namespace WinContainers_App.ViewModels;
