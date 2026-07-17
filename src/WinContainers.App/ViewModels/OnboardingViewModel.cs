@@ -140,13 +140,32 @@ public partial class OnboardingViewModel : ViewModelBase
             var result = await RunPowerShellCommandAsync("wslc --version");
             var output = NormalizeCommandOutput(result.Output);
             WslcAvailable = result.ExitCode == 0;
-            WslcStatus = WslcAvailable ? $"WSLC is installed: {output}" : $"WSLC is not installed ({output})";
+            WslcStatus = WslcAvailable ? FormatWslcStatus(output) : $"WSLC is not installed ({output})";
         }
         catch
         {
             WslcAvailable = false;
             WslcStatus = "WSLC is not available";
         }
+    }
+
+    private static string FormatWslcStatus(string output)
+    {
+        // wslc --version currently prints:
+        //   wslc compatibility bridge (nerdctl backend)
+        //   nerdctl version 2.3.1
+        // We prefer a clean "WSLC version X.Y.Z" message.
+        foreach (var line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("nerdctl version", StringComparison.OrdinalIgnoreCase))
+            {
+                var version = trimmed["nerdctl version".Length..].Trim();
+                return $"WSLC is installed: version {version}";
+            }
+        }
+
+        return "WSLC is installed";
     }
 
     private async Task CheckVirtualizationAsync()

@@ -6,6 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $solutionDir = Split-Path $PSScriptRoot -Parent
+$solutionFile = Join-Path $solutionDir "WinContainers.slnx"
 $appProject = Join-Path $solutionDir "src\WinContainers.App\WinContainers.App.csproj"
 
 # Default PFX path if not specified
@@ -26,7 +27,7 @@ if ($LASTEXITCODE -ne 0) { throw "BuildTasks build failed" }
 
 # 2. Restore + Build solution
 Write-Host "--- Step 2: Building solution ---" -ForegroundColor Yellow
-dotnet build $solutionDir -c $Configuration --nologo -v q
+dotnet build $solutionFile -c $Configuration --nologo -v q
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
 # 3. Publish self-contained folder (required for reliable WinUI 3 unpackaged deployment)
