@@ -31,5 +31,6 @@ jobs:
       - name: Run Playwright tests
         run: dotnet test tests/WinContainers.Tests.Playwright/WinContainers.Tests.Playwright.csproj -c Debug --no-build
 
-      - name: Run UI tests
-        run: dotnet test tests/WinContainers.Tests.Ui/WinContainers.Tests.Ui.csproj -c Debug --no-build
+      # UI tests require WinAppDriver (port 4723) which is not available on GitHub-hosted runners.
+      # - name: Run UI tests
+      #   run: dotnet test tests/WinContainers.Tests.Ui/WinContainers.Tests.Ui.csproj -c Debug --no-build
