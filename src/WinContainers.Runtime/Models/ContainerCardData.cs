@@ -12,7 +12,12 @@ public sealed record MountInfo(string Source, string Target);
 public sealed partial class ContainerCardData : ObservableObject
 {
     public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
+    private string _name = string.Empty;
+    public string Name
+    {
+        get => _name;
+        set => SetProperty(ref _name, value);
+    }
     public bool IsInGroup { get; set; }
 
     private string _status = string.Empty;

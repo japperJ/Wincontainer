@@ -22,6 +22,7 @@ public partial class ContainersViewModel : ViewModelBase
     private readonly HashSet<string> _expandedProjects = [];
 
     private readonly Dictionary<string, string> _projectDisplayNames = [];
+    private readonly Dictionary<string, string> _containerDisplayNames = [];
 
     private CancellationTokenSource? _pollCts;
 
@@ -112,6 +113,7 @@ public partial class ContainersViewModel : ViewModelBase
             }
 
             _allContainers = combined;
+            ApplyContainerDisplayNames(_allContainers);
             App.DispatcherQueue.TryEnqueue(() =>
             {
                 RebuildGroupedList();
@@ -235,7 +237,7 @@ public partial class ContainersViewModel : ViewModelBase
                 "Start" => await App.ServiceClient.StartContainerAsync(id),
                 "Stop" => await App.ServiceClient.StopContainerAsync(id),
                 "Remove" => await App.ServiceClient.RemoveContainerAsync(id),
-                "Rename" => null,
+                "Rename" => RenameContainerAsync(id, newName),
                 _ => null
             };
 
@@ -249,6 +251,39 @@ public partial class ContainersViewModel : ViewModelBase
         }
 
         await RefreshAsync();
+    }
+
+    private string? RenameContainerAsync(string id, string? newName)
+    {
+        var normalized = newName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return "Rename skipped: no new name provided.";
+
+        var container = _allContainers.FirstOrDefault(c => c.Id == id || c.Name == id);
+        if (container is null)
+            return $"Rename skipped: container '{id}' was not found.";
+
+        _containerDisplayNames[container.Id] = normalized;
+        container.Name = normalized;
+        _output.Write($"Renamed container display name '{container.Id}' -> '{normalized}' (UI-only).");
+        return $"Display name updated to '{normalized}'.";
+    }
+
+    private void ApplyContainerDisplayNames(List<ContainerCardData> containers)
+    {
+        var activeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var container in containers)
+        {
+            activeIds.Add(container.Id);
+            if (_containerDisplayNames.TryGetValue(container.Id, out var displayName) &&
+                !string.IsNullOrWhiteSpace(displayName))
+            {
+                container.Name = displayName;
+            }
+        }
+
+        foreach (var staleId in _containerDisplayNames.Keys.Where(id => !activeIds.Contains(id)).ToList())
+            _containerDisplayNames.Remove(staleId);
     }
 
     public async Task RunGroupActionAsync(string action, ContainerGroup group)
