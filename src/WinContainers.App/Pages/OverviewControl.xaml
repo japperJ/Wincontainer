@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="WinContainers_App.Pages.OverviewControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Spacing="16">
+            <Border Padding="24" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Runtime status" Style="{StaticResource TitleTextBlockStyle}" />
+                    <Grid ColumnSpacing="24" RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Ellipse Grid.Row="0" Grid.Column="0" x:Name="StatusDot" Width="12" Height="12" Fill="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="StatusText" Text="Checking..." Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+
+                        <Ellipse Grid.Row="1" Grid.Column="0" Width="12" Height="12" Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ContainerCountText" Text="Containers: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+
+                        <Ellipse Grid.Row="2" Grid.Column="0" Width="12" Height="12" Fill="{ThemeResource SystemFillColorAttentionBrush}" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="RunningCountText" Text="Running: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+
+                        <Ellipse Grid.Row="0" Grid.Column="2" Width="12" Height="12" Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Row="0" Grid.Column="3" x:Name="WslcVersionText" Text="WSLC: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+
+                        <Ellipse Grid.Row="1" Grid.Column="2" Width="12" Height="12" Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Row="1" Grid.Column="3" x:Name="ImageCountText" Text="Images: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Padding="24" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Visibility="Collapsed" x:Name="SetupHintCard">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Getting started" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBlock Text="WSLC runtime is not available yet." TextWrapping="Wrap" />
+                    <TextBlock x:Name="SetupHintText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

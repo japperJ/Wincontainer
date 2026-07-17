@@ -1,0 +1,2 @@
+2026-07-15 19:41:44.560 WARNING (Recorder) [homeassistant.components.recorder.util] The system could not validate that the sqlite3 database at //config/home-assistant_v2.db was shutdown cleanly
+2026-07-15 19:41:44.654 WARNING (Recorder) [homeassistant.components.recorder.util] Ended unfinished session (id=1 from 2026-07-09 17:38:31.138183)

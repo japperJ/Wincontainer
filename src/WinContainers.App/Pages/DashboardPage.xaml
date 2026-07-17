@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="WinContainers_App.Pages.DashboardPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:WinContainers_App.Pages"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Pivot x:Name="DashboardPivot" Padding="24,16,24,0">
+        <PivotItem x:Name="OverviewTab" Header="Overview">
+            <local:OverviewControl x:Name="OverviewContent" />
+        </PivotItem>
+        <PivotItem Header="Containers">
+            <local:ContainersControl x:Name="ContainersContent" />
+        </PivotItem>
+        <PivotItem Header="Images">
+            <local:ImagesPage x:Name="ImagesContent" />
+        </PivotItem>
+        <PivotItem Header="Create Container">
+            <local:QuickActionsControl x:Name="QuickActionsContent" />
+        </PivotItem>
+        <PivotItem Header="Template Catalog">
+            <local:TemplateCatalogControl x:Name="TemplateCatalogContent" />
+        </PivotItem>
+        <PivotItem Header="Compose">
+            <local:ComposeControl x:Name="ComposeContent" />
+        </PivotItem>
+        <PivotItem Header="Volumes">
+            <local:ResourcesControl x:Name="VolumesContent" ResourceType="Volumes" />
+        </PivotItem>
+        <PivotItem Header="Networks">
+            <local:ResourcesControl x:Name="NetworksContent" ResourceType="Networks" />
+        </PivotItem>
+    </Pivot>
+</Page>

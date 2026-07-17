@@ -4,5 +4,7 @@ obj/
 .vs/
 *.user
 *.suo
-.agents/skills/winui3-full-skills
+*.pfx
 WinContainer*.iso
+release/
+tools/WinContainers-dev.pfx

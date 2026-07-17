@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "minor_version": 1,
+  "key": "person",
+  "data": {
+    "items": [
+      {
+        "id": "jan_petersen",
+        "name": "Jan Petersen",
+        "user_id": "95ebd57b123a4fdea86ea106b232c8f7",
+        "device_trackers": []
+      }
+    ]
+  }
+}

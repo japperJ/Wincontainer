@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="WinContainers_App.Pages.ComposeControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer>
+        <StackPanel Spacing="16" Padding="24,16,24,24">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Compose" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="Import a Compose YAML file or docker run command, review the services, and create them together." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <Border Padding="20" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <TextBox x:Name="ComposeTextBox" Header="Compose YAML or docker run command" PlaceholderText="services:&#x0a;  myservice:&#x0a;    image: n8n/n8n&#x0a;    ports:&#x0a;      - &quot;5678:5678&quot;" AcceptsReturn="True" TextWrapping="Wrap" Height="180" Text="{Binding ComposeYamlText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Compose YAML paste" />
+                    <Button Content="Parse &amp; Preview" Click="ParseComposeButton_Click" AutomationProperties.Name="Parse compose YAML" />
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="MultiServicePanel" Visibility="Collapsed" Padding="20" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Services to create" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBox Header="Project name (for grouping)" PlaceholderText="e.g. n8n-stack" Text="{Binding ProjectNameText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <ItemsControl ItemsSource="{Binding ParsedServices}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="⬡" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding ContainerName}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock Text="{Binding Summary}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="Create All Services" Style="{StaticResource AccentButtonStyle}" Click="CreateAllButton_Click" AutomationProperties.Name="Create all compose services" />
+                    <TextBlock Text="Services are created and started one at a time after review." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

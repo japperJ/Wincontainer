@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="WinContainers_App.Pages.QuickActionsControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:WinContainers_App.ViewModels"
+    xmlns:converters="using:WinContainers_App.Converters"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
+    </UserControl.Resources>
+
+    <ScrollViewer>
+        <StackPanel Spacing="16">
+            <Border Padding="24" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Create a container" Style="{StaticResource TitleTextBlockStyle}" />
+                    <TextBlock Text="Select an image and configure ports, volumes, environment variables, and restart policy. Then create and start your container." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <Grid Width="520" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBox Grid.Row="0" Grid.Column="0" x:Name="ImageSearchBox" Header="Image" PlaceholderText="Search Docker Hub (e.g. nginx, python, redis)" Text="{Binding ImageSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextChanged="ImageSearchBox_TextChanged" AutomationProperties.Name="Image search" />
+                        <Button Grid.Row="0" Grid.Column="1" x:Name="SearchButton" Content="Search" Margin="0,24,0,0" Click="SearchButton_Click" AutomationProperties.Name="Search Docker Hub" />
+                        <ListView Grid.Row="1" Grid.ColumnSpan="2" x:Name="ImageResultsList" Visibility="Collapsed" MaxHeight="200" SelectionMode="Single" SelectionChanged="ImageResultsList_SelectionChanged">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Spacing="4" Padding="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                            <TextBlock Text="✓ Official" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" Foreground="Green"
+                                                       Visibility="{Binding IsOfficial, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Description}" Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxWidth="500" />
+                                        <StackPanel Orientation="Horizontal" Spacing="16">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <TextBlock Text="★" Foreground="Gold" />
+                                                <TextBlock Text="{Binding StarCount}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="Gold" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <TextBlock Text="⬇" Foreground="LightBlue" />
+                                                <TextBlock Text="{Binding PullCount}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="LightBlue" />
+                                                <TextBlock Text="M pulls" Style="{StaticResource CaptionTextBlockStyle}" Foreground="LightBlue" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+
+                    <TextBox x:Name="ContainerNameBox" Header="Container name" Width="400" PlaceholderText="auto-generated if empty" Text="{Binding ContainerNameText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <!-- Ports -->
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock x:Name="PortsHeader" Text="&#x25BC; Ports (0)" VerticalAlignment="Center" Tapped="PortsHeader_Tapped" />
+                            <Button Content="+ Add port" Click="AddPortButton_Click" AutomationProperties.Name="Add port mapping" />
+                        </StackPanel>
+                        <StackPanel x:Name="PortsPanel" Visibility="Visible" Spacing="8">
+                            <ItemsControl x:Name="PortsList" ItemsSource="{Binding Ports}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBox Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Host port" Width="140" PlaceholderText="e.g. 8080" />
+                                            <TextBox Text="{Binding Container, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Container port" Width="140" PlaceholderText="e.g. 80" />
+                                            <Button Content="✕" VerticalAlignment="Bottom" Click="RemovePortButton_Click" AutomationProperties.Name="Remove port" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Volumes -->
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock x:Name="VolumesHeader" Text="&#x25BC; Volumes (0)" VerticalAlignment="Center" Tapped="VolumesHeader_Tapped" />
+                            <Button Content="+ Add volume" Click="AddVolumeButton_Click" AutomationProperties.Name="Add volume mapping" />
+                        </StackPanel>
+                        <StackPanel x:Name="VolumesPanel" Visibility="Visible" Spacing="8">
+                            <TextBlock Text="Named volume = just a name, Bind mount = a path (/ or \ )" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <ItemsControl x:Name="VolumesList" ItemsSource="{Binding Volumes}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBox Text="{Binding Source, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Source (path or name)" Width="200" PlaceholderText="n8n_data or /path/to/data" />
+                                            <TextBox Text="{Binding Target, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Target path" Width="200" PlaceholderText="/home/node/.n8n" />
+                                            <Button Content="✕" VerticalAlignment="Bottom" Click="RemoveVolumeButton_Click" AutomationProperties.Name="Remove volume" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Environment variables -->
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock x:Name="EnvVarsHeader" Text="&#x25BC; Environment (0)" VerticalAlignment="Center" Tapped="EnvVarsHeader_Tapped" />
+                            <Button Content="+ Add env var" Click="AddEnvVarButton_Click" AutomationProperties.Name="Add environment variable" />
+                        </StackPanel>
+                        <StackPanel x:Name="EnvVarsPanel" Visibility="Visible" Spacing="8">
+                            <ItemsControl x:Name="EnvVarsList" ItemsSource="{Binding EnvVars}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Name" Width="200" PlaceholderText="MY_VAR" />
+                                            <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Value" Width="200" PlaceholderText="my_value" />
+                                            <Button Content="✕" VerticalAlignment="Bottom" Click="RemoveEnvVarButton_Click" AutomationProperties.Name="Remove env var" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Restart policy -->
+                    <ComboBox x:Name="RestartPolicyCombo" Header="Restart policy" Width="300" SelectedIndex="0" AutomationProperties.Name="Restart policy" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="CreateAndStartButton" Content="Create + Start" Style="{StaticResource AccentButtonStyle}" Click="CreateAndStartButton_Click" AutomationProperties.Name="Create and start container" />
+                        <Button x:Name="PullImageButton" Content="Pull image" Click="PullImageButton_Click" AutomationProperties.Name="Pull image" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

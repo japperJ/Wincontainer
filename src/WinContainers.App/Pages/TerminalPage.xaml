@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="WinContainers_App.Pages.TerminalPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:converters="using:WinContainers_App.Converters"
+    xmlns:models="using:WinContainers.Runtime.Models"
+    xmlns:viewmodels="using:WinContainers_App.ViewModels"
+    xmlns:local="using:WinContainers_App.Pages"
+    mc:Ignorable="d"
+    x:Name="PageRoot">
+
+    <Page.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </Page.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Grid Grid.Column="0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Commands" Style="{StaticResource BodyStrongTextBlockStyle}" Padding="12,12,12,8" />
+            <TreeView x:Name="CommandTree" AutomationProperties.Name="CommandTree" Grid.Row="1" SelectionMode="Single" SelectionChanged="CommandTree_SelectionChanged">
+            </TreeView>
+        </Grid>
+
+        <Grid Grid.Column="1" Padding="16">
+            <TextBlock Text="Select a command from the tree"
+                       Visibility="{x:Bind ViewModel.HasSelectedCommand, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Center"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       Opacity="0.5" />
+
+            <ScrollViewer Visibility="{x:Bind ViewModel.HasSelectedCommand, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="{x:Bind ViewModel.SelectedCommand.DisplayName, Mode=OneWay}"
+                               Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.SelectedCommand.Description, Mode=OneWay}"
+                               Style="{StaticResource BodyTextBlockStyle}"
+                               Opacity="0.7"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel x:Name="ParamsPanel" Spacing="8" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="RunButton" AutomationProperties.AutomationId="RunButton" AutomationProperties.Name="RunButton" Grid.Column="0"
+                                Command="{x:Bind ViewModel.RunCommand}"
+                                IsEnabled="{x:Bind ViewModel.IsRunning, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ProgressRing IsActive="{x:Bind ViewModel.IsRunning, Mode=OneWay}"
+                                              Visibility="{x:Bind ViewModel.IsRunning, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                                              Width="16" Height="16" />
+                                <TextBlock Text="Run" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <Border Visibility="{x:Bind ViewModel.HasCommandPreview, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" Text="{x:Bind ViewModel.CommandPreview, Mode=OneWay}"
+                                     FontFamily="Consolas" FontSize="12"
+                                     IsReadOnly="True"
+                                     TextWrapping="NoWrap"
+                                     BorderThickness="0"
+                                     VerticalAlignment="Center"
+                                     AutomationProperties.Name="Command preview" />
+                            <Button Grid.Column="1" Margin="8,0,0,0" x:Name="CopyCommandButton" Content="Copy" Click="CopyCommandButton_Click" />
+                        </Grid>
+                    </Border>
+
+                    <Border Visibility="{x:Bind ViewModel.HasOutput, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="12">
+                        <ScrollViewer MaxHeight="300">
+                            <TextBlock x:Name="OutputText" AutomationProperties.AutomationId="OutputText" AutomationProperties.Name="OutputText"
+                                       Text="{x:Bind ViewModel.OutputText, Mode=OneWay}"
+                                       FontFamily="Consolas"
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       TextWrapping="Wrap" />
+                        </ScrollViewer>
+                    </Border>
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="History" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Content="Clear" Command="{x:Bind ViewModel.ClearHistoryCommand}" />
+                    </Grid>
+                    <ListView x:Name="HistoryList"
+                              MaxHeight="200" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Page>

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="WinContainers_App.Pages.ContainersControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:WinContainers_App.Pages"
+    xmlns:models="using:WinContainers.Runtime.Models"
+    xmlns:converters="using:WinContainers_App.Converters"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <converters:StatusToColorConverter x:Key="StatusToColorConverter" />
+        <converters:ExpandCollapseConverter x:Key="ExpandCollapseConverter" />
+        <!-- Container row template used for all containers (standalone or inside expanded groups) -->
+        <DataTemplate x:Key="ContainerRowTemplate" x:DataType="models:ContainerCardData">
+            <Border Padding="12,8" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Background="Transparent" Tapped="ContainerRow_Tapped">
+                <Grid>
+                    <Rectangle x:Name="GroupIndicator" Width="3" HorizontalAlignment="Left" Fill="{ThemeResource SystemAccentColor}" Opacity="0.35" x:Load="{x:Bind IsInGroup}" />
+                    <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="1*" />
+                                        <ColumnDefinition Width="1.5*" />
+                                    </Grid.ColumnDefinitions>
+
+                        <Ellipse Grid.Column="0" Width="10" Height="10" Fill="{x:Bind Status, Converter={StaticResource StatusToColorConverter}}" VerticalAlignment="Center" />
+
+                        <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" Spacing="4">
+                                <Button Content="▶" Click="StartContainer_Click" ToolTipService.ToolTip="Start" AutomationProperties.Name="Start container" Width="36" IsEnabled="{x:Bind CanAct}" />
+                                <Button Content="■" Click="StopContainer_Click" ToolTipService.ToolTip="Stop" AutomationProperties.Name="Stop container" Width="36" IsEnabled="{x:Bind CanAct}" />
+                                <Button Content="✕" Click="RemoveContainer_Click" ToolTipService.ToolTip="Remove" AutomationProperties.Name="Remove container" Width="36" IsEnabled="{x:Bind CanRemove}" />
+                                <Button Content="✎" Tag="{x:Bind Id}" Click="ContainerRename_Click" AutomationProperties.Name="Rename container" ToolTipService.ToolTip="Rename" Width="36" IsEnabled="{x:Bind CanAct}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="3" Text="{x:Bind Image}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="4" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind StatusDisplay}" />
+                        <ItemsControl Grid.Column="5" VerticalAlignment="Center" ItemsSource="{x:Bind PortLinks}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:PortLinkItem">
+                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                        <HyperlinkButton Content="{x:Bind Url}" Click="PortLink_Click" />
+                                        <TextBlock Text="{x:Bind Detail}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <converters:ContainerItemTemplateSelector x:Key="ContainerTemplateSelector"
+            ContainerTemplate="{StaticResource ContainerRowTemplate}">
+            <converters:ContainerItemTemplateSelector.GroupHeaderTemplate>
+                <DataTemplate x:DataType="models:ContainerGroup">
+                    <Border Padding="0" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Padding="12,8" Click="GroupHeader_Click">
+                            <Grid ColumnSpacing="8" Padding="0">
+                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="32" />
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="1.5*" />
+                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                        <TextBlock Text="{x:Bind IsExpanded, Converter={StaticResource ExpandCollapseConverter}}" FontSize="10" VerticalAlignment="Center" />
+                                        <Ellipse Width="10" Height="10" Fill="{x:Bind GroupDotStatus, Converter={StaticResource StatusToColorConverter}}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="4" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind StatusDisplay}" />
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" Spacing="4">
+                                        <Button Content="▶" Click="StartGroup_Click" AutomationProperties.Name="Start all in group" Width="36" />
+                                        <Button Content="■" Click="StopGroup_Click" AutomationProperties.Name="Stop all in group" Width="36" />
+                                        <Button Content="✕" Click="RemoveGroup_Click" AutomationProperties.Name="Remove all in group" Width="36" />
+                                        <Button Content="✎" Click="GroupRename_Click" AutomationProperties.Name="Rename group" Width="36" />
+                                        <Button Content="≡" Click="GroupLogs_Click" AutomationProperties.Name="View group logs" ToolTipService.ToolTip="View all logs" Width="36" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                    </Border>
+                </DataTemplate>
+            </converters:ContainerItemTemplateSelector.GroupHeaderTemplate>
+        </converters:ContainerItemTemplateSelector>
+    </UserControl.Resources>
+
+    <Grid x:Name="RootGrid" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+            <Button Content="Refresh" Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh container list" />
+            <TextBlock Text="{x:Bind _viewModel.LastRefreshText, Mode=OneWay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+
+        <ListView Grid.Row="1" x:Name="ContainerListView" SelectionMode="Single" ItemTemplateSelector="{StaticResource ContainerTemplateSelector}">
+            <ListView.HeaderTemplate>
+                <DataTemplate>
+                    <Grid Padding="12,8" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="32" />
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="1.5*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="1" Text="Name" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="2" Text="Actions" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Grid.Column="3" Text="Image" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="4" Text="Status" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="5" Text="Ports" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.HeaderTemplate>
+        </ListView>
+    </Grid>
+</UserControl>

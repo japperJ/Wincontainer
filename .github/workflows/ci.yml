@@ -1,3 +1,39 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore solution
+        run: dotnet restore WinContainers.slnx
+
+      - name: Build solution (Debug)
+        run: dotnet build WinContainers.slnx -c Debug --no-restore
+
+      - name: Run unit tests
+        run: dotnet test tests/WinContainers.Tests.Unit/WinContainers.Tests.Unit.csproj -c Debug --no-build
+
+      - name: Run integration tests
+        run: dotnet test tests/WinContainers.Tests.Integration/WinContainers.Tests.Integration.csproj -c Debug --no-build
+
+      - name: Run Playwright tests
+        run: dotnet test tests/WinContainers.Tests.Playwright/WinContainers.Tests.Playwright.csproj -c Debug --no-build
+
+      # UI tests require WinAppDriver (port 4723) which is not available on GitHub-hosted runners.
+      # - name: Run UI tests
+      #   run: dotnet test tests/WinContainers.Tests.Ui/WinContainers.Tests.Ui.csproj -c Debug --no-build
 name: CI
 
 on:
