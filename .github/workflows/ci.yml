@@ -2,7 +2,9 @@ name: ci
 
 on:
   push:
+    branches: [ "**" ]
   pull_request:
+    branches: [ "**" ]
 
 jobs:
   build:
@@ -33,29 +35,4 @@ jobs:
 
       # UI tests require WinAppDriver (port 4723) which is not available on GitHub-hosted runners.
       # - name: Run UI tests
-      #   run: dotnet test test tests/WinContainers.Tests.Ui/WinContainers.Tests.Ui.csproj -c Debug --no-build
-name: CI
-
-on:
-  push:
-    branches: [ "**" ]
-  pull_request:
-    branches: [ "**" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore
+      #   run: dotnet test tests/WinContainers.Tests.Ui/WinContainers.Tests.Ui.csproj -c Debug --no-build
