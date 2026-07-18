@@ -38,12 +38,12 @@ public sealed partial class TemplateCatalogControl : UserControl
         TemplateDetailsPanel.Visibility = Visibility.Visible;
     }
 
-    private void UseTemplateButton_Click(object sender, RoutedEventArgs e)
+    private async void UseTemplateButton_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel.SelectedTemplate is null)
             return;
 
-        _viewModel.ApplyTemplate(_viewModel.SelectedTemplate);
+        await _viewModel.ApplyTemplateAsync(_viewModel.SelectedTemplate);
         OutputService.Instance.Write($"Template '{_viewModel.SelectedTemplate.Name}' loaded into Create Container.");
         UseTemplateRequested?.Invoke(this, EventArgs.Empty);
     }

@@ -98,6 +98,8 @@ public partial class QuickActionsViewModel : ViewModelBase
     private readonly TemplateCatalogService _catalogService;
     private CancellationTokenSource? _searchCts;
     private List<TemplateCatalogItem> _allTemplates = [];
+    private int _conflictCheckVersion;
+    private bool _suppressFormConflictRefresh;
 
     public string[] RestartPolicies { get; } = ["no", "on-failure", "always", "unless-stopped"];
 
@@ -294,11 +296,11 @@ public partial class QuickActionsViewModel : ViewModelBase
         set => SetProperty(ref _restartPolicy, value);
     }
 
-    private bool _showMultiServiceSummary;
-    public bool ShowMultiServiceSummary
+    private bool _showComposePreview;
+    public bool ShowComposePreview
     {
-        get => _showMultiServiceSummary;
-        set => SetProperty(ref _showMultiServiceSummary, value);
+        get => _showComposePreview;
+        set => SetProperty(ref _showComposePreview, value);
     }
 
     private List<ParsedServiceConfig> _parsedServices = [];
@@ -445,20 +447,20 @@ public partial class QuickActionsViewModel : ViewModelBase
 
     #region Compose YAML Parsing
 
-    public void ParseComposeYaml()
+    public async Task<bool> ParseComposeYamlAsync()
     {
         if (string.IsNullOrWhiteSpace(ComposeYamlText))
         {
             _output.Write("Paste a docker-compose YAML or docker run command first.", ServiceLogLevel.Warning);
-            return;
+            ClearComposePreview();
+            return false;
         }
 
         var text = ComposeYamlText.Trim();
 
         if (text.StartsWith("docker run", StringComparison.OrdinalIgnoreCase))
         {
-            ParseDockerRun(text);
-            return;
+            return await ParseDockerRunAsync(text);
         }
 
         try
@@ -473,7 +475,8 @@ public partial class QuickActionsViewModel : ViewModelBase
             if (yaml?.Services == null || yaml.Services.Count == 0)
             {
                 _output.Write("No services found in compose YAML.", ServiceLogLevel.Warning);
-                return;
+                ClearComposePreview();
+                return false;
             }
 
             var services = new List<ParsedServiceConfig>();
@@ -541,47 +544,61 @@ public partial class QuickActionsViewModel : ViewModelBase
             }
 
             var first = services[0];
-            _dispatcherQueue?.TryEnqueue(() =>
-            {
-                ImageSearchText = first.Image;
-                ContainerNameText = first.ContainerName;
-                RestartPolicy = first.RestartPolicy;
-            });
+            ImageSearchText = first.Image;
+            ContainerNameText = first.ContainerName;
+            RestartPolicy = first.RestartPolicy;
             PopulateFormFromService(first);
-            _ = RefreshConflictsAsync();
+            ConflictWarnings = [];
+            HasConflicts = false;
+            ConflictSummary = string.Empty;
 
-            _dispatcherQueue?.TryEnqueue(() =>
-            {
-                ParsedServices = services;
-                ShowMultiServiceSummary = services.Count > 1;
-                if (ProjectNameText == null)
-                    ProjectNameText = first.ContainerName;
-            });
+            ParsedServices = services;
+            ShowComposePreview = true;
+            if (string.IsNullOrWhiteSpace(ProjectNameText))
+                ProjectNameText = first.ContainerName;
+            await RefreshComposeConflictsAsync();
 
             var names = string.Join(", ", services.Select(s => s.ContainerName));
             _output.Write($"Compose imported: {services.Count} service(s) — {names}");
+            return true;
         }
         catch (Exception ex)
         {
             _output.Write($"Failed to parse compose YAML: {ex.Message}", ServiceLogLevel.Warning);
+            ClearComposePreview();
+            return false;
         }
+    }
+
+    private void ClearComposePreview()
+    {
+        ParsedServices = [];
+        ShowComposePreview = false;
     }
 
     private void PopulateFormFromService(ParsedServiceConfig svc)
     {
-        Ports.Clear();
-        foreach (var (host, container) in svc.Ports)
-            Ports.Add(new PortEntry { Host = host, Container = container });
+        _suppressFormConflictRefresh = true;
+        try
+        {
+            Ports.Clear();
+            foreach (var (host, container) in svc.Ports)
+                Ports.Add(new PortEntry { Host = host, Container = container });
 
-        Volumes.Clear();
-        foreach (var (source, target) in svc.Volumes)
-            Volumes.Add(new VolumeEntry { Source = source, Target = target });
+            Volumes.Clear();
+            foreach (var (source, target) in svc.Volumes)
+                Volumes.Add(new VolumeEntry { Source = source, Target = target });
 
-        EnvVars.Clear();
-        foreach (var (name, value) in svc.EnvVars)
-            EnvVars.Add(new EnvVarEntry { Name = name, Value = value });
+            EnvVars.Clear();
+            foreach (var (name, value) in svc.EnvVars)
+                EnvVars.Add(new EnvVarEntry { Name = name, Value = value });
 
-        AttachConflictListeners();
+            AttachConflictListeners();
+        }
+        finally
+        {
+            _suppressFormConflictRefresh = false;
+        }
     }
 
     private void AttachConflictListeners()
@@ -613,6 +630,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             foreach (PortEntry item in e.NewItems)
                 item.PropertyChanged += OnPortPropertyChanged;
         }
+        if (_suppressFormConflictRefresh) return;
         _ = RefreshConflictsAsync();
     }
 
@@ -628,17 +646,20 @@ public partial class QuickActionsViewModel : ViewModelBase
             foreach (VolumeEntry item in e.NewItems)
                 item.PropertyChanged += OnVolumePropertyChanged;
         }
+        if (_suppressFormConflictRefresh) return;
         _ = RefreshConflictsAsync();
     }
 
     private void OnPortPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_suppressFormConflictRefresh) return;
         if (e.PropertyName == nameof(PortEntry.Host))
             _ = RefreshConflictsAsync();
     }
 
     private void OnVolumePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_suppressFormConflictRefresh) return;
         if (e.PropertyName == nameof(VolumeEntry.Source) || e.PropertyName == nameof(VolumeEntry.Target))
             _ = RefreshConflictsAsync();
     }
@@ -651,6 +672,10 @@ public partial class QuickActionsViewModel : ViewModelBase
             _output.Write("No parsed services. Parse a compose file first.", ServiceLogLevel.Warning);
             return;
         }
+
+        await RefreshComposeConflictsAsync();
+        if (HasConflicts)
+            _output.Write($"Compose has {ConflictWarnings.Count} warning(s). Review the preview before continuing if these are not intentional.", ServiceLogLevel.Warning);
 
         _output.Write($"Creating {services.Count} service(s) from compose...");
 
@@ -676,109 +701,141 @@ public partial class QuickActionsViewModel : ViewModelBase
 
     #region Docker Run Parsing
 
-    private void ParseDockerRun(string text)
+    private async Task<bool> ParseDockerRunAsync(string text)
     {
-        _dispatcherQueue?.TryEnqueue(() =>
+        _suppressFormConflictRefresh = true;
+        try
         {
             ImageSearchText = "";
             ContainerNameText = "";
             RestartPolicy = "no";
-        });
-        Ports.Clear();
-        Volumes.Clear();
-        EnvVars.Clear();
+            Ports.Clear();
+            Volumes.Clear();
+            EnvVars.Clear();
 
-        var args = TokenizeDockerRun(text);
-        for (var i = 0; i < args.Length; i++)
-        {
-            switch (args[i].ToLowerInvariant())
+            var args = TokenizeDockerRun(text);
+            for (var i = 0; i < args.Length; i++)
             {
-                case "--name":
-                    if (i + 1 < args.Length)
-                    {
-                        var name = args[++i];
-                        _dispatcherQueue?.TryEnqueue(() => ContainerNameText = name);
-                    }
-                    break;
-                case "-p":
-                case "--publish":
-                    if (i + 1 < args.Length)
-                    {
-                        var portStr = args[++i];
-                        var parts = portStr.Split(':');
-                        if (parts.Length == 2)
+                switch (args[i].ToLowerInvariant())
+                {
+                    case "--name":
+                        if (i + 1 < args.Length)
                         {
-                            Ports.Add(new PortEntry { Host = parts[0], Container = parts[1] });
+                            var name = args[++i];
+                            ContainerNameText = name;
                         }
-                    }
-                    break;
-                case "-v":
-                case "--volume":
-                    if (i + 1 < args.Length)
-                    {
-                        var volStr = args[++i];
-                        var parts = volStr.Split(':');
-                        if (parts.Length >= 2)
+                        break;
+                    case "-p":
+                    case "--publish":
+                        if (i + 1 < args.Length)
                         {
-                            Volumes.Add(new VolumeEntry { Source = parts[0], Target = parts[1] });
+                            var portStr = args[++i];
+                            var parts = portStr.Split(':');
+                            if (parts.Length == 2)
+                            {
+                                Ports.Add(new PortEntry { Host = parts[0], Container = parts[1] });
+                            }
                         }
-                    }
-                    break;
-                case "-e":
-                case "--env":
-                    if (i + 1 < args.Length)
-                    {
-                        var envStr = args[++i];
-                        var eqIdx = envStr.IndexOf('=');
-                        if (eqIdx > 0)
+                        break;
+                    case "-v":
+                    case "--volume":
+                        if (i + 1 < args.Length)
                         {
-                            EnvVars.Add(new EnvVarEntry { Name = envStr[..eqIdx], Value = envStr[(eqIdx + 1)..] });
+                            var volStr = args[++i];
+                            var parts = volStr.Split(':');
+                            if (parts.Length >= 2)
+                            {
+                                Volumes.Add(new VolumeEntry { Source = parts[0], Target = parts[1] });
+                            }
                         }
-                    }
-                    break;
-                case "--restart":
-                    if (i + 1 < args.Length)
-                    {
-                        var rp = args[++i].ToLowerInvariant();
-                        var mapped = rp switch
+                        break;
+                    case "-e":
+                    case "--env":
+                        if (i + 1 < args.Length)
                         {
-                            "no" => "no",
-                            "on-failure" => "on-failure",
-                            "always" => "always",
-                            "unless-stopped" => "unless-stopped",
-                            _ => "no"
-                        };
-                        _dispatcherQueue?.TryEnqueue(() => RestartPolicy = mapped);
-                    }
-                    break;
+                            var envStr = args[++i];
+                            var eqIdx = envStr.IndexOf('=');
+                            if (eqIdx > 0)
+                            {
+                                EnvVars.Add(new EnvVarEntry { Name = envStr[..eqIdx], Value = envStr[(eqIdx + 1)..] });
+                            }
+                        }
+                        break;
+                    case "--restart":
+                        if (i + 1 < args.Length)
+                        {
+                            var rp = args[++i].ToLowerInvariant();
+                            var mapped = rp switch
+                            {
+                                "no" => "no",
+                                "on-failure" => "on-failure",
+                                "always" => "always",
+                                "unless-stopped" => "unless-stopped",
+                                _ => "no"
+                            };
+                            RestartPolicy = mapped;
+                        }
+                        break;
+                }
             }
-        }
 
-        var lastNonFlag = "";
-        var skipNext = false;
-        for (var i = 1; i < args.Length; i++)
-        {
-            if (skipNext) { skipNext = false; continue; }
-            if (args[i].StartsWith('-') && i + 1 < args.Length)
+            var lastNonFlag = "";
+            var skipNext = false;
+            for (var i = 1; i < args.Length; i++)
             {
-                skipNext = true;
-                continue;
+                if (skipNext) { skipNext = false; continue; }
+                if (args[i].StartsWith('-') && i + 1 < args.Length)
+                {
+                    skipNext = true;
+                    continue;
+                }
+                if (!args[i].StartsWith('-'))
+                {
+                    lastNonFlag = args[i];
+                }
             }
-            if (!args[i].StartsWith('-'))
+
+            var image = "";
+            if (!string.IsNullOrWhiteSpace(lastNonFlag) && !lastNonFlag.StartsWith('-'))
             {
-                lastNonFlag = args[i];
+                image = lastNonFlag;
             }
-        }
 
-        var image = "";
-        if (!string.IsNullOrWhiteSpace(lastNonFlag) && !lastNonFlag.StartsWith('-'))
-        {
-            image = lastNonFlag;
-        }
+            if (!string.IsNullOrWhiteSpace(image))
+            {
+                ImageSearchText = image;
+                var containerName = string.IsNullOrWhiteSpace(ContainerNameText)
+                    ? image.Split(['/', ':'], StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? image
+                    : ContainerNameText;
+                ConflictWarnings = [];
+                HasConflicts = false;
+                ConflictSummary = string.Empty;
+                ParsedServices =
+                [
+                    new ParsedServiceConfig
+                    {
+                        ServiceName = containerName,
+                        Image = image,
+                        ContainerName = containerName,
+                        Ports = [.. Ports.Select(p => (p.Host, p.Container))],
+                        Volumes = [.. Volumes.Select(v => (v.Source, v.Target))],
+                        EnvVars = [.. EnvVars.Select(e => (e.Name, e.Value))],
+                        RestartPolicy = RestartPolicy
+                    }
+                ];
+                ShowComposePreview = true;
+                await RefreshComposeConflictsAsync();
+                _output.Write($"Docker run imported: {containerName} ({image})");
+                return true;
+            }
 
-        if (!string.IsNullOrWhiteSpace(image))
+            _output.Write("Could not find an image name in the docker run command.", ServiceLogLevel.Warning);
+            ClearComposePreview();
+            return false;
+        }
+        finally
         {
-            _dispatcherQueue?.TryEnqueue(() => ImageSearchText = image);
+            _suppressFormConflictRefresh = false;
         }
     }
 
@@ -936,7 +993,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         }
     }
 
-    public void ApplyTemplate(TemplateCatalogItem? template)
+    public async Task ApplyTemplateAsync(TemplateCatalogItem? template)
     {
         if (template is null)
             return;
@@ -944,13 +1001,42 @@ public partial class QuickActionsViewModel : ViewModelBase
         ImageSearchText = template.Image;
         ContainerNameText = template.ContainerName;
         ComposeYamlText = template.Compose;
-        ParseComposeYaml();
-        _ = RefreshConflictsAsync();
+        await ParseComposeYamlAsync();
         _output.Write($"Applied template '{template.Name}'");
     }
 
     public async Task RefreshConflictsAsync()
+        => await RefreshConflictsAsync([BuildCurrentServiceConfig()]);
+
+    public async Task RefreshComposeConflictsAsync()
+        => await RefreshConflictsAsync(ParsedServices);
+
+    private ParsedServiceConfig BuildCurrentServiceConfig()
     {
+        var image = ImageSearchText?.Trim() ?? string.Empty;
+        var name = ContainerNameText?.Trim();
+        if (string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(image))
+        {
+            name = $"wc-{image.Replace('/', '-').Replace(':', '-')}"
+                .Trim('-')
+                .ToLowerInvariant();
+        }
+
+        return new ParsedServiceConfig
+        {
+            ServiceName = name ?? string.Empty,
+            Image = image,
+            ContainerName = name ?? string.Empty,
+            Ports = [.. Ports.Select(p => (p.Host, p.Container))],
+            Volumes = [.. Volumes.Select(v => (v.Source, v.Target))],
+            EnvVars = [.. EnvVars.Select(e => (e.Name, e.Value))],
+            RestartPolicy = RestartPolicy
+        };
+    }
+
+    private async Task RefreshConflictsAsync(IReadOnlyList<ParsedServiceConfig> services)
+    {
+        var checkVersion = Interlocked.Increment(ref _conflictCheckVersion);
         try
         {
             var output = await App.ServiceClient.GetContainersAsync();
@@ -960,13 +1046,18 @@ public partial class QuickActionsViewModel : ViewModelBase
 
             var warnings = new List<string>();
 
-            var name = ContainerNameText?.Trim();
-            if (!string.IsNullOrWhiteSpace(name))
+            foreach (var service in services)
             {
-                var match = running.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
-                if (match is not null)
-                    warnings.Add($"Container name '{name}' is already used by running container '{match.Name}' ({match.Image}).");
+                var name = service.ContainerName?.Trim();
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    var match = running.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+                    if (match is not null)
+                        warnings.Add($"Container name '{name}' is already used by running container '{match.Name}' ({match.Image}).");
+                }
             }
+
+            warnings.AddRange(FindDuplicateServiceNames(services));
 
             var usedHostPorts = running
                 .SelectMany(c => c.PortLinks)
@@ -975,20 +1066,27 @@ public partial class QuickActionsViewModel : ViewModelBase
                 .Select(p => p!.Trim())
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var port in Ports)
+            foreach (var (service, hostPort) in services.SelectMany(s => s.Ports
+                         .Select(p => (Service: s, HostPort: ExtractPortNumber(p.Host)))
+                         .Where(item => !string.IsNullOrWhiteSpace(item.HostPort))))
             {
-                if (string.IsNullOrWhiteSpace(port.Host)) continue;
-                var hostPort = ExtractPortNumber(port.Host);
                 if (!string.IsNullOrWhiteSpace(hostPort) && usedHostPorts.Contains(hostPort))
-                    warnings.Add($"Host port {hostPort} is already mapped by a running container.");
+                    warnings.Add($"Host port {hostPort} for '{service.ContainerName}' is already mapped by a running container.");
             }
+
+            warnings.AddRange(FindDuplicateHostPorts(services));
 
             var usedMounts = new List<MountInfo>();
             foreach (var container in running)
             {
+                if (checkVersion != _conflictCheckVersion)
+                    return;
+
                 try
                 {
                     var inspectOutput = await App.ServiceClient.InspectContainerAsync(container.Id);
+                    if (checkVersion != _conflictCheckVersion)
+                        return;
                     usedMounts.AddRange(WslcContainerParser.ParseMountsFromInspect(inspectOutput ?? ""));
                 }
                 catch (Exception ex)
@@ -1004,7 +1102,7 @@ public partial class QuickActionsViewModel : ViewModelBase
                 .Select(m => (Source: NormalizeMountPath(m.Source), Target: NormalizeMountPath(m.Target)))
                 .ToHashSet();
 
-            foreach (var volume in Volumes)
+            foreach (var (service, volume) in services.SelectMany(s => s.Volumes.Select(v => (Service: s, Volume: v))))
             {
                 var hasSource = !string.IsNullOrWhiteSpace(volume.Source);
                 var hasTarget = !string.IsNullOrWhiteSpace(volume.Target);
@@ -1025,31 +1123,72 @@ public partial class QuickActionsViewModel : ViewModelBase
 
                     if (sourceClash && targetClash)
                     {
-                        warnings.Add($"Volume '{volume.Source}:{volume.Target}' is already mounted by a running container.");
+                        warnings.Add($"Volume '{volume.Source}:{volume.Target}' for '{service.ContainerName}' is already mounted by a running container.");
                     }
                     else if (sourceClash)
                     {
-                        warnings.Add($"Volume source '{volume.Source}' is already mounted to '{mount.Target}' by a running container.");
+                        warnings.Add($"Volume source '{volume.Source}' for '{service.ContainerName}' is already mounted to '{mount.Target}' by a running container.");
                     }
                     else if (targetClash)
                     {
-                        warnings.Add($"Volume target '{volume.Target}' is already in use by a running container (source: '{mount.Source}').");
+                        warnings.Add($"Volume target '{volume.Target}' for '{service.ContainerName}' is already in use by a running container (source: '{mount.Source}').");
                     }
                 }
             }
 
-            _dispatcherQueue?.TryEnqueue(() =>
-            {
-                ConflictWarnings = new ObservableCollection<string>(warnings);
-                HasConflicts = warnings.Count > 0;
-                ConflictSummary = warnings.Count > 0
-                    ? $"{warnings.Count} potential conflict(s) detected with running containers"
-                    : string.Empty;
-            });
+            warnings.AddRange(FindDuplicateVolumes(services));
+
+            if (checkVersion != _conflictCheckVersion)
+                return;
+
+            ConflictWarnings = new ObservableCollection<string>(warnings);
+            HasConflicts = warnings.Count > 0;
+            ConflictSummary = warnings.Count > 0
+                ? $"{warnings.Count} potential conflict(s) detected"
+                : string.Empty;
         }
         catch (Exception ex)
         {
             _output.Write($"Conflict check failed: {ex.Message}", ServiceLogLevel.Warning);
+        }
+    }
+
+    private static IEnumerable<string> FindDuplicateServiceNames(IReadOnlyList<ParsedServiceConfig> services)
+        => services
+            .Select(s => s.ContainerName?.Trim())
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .GroupBy(name => name!, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => $"Container name '{group.Key}' is used by multiple parsed services.");
+
+    private static IEnumerable<string> FindDuplicateHostPorts(IReadOnlyList<ParsedServiceConfig> services)
+        => services
+            .SelectMany(s => s.Ports.Select(p => (Service: s.ContainerName, HostPort: ExtractPortNumber(p.Host))))
+            .Where(item => !string.IsNullOrWhiteSpace(item.HostPort))
+            .GroupBy(item => item.HostPort, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => $"Host port {group.Key} is used by multiple parsed services: {string.Join(", ", group.Select(item => item.Service).Distinct(StringComparer.OrdinalIgnoreCase))}.");
+
+    private static IEnumerable<string> FindDuplicateVolumes(IReadOnlyList<ParsedServiceConfig> services)
+    {
+        var mounts = services
+            .SelectMany(s => s.Volumes.Select(v => (
+                Service: s.ContainerName,
+                Source: NormalizeMountPath(v.Source),
+                Target: NormalizeMountPath(v.Target))))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Source) || !string.IsNullOrWhiteSpace(item.Target))
+            .ToList();
+
+        foreach (var group in mounts.Where(m => !string.IsNullOrWhiteSpace(m.Source)).GroupBy(m => m.Source, StringComparer.OrdinalIgnoreCase))
+        {
+            if (group.Count() > 1)
+                yield return $"Volume source '{group.Key}' is used by multiple parsed services: {string.Join(", ", group.Select(item => item.Service).Distinct(StringComparer.OrdinalIgnoreCase))}.";
+        }
+
+        foreach (var group in mounts.Where(m => !string.IsNullOrWhiteSpace(m.Target)).GroupBy(m => m.Target, StringComparer.OrdinalIgnoreCase))
+        {
+            if (group.Count() > 1)
+                yield return $"Volume target '{group.Key}' is used by multiple parsed services: {string.Join(", ", group.Select(item => item.Service).Distinct(StringComparer.OrdinalIgnoreCase))}.";
         }
     }
 
