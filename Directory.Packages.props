@@ -7,6 +7,7 @@
     <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
     <PackageVersion Include="Microsoft.Windows.SDK.BuildTools.WinApp" Version="0.3.2" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.251219" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-preview.4.26230.115" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0-preview.4.26230.115" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="11.0.0-preview.4.26230.115" />

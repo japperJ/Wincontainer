@@ -16,21 +16,25 @@ public sealed partial class ComposeControl : UserControl
         _viewModel = ViewModelLocator.QuickActionsViewModel;
         DataContext = _viewModel;
         _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        UpdatePreviewState();
     }
 
     private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(_viewModel.ShowMultiServiceSummary))
-            MultiServicePanel.Visibility = _viewModel.ShowMultiServiceSummary ? Visibility.Visible : Visibility.Collapsed;
+        if (e.PropertyName == nameof(_viewModel.ShowComposePreview) ||
+            e.PropertyName == nameof(_viewModel.ParsedServices))
+        {
+            UpdatePreviewState();
+        }
     }
 
-    private void ParseComposeButton_Click(object sender, RoutedEventArgs e)
+    private async void ParseComposeButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             _viewModel.ComposeYamlText = ComposeTextBox.Text;
-            _viewModel.ParseComposeYaml();
-            MultiServicePanel.Visibility = _viewModel.ShowMultiServiceSummary ? Visibility.Visible : Visibility.Collapsed;
+            await _viewModel.ParseComposeYamlAsync();
+            UpdatePreviewState();
         }
         catch (Exception ex)
         {
@@ -42,11 +46,19 @@ public sealed partial class ComposeControl : UserControl
     {
         try
         {
+            MainWindow.Instance?.EnsureOutputPaneVisible();
             await _viewModel.CreateAllFromComposeAsync();
         }
         catch (Exception ex)
         {
             OutputService.Instance.Write($"Create all failed: {ex}", ServiceLogLevel.Error);
         }
+    }
+
+    private void UpdatePreviewState()
+    {
+        var showPreview = _viewModel.ShowComposePreview && _viewModel.ParsedServices.Count > 0;
+        ComposePreviewPanel.Visibility = showPreview ? Visibility.Visible : Visibility.Collapsed;
+        EmptyPreviewPanel.Visibility = showPreview ? Visibility.Collapsed : Visibility.Visible;
     }
 }
