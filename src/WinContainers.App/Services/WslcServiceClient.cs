@@ -19,9 +19,15 @@ public sealed class WslcServiceClient
 
     private void ApplyAuth(HttpRequestMessage request)
     {
+        var token = ServiceEndpointResolver.ResolveToken();
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return;
+        }
+
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
             "Bearer",
-            ServiceEndpointResolver.ResolveToken());
+            token);
     }
 
     public async Task<bool> IsHealthyAsync()

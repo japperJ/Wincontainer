@@ -64,9 +64,9 @@ public static class ServiceHost
                 return;
             }
 
-            if (!BearerTokenValidator.IsAuthorized(
-                    context.Request.Headers.Authorization.ToString(),
-                    ServiceEndpointResolver.ResolveToken()))
+            var expectedToken = ServiceEndpointResolver.ResolveToken();
+            if (BearerTokenValidator.RequiresAuthorization(listenHost, expectedToken)
+                && !BearerTokenValidator.IsAuthorized(context.Request.Headers.Authorization.ToString(), expectedToken))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
