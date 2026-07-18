@@ -9,6 +9,19 @@ namespace WinContainers.Tests.Integration;
 
 public class UnitTest1
 {
+    private static Uri CreateLoopbackUri(string address)
+    {
+        var builder = new UriBuilder(address);
+
+        if (IPAddress.TryParse(builder.Host, out var addressValue) &&
+            (addressValue.Equals(IPAddress.Any) || addressValue.Equals(IPAddress.IPv6Any)))
+        {
+            builder.Host = "127.0.0.1";
+        }
+
+        return builder.Uri;
+    }
+
     [Fact]
     public async Task ServiceHost_ShouldExposeRuntimeInfoForAuthorizedRequests()
     {
@@ -25,8 +38,9 @@ public class UnitTest1
             await app.StartAsync();
 
             var address = app.Urls.First();
+            var localAddress = CreateLoopbackUri(address);
 
-            using var client = new HttpClient { BaseAddress = new Uri(address) };
+            using var client = new HttpClient { BaseAddress = localAddress };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 
             using var response = await client.GetAsync("/api/info");
@@ -62,8 +76,9 @@ public class UnitTest1
             await app.StartAsync();
 
             var address = app.Urls.First();
+            var localAddress = CreateLoopbackUri(address);
 
-            using var client = new HttpClient { BaseAddress = new Uri(address) };
+            using var client = new HttpClient { BaseAddress = localAddress };
 
             using var response = await client.GetAsync("/api/info");
 
