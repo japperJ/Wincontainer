@@ -103,13 +103,14 @@ public partial class ContainersViewModel : ViewModelBase
         try
         {
             var output = await App.ServiceClient.GetContainersAsync();
-            var combined = _containerService.ParseContainerEntries(output ?? "");
-
-            if (combined.Count == 0 && _allContainers.Count > 0)
+            if (!string.IsNullOrWhiteSpace(output) &&
+                output.StartsWith("wslc error (", StringComparison.OrdinalIgnoreCase))
             {
-                _output.Write("Preserving existing container list (refresh returned 0 entries)", ServiceLogLevel.Warning);
+                _output.Write($"Container refresh failed: {output}", ServiceLogLevel.Warning);
                 return;
             }
+
+            var combined = _containerService.ParseContainerEntries(output ?? "");
 
             _allContainers = combined;
             App.DispatcherQueue.TryEnqueue(() =>
