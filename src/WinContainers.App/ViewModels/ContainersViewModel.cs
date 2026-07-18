@@ -105,12 +105,6 @@ public partial class ContainersViewModel : ViewModelBase
             var output = await App.ServiceClient.GetContainersAsync();
             var combined = _containerService.ParseContainerEntries(output ?? "");
 
-            if (combined.Count == 0 && _allContainers.Count > 0)
-            {
-                _output.Write("Preserving existing container list (refresh returned 0 entries)", ServiceLogLevel.Warning);
-                return;
-            }
-
             _allContainers = combined;
             App.DispatcherQueue.TryEnqueue(() =>
             {
