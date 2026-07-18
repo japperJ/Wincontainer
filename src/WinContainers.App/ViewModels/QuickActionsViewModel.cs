@@ -548,6 +548,9 @@ public partial class QuickActionsViewModel : ViewModelBase
             ContainerNameText = first.ContainerName;
             RestartPolicy = first.RestartPolicy;
             PopulateFormFromService(first);
+            ConflictWarnings = [];
+            HasConflicts = false;
+            ConflictSummary = string.Empty;
 
             ParsedServices = services;
             ShowComposePreview = true;
@@ -700,129 +703,140 @@ public partial class QuickActionsViewModel : ViewModelBase
 
     private async Task<bool> ParseDockerRunAsync(string text)
     {
-        ImageSearchText = "";
-        ContainerNameText = "";
-        RestartPolicy = "no";
-        Ports.Clear();
-        Volumes.Clear();
-        EnvVars.Clear();
-
-        var args = TokenizeDockerRun(text);
-        for (var i = 0; i < args.Length; i++)
+        _suppressFormConflictRefresh = true;
+        try
         {
-            switch (args[i].ToLowerInvariant())
+            ImageSearchText = "";
+            ContainerNameText = "";
+            RestartPolicy = "no";
+            Ports.Clear();
+            Volumes.Clear();
+            EnvVars.Clear();
+
+            var args = TokenizeDockerRun(text);
+            for (var i = 0; i < args.Length; i++)
             {
-                case "--name":
-                    if (i + 1 < args.Length)
-                    {
-                        var name = args[++i];
-                        ContainerNameText = name;
-                    }
-                    break;
-                case "-p":
-                case "--publish":
-                    if (i + 1 < args.Length)
-                    {
-                        var portStr = args[++i];
-                        var parts = portStr.Split(':');
-                        if (parts.Length == 2)
-                        {
-                            Ports.Add(new PortEntry { Host = parts[0], Container = parts[1] });
-                        }
-                    }
-                    break;
-                case "-v":
-                case "--volume":
-                    if (i + 1 < args.Length)
-                    {
-                        var volStr = args[++i];
-                        var parts = volStr.Split(':');
-                        if (parts.Length >= 2)
-                        {
-                            Volumes.Add(new VolumeEntry { Source = parts[0], Target = parts[1] });
-                        }
-                    }
-                    break;
-                case "-e":
-                case "--env":
-                    if (i + 1 < args.Length)
-                    {
-                        var envStr = args[++i];
-                        var eqIdx = envStr.IndexOf('=');
-                        if (eqIdx > 0)
-                        {
-                            EnvVars.Add(new EnvVarEntry { Name = envStr[..eqIdx], Value = envStr[(eqIdx + 1)..] });
-                        }
-                    }
-                    break;
-                case "--restart":
-                    if (i + 1 < args.Length)
-                    {
-                        var rp = args[++i].ToLowerInvariant();
-                        var mapped = rp switch
-                        {
-                            "no" => "no",
-                            "on-failure" => "on-failure",
-                            "always" => "always",
-                            "unless-stopped" => "unless-stopped",
-                            _ => "no"
-                        };
-                        RestartPolicy = mapped;
-                    }
-                    break;
-            }
-        }
-
-        var lastNonFlag = "";
-        var skipNext = false;
-        for (var i = 1; i < args.Length; i++)
-        {
-            if (skipNext) { skipNext = false; continue; }
-            if (args[i].StartsWith('-') && i + 1 < args.Length)
-            {
-                skipNext = true;
-                continue;
-            }
-            if (!args[i].StartsWith('-'))
-            {
-                lastNonFlag = args[i];
-            }
-        }
-
-        var image = "";
-        if (!string.IsNullOrWhiteSpace(lastNonFlag) && !lastNonFlag.StartsWith('-'))
-        {
-            image = lastNonFlag;
-        }
-
-        if (!string.IsNullOrWhiteSpace(image))
-        {
-            ImageSearchText = image;
-            var containerName = string.IsNullOrWhiteSpace(ContainerNameText)
-                ? image.Split(['/', ':'], StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? image
-                : ContainerNameText;
-            ParsedServices =
-            [
-                new ParsedServiceConfig
+                switch (args[i].ToLowerInvariant())
                 {
-                    ServiceName = containerName,
-                    Image = image,
-                    ContainerName = containerName,
-                    Ports = [.. Ports.Select(p => (p.Host, p.Container))],
-                    Volumes = [.. Volumes.Select(v => (v.Source, v.Target))],
-                    EnvVars = [.. EnvVars.Select(e => (e.Name, e.Value))],
-                    RestartPolicy = RestartPolicy
+                    case "--name":
+                        if (i + 1 < args.Length)
+                        {
+                            var name = args[++i];
+                            ContainerNameText = name;
+                        }
+                        break;
+                    case "-p":
+                    case "--publish":
+                        if (i + 1 < args.Length)
+                        {
+                            var portStr = args[++i];
+                            var parts = portStr.Split(':');
+                            if (parts.Length == 2)
+                            {
+                                Ports.Add(new PortEntry { Host = parts[0], Container = parts[1] });
+                            }
+                        }
+                        break;
+                    case "-v":
+                    case "--volume":
+                        if (i + 1 < args.Length)
+                        {
+                            var volStr = args[++i];
+                            var parts = volStr.Split(':');
+                            if (parts.Length >= 2)
+                            {
+                                Volumes.Add(new VolumeEntry { Source = parts[0], Target = parts[1] });
+                            }
+                        }
+                        break;
+                    case "-e":
+                    case "--env":
+                        if (i + 1 < args.Length)
+                        {
+                            var envStr = args[++i];
+                            var eqIdx = envStr.IndexOf('=');
+                            if (eqIdx > 0)
+                            {
+                                EnvVars.Add(new EnvVarEntry { Name = envStr[..eqIdx], Value = envStr[(eqIdx + 1)..] });
+                            }
+                        }
+                        break;
+                    case "--restart":
+                        if (i + 1 < args.Length)
+                        {
+                            var rp = args[++i].ToLowerInvariant();
+                            var mapped = rp switch
+                            {
+                                "no" => "no",
+                                "on-failure" => "on-failure",
+                                "always" => "always",
+                                "unless-stopped" => "unless-stopped",
+                                _ => "no"
+                            };
+                            RestartPolicy = mapped;
+                        }
+                        break;
                 }
-            ];
-            ShowComposePreview = true;
-            await RefreshComposeConflictsAsync();
-            _output.Write($"Docker run imported: {containerName} ({image})");
-            return true;
-        }
+            }
 
-        _output.Write("Could not find an image name in the docker run command.", ServiceLogLevel.Warning);
-        ClearComposePreview();
-        return false;
+            var lastNonFlag = "";
+            var skipNext = false;
+            for (var i = 1; i < args.Length; i++)
+            {
+                if (skipNext) { skipNext = false; continue; }
+                if (args[i].StartsWith('-') && i + 1 < args.Length)
+                {
+                    skipNext = true;
+                    continue;
+                }
+                if (!args[i].StartsWith('-'))
+                {
+                    lastNonFlag = args[i];
+                }
+            }
+
+            var image = "";
+            if (!string.IsNullOrWhiteSpace(lastNonFlag) && !lastNonFlag.StartsWith('-'))
+            {
+                image = lastNonFlag;
+            }
+
+            if (!string.IsNullOrWhiteSpace(image))
+            {
+                ImageSearchText = image;
+                var containerName = string.IsNullOrWhiteSpace(ContainerNameText)
+                    ? image.Split(['/', ':'], StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? image
+                    : ContainerNameText;
+                ConflictWarnings = [];
+                HasConflicts = false;
+                ConflictSummary = string.Empty;
+                ParsedServices =
+                [
+                    new ParsedServiceConfig
+                    {
+                        ServiceName = containerName,
+                        Image = image,
+                        ContainerName = containerName,
+                        Ports = [.. Ports.Select(p => (p.Host, p.Container))],
+                        Volumes = [.. Volumes.Select(v => (v.Source, v.Target))],
+                        EnvVars = [.. EnvVars.Select(e => (e.Name, e.Value))],
+                        RestartPolicy = RestartPolicy
+                    }
+                ];
+                ShowComposePreview = true;
+                await RefreshComposeConflictsAsync();
+                _output.Write($"Docker run imported: {containerName} ({image})");
+                return true;
+            }
+
+            _output.Write("Could not find an image name in the docker run command.", ServiceLogLevel.Warning);
+            ClearComposePreview();
+            return false;
+        }
+        finally
+        {
+            _suppressFormConflictRefresh = false;
+        }
     }
 
     private static string[] TokenizeDockerRun(string text)
@@ -1065,9 +1079,14 @@ public partial class QuickActionsViewModel : ViewModelBase
             var usedMounts = new List<MountInfo>();
             foreach (var container in running)
             {
+                if (checkVersion != _conflictCheckVersion)
+                    return;
+
                 try
                 {
                     var inspectOutput = await App.ServiceClient.InspectContainerAsync(container.Id);
+                    if (checkVersion != _conflictCheckVersion)
+                        return;
                     usedMounts.AddRange(WslcContainerParser.ParseMountsFromInspect(inspectOutput ?? ""));
                 }
                 catch (Exception ex)
