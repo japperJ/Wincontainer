@@ -18,9 +18,20 @@ public static class ServiceHost
 
         builder.WebHost.UseKestrel(options =>
         {
-            if (string.Equals(listenHost, "0.0.0.0", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(listenHost))
+            {
+                options.ListenLocalhost(port);
+            }
+            else if (string.Equals(listenHost, "0.0.0.0", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(listenHost, "::", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(listenHost, "[::]", StringComparison.OrdinalIgnoreCase))
             {
                 options.ListenAnyIP(port);
+            }
+            else if (string.Equals(listenHost, "localhost", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(listenHost, "loopback", StringComparison.OrdinalIgnoreCase))
+            {
+                options.ListenLocalhost(port);
             }
             else if (IPAddress.TryParse(listenHost, out var address))
             {
@@ -28,7 +39,7 @@ public static class ServiceHost
             }
             else
             {
-                options.ListenAnyIP(port);
+                throw new InvalidOperationException($"Unsupported WINCONTAINERS_SERVICE_HOST '{listenHost}'. Use a valid IP address, 'localhost', or leave it unset.");
             }
 
             options.Limits.MaxRequestBodySize = null;

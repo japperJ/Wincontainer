@@ -9,7 +9,7 @@ public static class ServiceEndpointResolver
 
     public static string ResolveServiceHost()
     {
-        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST") ?? "0.0.0.0";
+        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST") ?? "127.0.0.1";
     }
 
     public static string ResolveServiceProjectPath()
@@ -38,6 +38,6 @@ public static class ServiceEndpointResolver
 
     public static string ResolveToken()
     {
-        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN") ?? "dev-token";
+        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN") ?? string.Empty;
     }
 }
