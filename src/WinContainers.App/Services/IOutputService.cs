@@ -11,6 +11,7 @@ public interface IOutputService
 
     string LastOutput { get; }
     IReadOnlyList<(LogLevel Level, string Message)> History { get; }
+    bool ApiLoggingEnabled { get; set; }
 
     void Write(string text);
     void Write(string text, LogLevel level);

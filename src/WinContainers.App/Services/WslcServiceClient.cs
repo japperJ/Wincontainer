@@ -11,10 +11,12 @@ public sealed class WslcServiceClient
 {
     private readonly HttpClient _http = new();
     private readonly string _baseUrl;
+    private readonly IOutputService _output;
 
-    public WslcServiceClient(string baseUrl)
+    public WslcServiceClient(string baseUrl, IOutputService output)
     {
         _baseUrl = baseUrl.TrimEnd('/');
+        _output = output;
     }
 
     private void ApplyAuth(HttpRequestMessage request)
@@ -36,8 +38,8 @@ public sealed class WslcServiceClient
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/health");
             ApplyAuth(request);
-            using var response = await _http.SendAsync(request);
-            return response.IsSuccessStatusCode;
+            var (_, isSuccessStatusCode) = await SendAndReadBodyAsync(request);
+            return isSuccessStatusCode;
         }
         catch (Exception ex)
         {
@@ -50,8 +52,7 @@ public sealed class WslcServiceClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/runtime/version");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "version") ?? "(unknown)";
     }
 
@@ -59,8 +60,7 @@ public sealed class WslcServiceClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/containers");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -78,8 +78,7 @@ public sealed class WslcServiceClient
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/containers/{id}/rename");
         ApplyAuth(request);
         request.Content = JsonContent.Create(new { name });
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -87,8 +86,7 @@ public sealed class WslcServiceClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/containers/{id}/inspect");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -99,8 +97,7 @@ public sealed class WslcServiceClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/containers/{id}/logs?tail={tail}");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -108,8 +105,7 @@ public sealed class WslcServiceClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/images");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -118,8 +114,7 @@ public sealed class WslcServiceClient
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/images/pull");
         ApplyAuth(request);
         request.Content = JsonContent.Create(new { image });
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -128,8 +123,7 @@ public sealed class WslcServiceClient
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/containers/run");
         ApplyAuth(request);
         request.Content = JsonContent.Create(new { image, name, ports, volumes, env, restart });
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -140,8 +134,7 @@ public sealed class WslcServiceClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/volumes");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -150,8 +143,7 @@ public sealed class WslcServiceClient
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/volumes");
         ApplyAuth(request);
         request.Content = JsonContent.Create(new { name });
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -162,8 +154,7 @@ public sealed class WslcServiceClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/api/networks");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -172,8 +163,7 @@ public sealed class WslcServiceClient
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/networks");
         ApplyAuth(request);
         request.Content = JsonContent.Create(new { name });
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -188,17 +178,34 @@ public sealed class WslcServiceClient
             Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
+    }
+
+    private async Task<(string Body, bool IsSuccessStatusCode)> SendAndReadBodyAsync(HttpRequestMessage request)
+    {
+        if (_output.ApiLoggingEnabled)
+        {
+            _output.Write($"[API][Request] {request.Method} {request.RequestUri}", LogLevel.Debug);
+        }
+
+        using var response = await _http.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        if (_output.ApiLoggingEnabled)
+        {
+            var preview = body.Length > 1000 ? $"{body[..1000]}..." : body;
+            _output.Write($"[API][Response] {(int)response.StatusCode} {response.ReasonPhrase}: {preview}", LogLevel.Debug);
+        }
+
+        return (body, response.IsSuccessStatusCode);
     }
 
     private async Task<string> PostCommandAsync(string path)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}{path}");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 
@@ -206,8 +213,7 @@ public sealed class WslcServiceClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"{_baseUrl}{path}");
         ApplyAuth(request);
-        using var response = await _http.SendAsync(request);
-        var json = await response.Content.ReadAsStringAsync();
+        var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }
 

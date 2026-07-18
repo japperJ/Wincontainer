@@ -43,6 +43,19 @@ public partial class SettingsViewModel : ViewModelBase
         set => SetProperty(ref _versionText, value);
     }
 
+    private bool _apiLoggingEnabled;
+    public bool ApiLoggingEnabled
+    {
+        get => _apiLoggingEnabled;
+        set
+        {
+            if (SetProperty(ref _apiLoggingEnabled, value))
+            {
+                _output.ApiLoggingEnabled = value;
+            }
+        }
+    }
+
     public SettingsViewModel(IOutputService output)
     {
         _output = output;
@@ -50,6 +63,7 @@ public partial class SettingsViewModel : ViewModelBase
 
     public async Task LoadAsync()
     {
+        ApiLoggingEnabled = _output.ApiLoggingEnabled;
         PortText = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
         StatusText = $"Current endpoint: {ServiceEndpointResolver.Resolve()}";
 

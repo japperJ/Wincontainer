@@ -16,6 +16,12 @@
                     <TextBox x:Name="PortBox" Header="API Port" PlaceholderText="5123" Width="200" />
                     <Button Content="Apply" Click="ApplyPortButton_Click" />
 
+                    <ToggleSwitch x:Name="ApiLoggingToggle"
+                                  Header="API request logging"
+                                  OffContent="Off"
+                                  OnContent="On"
+                                  Toggled="ApiLoggingToggle_Toggled" />
+
                     <TextBlock x:Name="EndpointText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
             </Border>
