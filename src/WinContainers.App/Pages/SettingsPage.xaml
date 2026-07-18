@@ -22,6 +22,12 @@
                                   OnContent="On"
                                   Toggled="ApiLoggingToggle_Toggled" />
 
+                    <ToggleSwitch x:Name="RemoteApiLoggingToggle"
+                                  Header="Remote API calls only"
+                                  OffContent="All"
+                                  OnContent="Remote"
+                                  Toggled="RemoteApiLoggingToggle_Toggled" />
+
                     <TextBlock x:Name="EndpointText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
             </Border>

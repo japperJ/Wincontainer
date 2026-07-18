@@ -56,6 +56,19 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    private bool _remoteApiLoggingEnabled;
+    public bool RemoteApiLoggingEnabled
+    {
+        get => _remoteApiLoggingEnabled;
+        set
+        {
+            if (SetProperty(ref _remoteApiLoggingEnabled, value))
+            {
+                _output.RemoteApiLoggingEnabled = value;
+            }
+        }
+    }
+
     public SettingsViewModel(IOutputService output)
     {
         _output = output;
@@ -64,6 +77,7 @@ public partial class SettingsViewModel : ViewModelBase
     public async Task LoadAsync()
     {
         ApiLoggingEnabled = _output.ApiLoggingEnabled;
+        RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
         PortText = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
         StatusText = $"Current endpoint: {ServiceEndpointResolver.Resolve()}";
 

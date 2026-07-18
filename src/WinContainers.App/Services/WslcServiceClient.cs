@@ -184,7 +184,7 @@ public sealed class WslcServiceClient
 
     private async Task<(string Body, bool IsSuccessStatusCode)> SendAndReadBodyAsync(HttpRequestMessage request)
     {
-        if (_output.ApiLoggingEnabled)
+        if (ShouldLogRequest(request.RequestUri))
         {
             _output.Write($"[API][Request] {request.Method} {request.RequestUri}", LogLevel.Debug);
         }
@@ -192,13 +192,28 @@ public sealed class WslcServiceClient
         using var response = await _http.SendAsync(request);
         var body = await response.Content.ReadAsStringAsync();
 
-        if (_output.ApiLoggingEnabled)
+        if (ShouldLogRequest(request.RequestUri))
         {
             var preview = body.Length > 1000 ? $"{body[..1000]}..." : body;
             _output.Write($"[API][Response] {(int)response.StatusCode} {response.ReasonPhrase}: {preview}", LogLevel.Debug);
         }
 
         return (body, response.IsSuccessStatusCode);
+    }
+
+    private bool ShouldLogRequest(Uri? requestUri)
+    {
+        if (!_output.ApiLoggingEnabled)
+        {
+            return false;
+        }
+
+        if (!_output.RemoteApiLoggingEnabled)
+        {
+            return true;
+        }
+
+        return requestUri is not null && !requestUri.IsLoopback;
     }
 
     private async Task<string> PostCommandAsync(string path)

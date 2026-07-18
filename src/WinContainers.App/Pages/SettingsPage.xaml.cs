@@ -24,6 +24,7 @@ public sealed partial class SettingsPage : Page
         PortBox.Text = _viewModel.PortText;
         await _viewModel.LoadAsync();
         ApiLoggingToggle.IsOn = _viewModel.ApiLoggingEnabled;
+        RemoteApiLoggingToggle.IsOn = _viewModel.RemoteApiLoggingEnabled;
         UpdateStatusDisplay();
     }
 
@@ -47,5 +48,10 @@ public sealed partial class SettingsPage : Page
     private void ApiLoggingToggle_Toggled(object sender, RoutedEventArgs e)
     {
         _viewModel.ApiLoggingEnabled = ApiLoggingToggle.IsOn;
+    }
+
+    private void RemoteApiLoggingToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        _viewModel.RemoteApiLoggingEnabled = RemoteApiLoggingToggle.IsOn;
     }
 }

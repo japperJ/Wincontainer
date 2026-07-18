@@ -13,6 +13,7 @@ public sealed class OutputService : IOutputService
     public string LastOutput { get; private set; } = string.Empty;
     public IReadOnlyList<(LogLevel Level, string Message)> History => _history;
     public bool ApiLoggingEnabled { get; set; }
+    public bool RemoteApiLoggingEnabled { get; set; }
     private readonly List<(LogLevel Level, string Message)> _history = [];
 
     public void Write(string text) => Write(text, LogLevel.Info);
