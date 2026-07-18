@@ -103,6 +103,13 @@ public partial class ContainersViewModel : ViewModelBase
         try
         {
             var output = await App.ServiceClient.GetContainersAsync();
+            if (!string.IsNullOrWhiteSpace(output) &&
+                output.StartsWith("wslc error (", StringComparison.OrdinalIgnoreCase))
+            {
+                _output.Write($"Container refresh failed: {output}", ServiceLogLevel.Warning);
+                return;
+            }
+
             var combined = _containerService.ParseContainerEntries(output ?? "");
 
             _allContainers = combined;
