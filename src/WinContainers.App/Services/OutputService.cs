@@ -1,8 +1,6 @@
-using WinContainers.Core.Models;
-
 namespace WinContainers_App.Services;
 
-public sealed class OutputService : IOutputService, IApiRequestLogger
+public sealed class OutputService : IOutputService
 {
     private static readonly Lazy<OutputService> _instance = new(() => new());
     public static OutputService Instance => _instance.Value;
@@ -14,6 +12,8 @@ public sealed class OutputService : IOutputService, IApiRequestLogger
 
     public string LastOutput { get; private set; } = string.Empty;
     public IReadOnlyList<(LogLevel Level, string Message)> History => _history;
+    public bool ApiLoggingEnabled { get; set; }
+    public bool RemoteApiLoggingEnabled { get; set; }
     private readonly List<(LogLevel Level, string Message)> _history = [];
 
     public void Write(string text) => Write(text, LogLevel.Info);
@@ -29,20 +29,5 @@ public sealed class OutputService : IOutputService, IApiRequestLogger
     {
         LastOutput = string.Empty;
         OutputCleared?.Invoke(this, EventArgs.Empty);
-    }
-
-    public void LogRequest(string method, string path, string remoteIp, bool isRemote)
-    {
-        if (!ApiLoggingEnabled)
-        {
-            return;
-        }
-
-        if (RemoteApiLoggingEnabled && !isRemote)
-        {
-            return;
-        }
-
-        Write($"[API][Remote:{isRemote}] {method} {path} from {remoteIp}", LogLevel.Debug);
     }
 }
