@@ -2,6 +2,16 @@ namespace WinContainers.Core.Models;
 
 public static class ServiceEndpointResolver
 {
+    public static string ResolveServicePort()
+    {
+        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
+    }
+
+    public static string ResolveServiceHost()
+    {
+        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST") ?? "0.0.0.0";
+    }
+
     public static string ResolveServiceProjectPath()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
@@ -23,8 +33,7 @@ public static class ServiceEndpointResolver
 
     public static string Resolve()
     {
-        var port = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
-        return $"http://127.0.0.1:{port}";
+        return $"http://127.0.0.1:{ResolveServicePort()}";
     }
 
     public static string ResolveToken()

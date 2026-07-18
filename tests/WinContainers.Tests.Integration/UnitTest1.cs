@@ -25,8 +25,9 @@ public class UnitTest1
             await app.StartAsync();
 
             var address = app.Urls.First();
+            var localAddress = address.Replace("0.0.0.0", "127.0.0.1").Replace("[::]", "127.0.0.1");
 
-            using var client = new HttpClient { BaseAddress = new Uri(address) };
+            using var client = new HttpClient { BaseAddress = new Uri(localAddress) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 
             using var response = await client.GetAsync("/api/info");
@@ -62,8 +63,9 @@ public class UnitTest1
             await app.StartAsync();
 
             var address = app.Urls.First();
+            var localAddress = address.Replace("0.0.0.0", "127.0.0.1").Replace("[::]", "127.0.0.1");
 
-            using var client = new HttpClient { BaseAddress = new Uri(address) };
+            using var client = new HttpClient { BaseAddress = new Uri(localAddress) };
 
             using var response = await client.GetAsync("/api/info");
 

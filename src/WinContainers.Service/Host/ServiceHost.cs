@@ -13,11 +13,24 @@ public static class ServiceHost
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        var port = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
+        var port = int.Parse(ServiceEndpointResolver.ResolveServicePort());
+        var listenHost = ServiceEndpointResolver.ResolveServiceHost();
 
         builder.WebHost.UseKestrel(options =>
         {
-            options.Listen(IPAddress.Loopback, int.Parse(port));
+            if (string.Equals(listenHost, "0.0.0.0", StringComparison.OrdinalIgnoreCase))
+            {
+                options.ListenAnyIP(port);
+            }
+            else if (IPAddress.TryParse(listenHost, out var address))
+            {
+                options.Listen(address, port);
+            }
+            else
+            {
+                options.ListenAnyIP(port);
+            }
+
             options.Limits.MaxRequestBodySize = null;
         });
 

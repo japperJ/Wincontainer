@@ -24,6 +24,28 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void ServiceEndpointResolver_ShouldDefaultToLoopbackClientAndLanListenHost()
+    {
+        var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", null);
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", null);
+
+        try
+        {
+            ServiceEndpointResolver.Resolve().Should().Be("http://127.0.0.1:5123");
+            ServiceEndpointResolver.ResolveServiceHost().Should().Be("0.0.0.0");
+            ServiceEndpointResolver.ResolveServicePort().Should().Be("5123");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", originalHost);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+        }
+    }
+
+    [Fact]
     public void WslcDriver_ShouldExist()
     {
         typeof(WslcDriver).Should().NotBeNull();
