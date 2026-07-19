@@ -10,6 +10,20 @@ public sealed class WslcDriver : IDisposable
     private const int DefaultTimeoutMs = 30000;
     private const int SlowTimeoutMs = 120000;
 
+    private Process? _keepAliveProcess;
+
+    public WslcDriver()
+    {
+        try
+        {
+            StartKeepAliveProcess();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[WslcDriver] Keep-alive process failed to start: {ex}");
+        }
+    }
+
     public async Task<bool> IsAvailableAsync(CancellationToken ct)
     {
         try
@@ -168,7 +182,81 @@ public sealed class WslcDriver : IDisposable
         }
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        StopKeepAliveProcess();
+    }
+
+    private void StartKeepAliveProcess()
+    {
+        StopKeepAliveProcess();
+
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo("wsl.exe", "-u root --exec sleep infinity")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            },
+            EnableRaisingEvents = true
+        };
+
+        process.Exited += OnKeepAliveExited;
+        process.Start();
+        _keepAliveProcess = process;
+        Trace.WriteLine($"[WslcDriver] Keep-alive process started (pid {process.Id}).");
+    }
+
+    private void OnKeepAliveExited(object? sender, EventArgs e)
+    {
+        try
+        {
+            var process = sender as Process;
+            if (process is not null)
+            {
+                process.Exited -= OnKeepAliveExited;
+                process.Dispose();
+            }
+
+            if (_keepAliveProcess == process)
+            {
+                _keepAliveProcess = null;
+                StartKeepAliveProcess();
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[WslcDriver] Keep-alive restart failed: {ex}");
+        }
+    }
+
+    private void StopKeepAliveProcess()
+    {
+        var process = _keepAliveProcess;
+        _keepAliveProcess = null;
+
+        if (process is null)
+            return;
+
+        try
+        {
+            process.Exited -= OnKeepAliveExited;
+            if (!process.HasExited)
+            {
+                TryKill(process);
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[WslcDriver] Stop keep-alive failed: {ex}");
+        }
+        finally
+        {
+            process.Dispose();
+        }
+    }
 
     private static ProcessStartInfo BuildStartInfo(string arguments)
     {
