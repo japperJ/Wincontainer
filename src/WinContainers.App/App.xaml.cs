@@ -82,7 +82,7 @@ public partial class App : Application
             try
             {
                 ServiceClient = new WslcServiceClient(ServiceEndpointResolver.Resolve(), OutputService.Instance);
-                ServiceHost.Build([]).Run();
+                ServiceHost.Build([], OutputService.Instance).Run();
             }
             catch (Exception ex)
             {
