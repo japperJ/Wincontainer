@@ -9,7 +9,7 @@ namespace WinContainers.Service.Host;
 
 public static class ServiceHost
 {
-    public static WebApplication Build(string[] args)
+    public static WebApplication Build(string[] args, IApiRequestLogger? requestLogger = null)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -72,6 +72,23 @@ public static class ServiceHost
                 await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
                 return;
             }
+
+            await next();
+        });
+
+        app.Use(async (context, next) =>
+        {
+            if (!context.Request.Path.StartsWithSegments("/api"))
+            {
+                await next();
+                return;
+            }
+
+            var remoteIp = context.Connection.RemoteIpAddress;
+            var remoteIpText = remoteIp?.ToString() ?? "unknown";
+            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIpText));
+
+            requestLogger?.LogRequest(context.Request.Method, context.Request.Path, remoteIpText, isRemote);
 
             await next();
         });
@@ -166,6 +183,13 @@ public static class ServiceHost
             Results.Ok(new { version = await driver.GetVersionAsync(ct) }));
 
         return app;
+    }
+
+    private static bool IsLocalHostAddress(string address)
+    {
+        return string.Equals(address, "127.0.0.1", StringComparison.Ordinal)
+            || string.Equals(address, "::1", StringComparison.Ordinal)
+            || string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase);
     }
 }
 

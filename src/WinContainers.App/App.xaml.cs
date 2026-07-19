@@ -81,8 +81,8 @@ public partial class App : Application
         {
             try
             {
-                ServiceClient = new WslcServiceClient(ServiceEndpointResolver.Resolve());
-                ServiceHost.Build([]).Run();
+                ServiceClient = new WslcServiceClient(ServiceEndpointResolver.Resolve(), OutputService.Instance);
+                ServiceHost.Build([], OutputService.Instance).Run();
             }
             catch (Exception ex)
             {
