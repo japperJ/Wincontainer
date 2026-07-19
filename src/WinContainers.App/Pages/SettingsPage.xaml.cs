@@ -21,8 +21,9 @@ public sealed partial class SettingsPage : Page
 
     private async void SettingsPage_Loaded(object sender, RoutedEventArgs e)
     {
-        PortBox.Text = _viewModel.PortText;
         await _viewModel.LoadAsync();
+        PortBox.Text = _viewModel.PortText;
+        TokenBox.Text = _viewModel.TokenText;
         ApiLoggingToggle.IsOn = _viewModel.ApiLoggingEnabled;
         RemoteApiLoggingToggle.IsOn = _viewModel.RemoteApiLoggingEnabled;
         UpdateStatusDisplay();
@@ -42,6 +43,13 @@ public sealed partial class SettingsPage : Page
     {
         _viewModel.PortText = PortBox.Text;
         _viewModel.ApplyPort();
+        EndpointText.Text = _viewModel.StatusText;
+    }
+
+    private void ApplyTokenButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.TokenText = TokenBox.Text;
+        _viewModel.ApplyToken();
         EndpointText.Text = _viewModel.StatusText;
     }
 

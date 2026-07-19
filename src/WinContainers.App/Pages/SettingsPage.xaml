@@ -16,6 +16,9 @@
                     <TextBox x:Name="PortBox" Header="API Port" PlaceholderText="5123" Width="200" />
                     <Button Content="Apply" Click="ApplyPortButton_Click" />
 
+                    <TextBox x:Name="TokenBox" Header="API Bearer Token" PlaceholderText="Leave empty to disable auth" Width="300" />
+                    <Button Content="Apply Token" Click="ApplyTokenButton_Click" />
+
                     <ToggleSwitch x:Name="ApiLoggingToggle"
                                   Header="API request logging"
                                   OffContent="Off"
