@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using WinContainers.Core;
+using WinContainers.Runtime;
 using WinContainers_App.Services;
 using LogLevel = WinContainers_App.Services.LogLevel;
 
@@ -138,7 +139,15 @@ public partial class OnboardingViewModel : ViewModelBase
     {
         try
         {
-            var result = await RunPowerShellCommandAsync("wslc --version");
+            var wslcPath = RuntimeTools.ResolveExecutablePath("wslc");
+            if (string.IsNullOrEmpty(wslcPath))
+            {
+                WslcAvailable = false;
+                WslcStatus = "WSLC is not installed or not on PATH";
+                return;
+            }
+
+            var result = await RunCommandAsync($"\"{wslcPath}\" --version");
             var output = NormalizeCommandOutput(result.Output);
             WslcAvailable = result.ExitCode == 0;
             WslcStatus = WslcAvailable ? FormatWslcStatus(output) : $"WSLC is not installed ({output})";
@@ -301,6 +310,60 @@ public partial class OnboardingViewModel : ViewModelBase
             {
                 FileName = "powershell.exe",
                 Arguments = $"-NoProfile -NonInteractive -Command \"$env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User'); {command}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+            await Task.WhenAll(stdoutTask, stderrTask);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                Debug.WriteLine($"[Onboarding] Timed-out process already exited: {ex.Message}");
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                Debug.WriteLine($"[Onboarding] Failed to kill timed-out process: {ex.Message}");
+            }
+
+            return (-1, $"Command timed out after {timeoutSeconds} seconds.");
+        }
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+
+        var output = string.IsNullOrEmpty(stderr) ? stdout : $"{stdout}\n{stderr}";
+        return (process.ExitCode, output.Trim());
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunCommandAsync(string command, int timeoutSeconds = 15)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c {command}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

@@ -347,7 +347,15 @@ public sealed class WslcDriver : IDisposable
 
     private static ProcessStartInfo BuildStartInfo(string arguments)
     {
-        return new ProcessStartInfo("cmd.exe", $"/c wslc {arguments}")
+        var wslcPath = RuntimeTools.ResolveExecutablePath("wslc");
+        if (string.IsNullOrEmpty(wslcPath))
+        {
+            throw new FileNotFoundException(
+                "wslc.exe could not be found. Install WSLC from Microsoft and ensure it is on PATH.",
+                "wslc.exe");
+        }
+
+        return new ProcessStartInfo(wslcPath, arguments)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
