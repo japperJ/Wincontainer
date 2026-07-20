@@ -50,6 +50,46 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void ServiceEndpointResolver_ShouldListenOnLanWhenTokenConfigured()
+    {
+        var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", null);
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", "test-token");
+
+        try
+        {
+            ServiceEndpointResolver.ResolveServiceHost().Should().Be("0.0.0.0");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", originalHost);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
+    [Fact]
+    public void ServiceEndpointResolver_ShouldHonorHostEnvironmentVariableOverToken()
+    {
+        var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", "192.168.1.5");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", "test-token");
+
+        try
+        {
+            ServiceEndpointResolver.ResolveServiceHost().Should().Be("192.168.1.5");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", originalHost);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
+    [Fact]
     public void WslcDriver_ShouldExist()
     {
         typeof(WslcDriver).Should().NotBeNull();
