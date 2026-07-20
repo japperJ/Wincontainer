@@ -37,6 +37,7 @@ public partial class App : Application
         });
 
         services.AddSingleton<IOutputService>(_ => OutputService.Instance);
+        services.AddSingleton<AppSettingsService>();
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IDialogService>(sp =>
             new DialogService(() => (_window as MainWindow)?.Content?.XamlRoot));
@@ -81,8 +82,15 @@ public partial class App : Application
         {
             try
             {
-                ServiceClient = new WslcServiceClient(ServiceEndpointResolver.Resolve());
-                ServiceHost.Build([]).Run();
+                var settingsService = Services.GetRequiredService<AppSettingsService>();
+                var settings = settingsService.Load();
+
+                OutputService.Instance.ApiLoggingEnabled = settings.ApiLoggingEnabled;
+                OutputService.Instance.RemoteApiLoggingEnabled = settings.RemoteApiLoggingEnabled;
+                ServiceEndpointResolver.SetToken(settings.ApiToken ?? string.Empty);
+
+                ServiceClient = new WslcServiceClient(ServiceEndpointResolver.Resolve(), OutputService.Instance);
+                ServiceHost.Build([], OutputService.Instance).Run();
             }
             catch (Exception ex)
             {

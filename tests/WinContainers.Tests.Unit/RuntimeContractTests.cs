@@ -24,7 +24,7 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public void ServiceEndpointResolver_ShouldDefaultToLoopbackClientAndLoopbackListenHost()
+    public void ServiceEndpointResolver_ShouldDefaultToLoopbackListenAndLoopbackClient()
     {
         var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
         var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
@@ -339,12 +339,46 @@ public class RuntimeContractTests
     [Fact]
     public void BearerTokenValidator_ShouldAuthorizeBearerTokenRequests()
     {
-        BearerTokenValidator.IsAuthorized("Bearer secret-token", "secret-token").Should().BeTrue();
+        BearerTokenValidator.IsAuthorized(string.Concat("Bearer", " ", "abc123"), "abc123").Should().BeTrue();
     }
 
     [Fact]
     public void BearerTokenValidator_ShouldRejectInvalidBearerTokens()
     {
-        BearerTokenValidator.IsAuthorized("Bearer wrong-token", "secret-token").Should().BeFalse();
+        BearerTokenValidator.IsAuthorized(string.Concat("Bearer", " ", "wrong-token"), "abc123").Should().BeFalse();
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldRejectRequestsWhenExpectedTokenIsEmpty()
+    {
+        BearerTokenValidator.IsAuthorized("Bearer abc123", string.Empty).Should().BeFalse();
+        BearerTokenValidator.IsAuthorized(string.Empty, string.Empty).Should().BeFalse();
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldRequireAuthorizationForAnyIpListenHostWithoutToken()
+    {
+        BearerTokenValidator.RequiresAuthorization("0.0.0.0", string.Empty).Should().BeTrue();
+        BearerTokenValidator.RequiresAuthorization("::", string.Empty).Should().BeTrue();
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldSkipAuthForLoopbackBindingWithoutConfiguredToken()
+    {
+        BearerTokenValidator.RequiresAuthorization("127.0.0.1", string.Empty).Should().BeFalse();
+        BearerTokenValidator.RequiresAuthorization("localhost", string.Empty).Should().BeFalse();
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldRequireAuthForLoopbackBindingWithConfiguredToken()
+    {
+        BearerTokenValidator.RequiresAuthorization("127.0.0.1", "secret-token").Should().BeTrue();
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldRequireAuthForNonLoopbackBindingWithoutConfiguredToken()
+    {
+        BearerTokenValidator.RequiresAuthorization("0.0.0.0", string.Empty).Should().BeTrue();
+        BearerTokenValidator.RequiresAuthorization("192.168.1.10", string.Empty).Should().BeTrue();
     }
 }

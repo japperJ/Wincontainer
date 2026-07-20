@@ -49,7 +49,7 @@ public class UnitTest1
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             using var document = JsonDocument.Parse(json);
             document.RootElement.GetProperty("port").GetString().Should().NotBeNullOrWhiteSpace();
-            document.RootElement.GetProperty("token").GetString().Should().Be("test-token");
+            document.RootElement.GetProperty("token").GetString().Should().Be("configured");
             document.RootElement.GetProperty("scripts").ValueKind.Should().Be(JsonValueKind.Array);
         }
         finally

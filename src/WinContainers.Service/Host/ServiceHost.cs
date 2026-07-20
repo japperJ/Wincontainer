@@ -9,7 +9,7 @@ namespace WinContainers.Service.Host;
 
 public static class ServiceHost
 {
-    public static WebApplication Build(string[] args)
+    public static WebApplication Build(string[] args, IApiRequestLogger? requestLogger = null)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -64,9 +64,29 @@ public static class ServiceHost
                 return;
             }
 
-            if (!BearerTokenValidator.IsAuthorized(
-                    context.Request.Headers.Authorization.ToString(),
-                    ServiceEndpointResolver.ResolveToken()))
+            var remoteIp = context.Connection.RemoteIpAddress;
+            var remoteIpText = remoteIp?.ToString() ?? "unknown";
+            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIpText));
+
+            requestLogger?.LogRequest(context.Request.Method, context.Request.Path.ToString(), remoteIpText, isRemote);
+
+            await next();
+        });
+
+        app.Use(async (context, next) =>
+        {
+            if (!context.Request.Path.StartsWithSegments("/api"))
+            {
+                await next();
+                return;
+            }
+
+            var expectedToken = ServiceEndpointResolver.ResolveToken();
+            var remoteIp = context.Connection.RemoteIpAddress;
+            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIp?.ToString() ?? string.Empty));
+
+            if (BearerTokenValidator.RequiresAuthorization(isRemote, expectedToken)
+                && !BearerTokenValidator.IsAuthorized(context.Request.Headers.Authorization.ToString(), expectedToken))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
@@ -91,7 +111,8 @@ public static class ServiceHost
         app.MapGet("/api/info", (HttpContext context) =>
         {
             var resolvedPort = context.Connection.LocalPort.ToString();
-            return Results.Ok(new ServiceInfo(resolvedPort, ServiceEndpointResolver.ResolveToken()));
+            var tokenConfigured = !string.IsNullOrWhiteSpace(ServiceEndpointResolver.ResolveToken());
+            return Results.Ok(new ServiceInfo(resolvedPort, tokenConfigured ? "configured" : string.Empty));
         });
 
         app.MapGet("/api/containers", async (CancellationToken ct) =>
@@ -166,6 +187,13 @@ public static class ServiceHost
             Results.Ok(new { version = await driver.GetVersionAsync(ct) }));
 
         return app;
+    }
+
+    private static bool IsLocalHostAddress(string address)
+    {
+        return string.Equals(address, "127.0.0.1", StringComparison.Ordinal)
+            || string.Equals(address, "::1", StringComparison.Ordinal)
+            || string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase);
     }
 }
 
