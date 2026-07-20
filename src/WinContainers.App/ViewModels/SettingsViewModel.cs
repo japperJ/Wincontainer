@@ -7,12 +7,20 @@ namespace WinContainers_App.ViewModels;
 public partial class SettingsViewModel : ViewModelBase
 {
     private readonly IOutputService _output;
+    private readonly AppSettingsService _settingsService;
 
     private string? _portText;
     public string? PortText
     {
         get => _portText;
         set => SetProperty(ref _portText, value);
+    }
+
+    private string? _tokenText;
+    public string? TokenText
+    {
+        get => _tokenText;
+        set => SetProperty(ref _tokenText, value);
     }
 
     private string? _statusText;
@@ -69,9 +77,10 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
-    public SettingsViewModel(IOutputService output)
+    public SettingsViewModel(IOutputService output, AppSettingsService settingsService)
     {
         _output = output;
+        _settingsService = settingsService;
     }
 
     public async Task LoadAsync()
@@ -79,6 +88,7 @@ public partial class SettingsViewModel : ViewModelBase
         ApiLoggingEnabled = _output.ApiLoggingEnabled;
         RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
         PortText = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
+        TokenText = ServiceEndpointResolver.ResolveToken();
         StatusText = $"Current endpoint: {ServiceEndpointResolver.Resolve()}";
 
         try
@@ -101,5 +111,26 @@ public partial class SettingsViewModel : ViewModelBase
         var port = string.IsNullOrWhiteSpace(PortText) ? "5123" : PortText.Trim();
         Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", port);
         StatusText = $"Updated endpoint: {ServiceEndpointResolver.Resolve()}";
+    }
+
+    public void ApplyToken()
+    {
+        var token = TokenText ?? string.Empty;
+        ServiceEndpointResolver.SetToken(token);
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", token);
+
+        var settings = _settingsService.Load();
+        settings.ApiToken = token;
+        _settingsService.Save(settings);
+
+        StatusText = $"Updated endpoint: {ServiceEndpointResolver.Resolve()}";
+    }
+
+    public void SaveLoggingSettings()
+    {
+        var settings = _settingsService.Load();
+        settings.ApiLoggingEnabled = _output.ApiLoggingEnabled;
+        settings.RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
+        _settingsService.Save(settings);
     }
 }

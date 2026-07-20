@@ -1,6 +1,8 @@
+using WinContainers.Core.Models;
+
 namespace WinContainers_App.Services;
 
-public sealed class OutputService : IOutputService
+public sealed class OutputService : IOutputService, IApiRequestLogger
 {
     private static readonly Lazy<OutputService> _instance = new(() => new());
     public static OutputService Instance => _instance.Value;
@@ -29,5 +31,20 @@ public sealed class OutputService : IOutputService
     {
         LastOutput = string.Empty;
         OutputCleared?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void LogRequest(string method, string path, string remoteIp, bool isRemote)
+    {
+        if (!ApiLoggingEnabled)
+        {
+            return;
+        }
+
+        if (RemoteApiLoggingEnabled && !isRemote)
+        {
+            return;
+        }
+
+        Write($"[API][Remote:{isRemote}] {method} {path} from {remoteIp}", LogLevel.Info);
     }
 }
