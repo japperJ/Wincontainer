@@ -24,7 +24,7 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public void ServiceEndpointResolver_ShouldDefaultToLoopbackClientAndLoopbackListenHost()
+    public void ServiceEndpointResolver_ShouldDefaultToLanListenAndLoopbackClient()
     {
         var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
         var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
@@ -37,7 +37,7 @@ public class RuntimeContractTests
         try
         {
             ServiceEndpointResolver.Resolve().Should().Be("http://127.0.0.1:5123");
-            ServiceEndpointResolver.ResolveServiceHost().Should().Be("127.0.0.1");
+            ServiceEndpointResolver.ResolveServiceHost().Should().Be("0.0.0.0");
             ServiceEndpointResolver.ResolveServicePort().Should().Be("5123");
             ServiceEndpointResolver.ResolveToken().Should().BeEmpty();
         }
@@ -346,6 +346,20 @@ public class RuntimeContractTests
     public void BearerTokenValidator_ShouldRejectInvalidBearerTokens()
     {
         BearerTokenValidator.IsAuthorized(string.Concat("Bearer", " ", "wrong-token"), "abc123").Should().BeFalse();
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldRejectRequestsWhenExpectedTokenIsEmpty()
+    {
+        BearerTokenValidator.IsAuthorized("Bearer abc123", string.Empty).Should().BeFalse();
+        BearerTokenValidator.IsAuthorized(string.Empty, string.Empty).Should().BeFalse();
+    }
+
+    [Fact]
+    public void BearerTokenValidator_ShouldRequireAuthorizationForAnyIpListenHostWithoutToken()
+    {
+        BearerTokenValidator.RequiresAuthorization("0.0.0.0", string.Empty).Should().BeTrue();
+        BearerTokenValidator.RequiresAuthorization("::", string.Empty).Should().BeTrue();
     }
 
     [Fact]

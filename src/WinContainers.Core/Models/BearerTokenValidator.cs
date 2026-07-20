@@ -6,18 +6,29 @@ public static class BearerTokenValidator
 {
     public static bool IsAuthorized(string? authorizationHeader, string expectedToken)
     {
+        if (string.IsNullOrWhiteSpace(expectedToken))
+        {
+            return false;
+        }
+
         var providedToken = ExtractToken(authorizationHeader);
         return string.Equals(providedToken, expectedToken, StringComparison.Ordinal);
     }
 
-    public static bool RequiresAuthorization(string? listenHost, string expectedToken)
+    public static bool RequiresAuthorization(bool isRemote, string expectedToken)
     {
-        if (string.IsNullOrWhiteSpace(expectedToken) && IsLoopbackListenHost(listenHost))
+        if (!isRemote && string.IsNullOrWhiteSpace(expectedToken))
         {
             return false;
         }
 
         return true;
+    }
+
+    public static bool RequiresAuthorization(string? listenHost, string expectedToken)
+    {
+        var isRemote = !IsLoopbackListenHost(listenHost);
+        return RequiresAuthorization(isRemote, expectedToken);
     }
 
     public static bool IsLoopbackListenHost(string? listenHost)

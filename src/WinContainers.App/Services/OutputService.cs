@@ -45,6 +45,6 @@ public sealed class OutputService : IOutputService, IApiRequestLogger
             return;
         }
 
-        Write($"[API][Remote:{isRemote}] {method} {path} from {remoteIp}", LogLevel.Debug);
+        Write($"[API][Remote:{isRemote}] {method} {path} from {remoteIp}", LogLevel.Info);
     }
 }

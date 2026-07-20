@@ -56,10 +56,12 @@ public sealed partial class SettingsPage : Page
     private void ApiLoggingToggle_Toggled(object sender, RoutedEventArgs e)
     {
         _viewModel.ApiLoggingEnabled = ApiLoggingToggle.IsOn;
+        _viewModel.SaveLoggingSettings();
     }
 
     private void RemoteApiLoggingToggle_Toggled(object sender, RoutedEventArgs e)
     {
         _viewModel.RemoteApiLoggingEnabled = RemoteApiLoggingToggle.IsOn;
+        _viewModel.SaveLoggingSettings();
     }
 }

@@ -64,14 +64,11 @@ public static class ServiceHost
                 return;
             }
 
-            var expectedToken = ServiceEndpointResolver.ResolveToken();
-            if (BearerTokenValidator.RequiresAuthorization(listenHost, expectedToken)
-                && !BearerTokenValidator.IsAuthorized(context.Request.Headers.Authorization.ToString(), expectedToken))
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
-                return;
-            }
+            var remoteIp = context.Connection.RemoteIpAddress;
+            var remoteIpText = remoteIp?.ToString() ?? "unknown";
+            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIpText));
+
+            requestLogger?.LogRequest(context.Request.Method, context.Request.Path, remoteIpText, isRemote);
 
             await next();
         });
@@ -84,11 +81,17 @@ public static class ServiceHost
                 return;
             }
 
+            var expectedToken = ServiceEndpointResolver.ResolveToken();
             var remoteIp = context.Connection.RemoteIpAddress;
-            var remoteIpText = remoteIp?.ToString() ?? "unknown";
-            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIpText));
+            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIp?.ToString() ?? string.Empty));
 
-            requestLogger?.LogRequest(context.Request.Method, context.Request.Path, remoteIpText, isRemote);
+            if (BearerTokenValidator.RequiresAuthorization(isRemote, expectedToken)
+                && !BearerTokenValidator.IsAuthorized(context.Request.Headers.Authorization.ToString(), expectedToken))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
+                return;
+            }
 
             await next();
         });

@@ -7,6 +7,7 @@ namespace WinContainers_App.ViewModels;
 public partial class SettingsViewModel : ViewModelBase
 {
     private readonly IOutputService _output;
+    private readonly AppSettingsService _settingsService;
 
     private string? _portText;
     public string? PortText
@@ -76,9 +77,10 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
-    public SettingsViewModel(IOutputService output)
+    public SettingsViewModel(IOutputService output, AppSettingsService settingsService)
     {
         _output = output;
+        _settingsService = settingsService;
     }
 
     public async Task LoadAsync()
@@ -116,6 +118,19 @@ public partial class SettingsViewModel : ViewModelBase
         var token = TokenText ?? string.Empty;
         ServiceEndpointResolver.SetToken(token);
         Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", token);
+
+        var settings = _settingsService.Load();
+        settings.ApiToken = token;
+        _settingsService.Save(settings);
+
         StatusText = $"Updated endpoint: {ServiceEndpointResolver.Resolve()}";
+    }
+
+    public void SaveLoggingSettings()
+    {
+        var settings = _settingsService.Load();
+        settings.ApiLoggingEnabled = _output.ApiLoggingEnabled;
+        settings.RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
+        _settingsService.Save(settings);
     }
 }
