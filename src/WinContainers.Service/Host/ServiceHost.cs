@@ -68,7 +68,7 @@ public static class ServiceHost
             var remoteIpText = remoteIp?.ToString() ?? "unknown";
             var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIpText));
 
-            requestLogger?.LogRequest(context.Request.Method, context.Request.Path, remoteIpText, isRemote);
+            requestLogger?.LogRequest(context.Request.Method, context.Request.Path.ToString(), remoteIpText, isRemote);
 
             await next();
         });
@@ -111,7 +111,8 @@ public static class ServiceHost
         app.MapGet("/api/info", (HttpContext context) =>
         {
             var resolvedPort = context.Connection.LocalPort.ToString();
-            return Results.Ok(new ServiceInfo(resolvedPort, ServiceEndpointResolver.ResolveToken()));
+            var tokenConfigured = !string.IsNullOrWhiteSpace(ServiceEndpointResolver.ResolveToken());
+            return Results.Ok(new ServiceInfo(resolvedPort, tokenConfigured ? "configured" : string.Empty));
         });
 
         app.MapGet("/api/containers", async (CancellationToken ct) =>

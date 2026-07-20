@@ -24,7 +24,7 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public void ServiceEndpointResolver_ShouldDefaultToLanListenAndLoopbackClient()
+    public void ServiceEndpointResolver_ShouldDefaultToLoopbackListenAndLoopbackClient()
     {
         var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
         var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
@@ -37,7 +37,7 @@ public class RuntimeContractTests
         try
         {
             ServiceEndpointResolver.Resolve().Should().Be("http://127.0.0.1:5123");
-            ServiceEndpointResolver.ResolveServiceHost().Should().Be("0.0.0.0");
+            ServiceEndpointResolver.ResolveServiceHost().Should().Be("127.0.0.1");
             ServiceEndpointResolver.ResolveServicePort().Should().Be("5123");
             ServiceEndpointResolver.ResolveToken().Should().BeEmpty();
         }

@@ -117,7 +117,6 @@ public partial class SettingsViewModel : ViewModelBase
     {
         var token = TokenText ?? string.Empty;
         ServiceEndpointResolver.SetToken(token);
-        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", token);
 
         var settings = _settingsService.Load();
         settings.ApiToken = token;
