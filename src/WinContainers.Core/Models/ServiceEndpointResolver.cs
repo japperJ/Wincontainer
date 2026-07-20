@@ -3,6 +3,7 @@ namespace WinContainers.Core.Models;
 public static class ServiceEndpointResolver
 {
     private static string? _tokenOverride;
+    private static string? _hostOverride;
 
     public static string ResolveServicePort()
     {
@@ -11,12 +12,25 @@ public static class ServiceEndpointResolver
 
     public static string ResolveServiceHost()
     {
-        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST") ?? "127.0.0.1";
+        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST")
+            ?? _hostOverride
+            ?? (string.IsNullOrWhiteSpace(ResolveToken()) ? "127.0.0.1" : "0.0.0.0");
     }
 
-    public static void SetToken(string token)
+    public static void SetToken(string? token)
     {
-        _tokenOverride = token;
+        _tokenOverride = string.IsNullOrWhiteSpace(token) ? null : token.Trim();
+    }
+
+    public static void SetListenHost(string? host)
+    {
+        _hostOverride = string.IsNullOrWhiteSpace(host) ? null : host.Trim();
+    }
+
+    public static void ClearOverrides()
+    {
+        _tokenOverride = null;
+        _hostOverride = null;
     }
 
     public static string ResolveServiceProjectPath()

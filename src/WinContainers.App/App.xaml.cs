@@ -87,7 +87,10 @@ public partial class App : Application
 
                 OutputService.Instance.ApiLoggingEnabled = settings.ApiLoggingEnabled;
                 OutputService.Instance.RemoteApiLoggingEnabled = settings.RemoteApiLoggingEnabled;
-                ServiceEndpointResolver.SetToken(settings.ApiToken ?? string.Empty);
+                if (!string.IsNullOrWhiteSpace(settings.ApiToken))
+                {
+                    ServiceEndpointResolver.SetToken(settings.ApiToken);
+                }
 
                 ServiceClient = new WslcServiceClient(ServiceEndpointResolver.Resolve(), OutputService.Instance);
                 ServiceHost.Build([], OutputService.Instance).Run();
