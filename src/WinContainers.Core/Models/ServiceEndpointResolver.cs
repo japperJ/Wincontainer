@@ -17,14 +17,20 @@ public static class ServiceEndpointResolver
             ?? (string.IsNullOrWhiteSpace(ResolveToken()) ? "127.0.0.1" : "0.0.0.0");
     }
 
-    public static void SetToken(string token)
+    public static void SetToken(string? token)
     {
-        _tokenOverride = token;
+        _tokenOverride = string.IsNullOrWhiteSpace(token) ? null : token.Trim();
     }
 
-    public static void SetListenHost(string host)
+    public static void SetListenHost(string? host)
     {
-        _hostOverride = host;
+        _hostOverride = string.IsNullOrWhiteSpace(host) ? null : host.Trim();
+    }
+
+    public static void ClearOverrides()
+    {
+        _tokenOverride = null;
+        _hostOverride = null;
     }
 
     public static string ResolveServiceProjectPath()

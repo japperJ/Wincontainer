@@ -26,6 +26,8 @@ public class RuntimeContractTests
     [Fact]
     public void ServiceEndpointResolver_ShouldDefaultToLoopbackListenAndLoopbackClient()
     {
+        ServiceEndpointResolver.ClearOverrides();
+
         var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
         var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
         var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
@@ -52,6 +54,8 @@ public class RuntimeContractTests
     [Fact]
     public void ServiceEndpointResolver_ShouldListenOnLanWhenTokenConfigured()
     {
+        ServiceEndpointResolver.ClearOverrides();
+
         var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
         var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
 
@@ -72,6 +76,8 @@ public class RuntimeContractTests
     [Fact]
     public void ServiceEndpointResolver_ShouldHonorHostEnvironmentVariableOverToken()
     {
+        ServiceEndpointResolver.ClearOverrides();
+
         var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
         var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
 
@@ -347,6 +353,7 @@ public class RuntimeContractTests
     [Fact]
     public void ServiceEndpointResolver_ShouldHonorEnvironmentPortOverride()
     {
+        ServiceEndpointResolver.ClearOverrides();
         Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "5155");
 
         try
@@ -364,6 +371,7 @@ public class RuntimeContractTests
     [Fact]
     public void ServiceEndpointResolver_ShouldResolveBearerToken()
     {
+        ServiceEndpointResolver.ClearOverrides();
         Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", "test-token");
 
         try
