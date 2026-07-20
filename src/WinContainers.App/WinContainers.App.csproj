@@ -88,6 +88,7 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.WinApp" />
     <PackageReference Include="YamlDotNet" />
     <PackageReference Include="Velopack" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>
 
   <ItemGroup>

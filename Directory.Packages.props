@@ -21,5 +21,6 @@
     <PackageVersion Include="YamlDotNet" Version="16.3.0" />
     <PackageVersion Include="Velopack" Version="0.0.1049" />
     <PackageVersion Include="Appium.WebDriver" Version="8.2.0" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 </Project>

@@ -11,7 +11,7 @@ public static class ServiceEndpointResolver
 
     public static string ResolveServiceHost()
     {
-        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST") ?? "0.0.0.0";
+        return Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST") ?? "127.0.0.1";
     }
 
     public static void SetToken(string token)
