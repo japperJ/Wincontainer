@@ -9,7 +9,7 @@ namespace WinContainers_App.Services;
 
 public sealed class WslcServiceClient
 {
-    private readonly HttpClient _http = new();
+    private readonly HttpClient _http = HttpClientTimeouts.Create(HttpClientTimeouts.ServiceTimeout);
     private readonly string _baseUrl;
     private readonly IOutputService _output;
 

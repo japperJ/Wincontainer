@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
 using WinContainers.Core;
+using WinContainers.Core.Models;
 
 namespace WinContainers_App.Services;
 
@@ -11,7 +12,7 @@ public sealed record WslcUpdateInfo(string Version, string DownloadUrl, string S
 public sealed class WslcUpdateService
 {
     private const string ReleasesUrl = "https://api.github.com/repos/microsoft/WSL/releases?per_page=20";
-    private readonly HttpClient _http = new();
+    private readonly HttpClient _http = HttpClientTimeouts.Create(HttpClientTimeouts.UpdateTimeout);
 
     public WslcUpdateService()
     {

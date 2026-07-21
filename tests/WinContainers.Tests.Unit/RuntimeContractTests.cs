@@ -464,4 +464,18 @@ public class RuntimeContractTests
         script.Should().EndWith(")");
         script.Should().Be($"setJson({JsonSerializer.Serialize(json)})");
     }
+
+    [Fact]
+    public void HttpClientTimeouts_ShouldCreateFiniteClientsForServiceAndUpdates()
+    {
+        using var serviceClient = HttpClientTimeouts.Create(HttpClientTimeouts.ServiceTimeout);
+        using var updateClient = HttpClientTimeouts.Create(HttpClientTimeouts.UpdateTimeout);
+
+        HttpClientTimeouts.ServiceTimeout.Should().BePositive();
+        HttpClientTimeouts.UpdateTimeout.Should().BePositive();
+        serviceClient.Timeout.Should().Be(HttpClientTimeouts.ServiceTimeout);
+        updateClient.Timeout.Should().Be(HttpClientTimeouts.UpdateTimeout);
+        serviceClient.Timeout.Should().NotBe(Timeout.InfiniteTimeSpan);
+        updateClient.Timeout.Should().NotBe(Timeout.InfiniteTimeSpan);
+    }
 }
