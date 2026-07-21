@@ -802,14 +802,5 @@ public partial class ContainerDetailViewModel : ViewModelBase
         await _dialog.ShowMessageAsync("Error", message);
     }
 
-    public static string EncodeJsonForWebView2(string json)
-    {
-        if (string.IsNullOrEmpty(json))
-            return "null";
-
-        var encoded = JsonSerializer.Serialize(json);
-        return encoded.Substring(1, encoded.Length - 2);
-    }
-
     #endregion
 }

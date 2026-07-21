@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 using WinContainers_App;
+using WinContainers.Core.Models;
 using WinContainers.Runtime.Models;
 using WinContainers_App.ViewModels;
 
@@ -182,14 +183,12 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
 
             _inspectWebView.NavigationCompleted += (_, _) =>
             {
-                var encoded = ContainerDetailViewModel.EncodeJsonForWebView2(json);
-                _inspectWebView?.ExecuteScriptAsync($"setJson('{encoded}')");
+                _inspectWebView?.ExecuteScriptAsync(WebViewScriptEncoder.BuildSetJsonScript(json));
             };
         }
         else
         {
-            var encoded = ContainerDetailViewModel.EncodeJsonForWebView2(json);
-            _ = _inspectWebView.ExecuteScriptAsync($"setJson('{encoded}')");
+            _ = _inspectWebView.ExecuteScriptAsync(WebViewScriptEncoder.BuildSetJsonScript(json));
         }
     }
 

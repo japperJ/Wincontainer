@@ -451,4 +451,17 @@ public class RuntimeContractTests
         BearerTokenValidator.RequiresAuthorization("0.0.0.0", string.Empty).Should().BeTrue();
         BearerTokenValidator.RequiresAuthorization("192.168.1.10", string.Empty).Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData("O'Brien")]
+    [InlineData("\\\"; alert('x')")]
+    [InlineData("</script><script>alert('x')</script>")]
+    public void WebViewScriptEncoder_ShouldKeepJsonPayloadInsideOneJavaScriptArgument(string json)
+    {
+        var script = WebViewScriptEncoder.BuildSetJsonScript(json);
+
+        script.Should().StartWith("setJson(");
+        script.Should().EndWith(")");
+        script.Should().Be($"setJson({JsonSerializer.Serialize(json)})");
+    }
 }
