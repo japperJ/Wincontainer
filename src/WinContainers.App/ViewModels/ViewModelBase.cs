@@ -7,11 +7,25 @@ namespace WinContainers_App.ViewModels;
 
 public abstract class ViewModelBase : ObservableObject
 {
+    private readonly DispatcherQueue? _dispatcherQueue;
+
+    protected ViewModelBase()
+    {
+        _dispatcherQueue = DispatcherQueue.GetForCurrentThread() ?? App.DispatcherQueue;
+    }
+
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
-        if (!App.DispatcherQueue.HasThreadAccess)
-            App.DispatcherQueue.TryEnqueue(() => base.OnPropertyChanged(e));
-        else
+        var dispatcherQueue = _dispatcherQueue;
+        if (dispatcherQueue is null || dispatcherQueue.HasThreadAccess)
+        {
             base.OnPropertyChanged(e);
+            return;
+        }
+
+        if (!dispatcherQueue.TryEnqueue(() => base.OnPropertyChanged(e)))
+        {
+            // The dispatcher is shutting down, so the notification cannot be delivered safely.
+        }
     }
 }

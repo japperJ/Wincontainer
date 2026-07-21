@@ -10,6 +10,20 @@ namespace WinContainers.Tests.Unit;
 public class RuntimeContractTests
 {
     [Fact]
+    public void ViewModelBase_ShouldHandleDispatcherLifecycleSafely()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/ViewModels/ViewModelBase.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("DispatcherQueue.GetForCurrentThread()");
+        source.Should().Contain("dispatcherQueue is null");
+        source.Should().Contain("if (!dispatcherQueue.TryEnqueue");
+        source.Should().NotContain("App.DispatcherQueue.HasThreadAccess");
+    }
+
+    [Fact]
     public void ServiceInfo_ShouldRoundTripPortTokenAndScripts()
     {
         var info = new ServiceInfo("12345", "secret-token")
