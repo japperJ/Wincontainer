@@ -24,6 +24,21 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void ContainerDetailPage_ShouldUnsubscribeInspectPropertyChangedHandler()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/ContainerDetailPage.xaml.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("PropertyChangedEventHandler? _inspectPropertyChangedHandler");
+        source.Should().Contain("_viewModel.PropertyChanged -= _inspectPropertyChangedHandler");
+        source.Should().Contain("_viewModel.PropertyChanged += _inspectPropertyChangedHandler");
+        source.Should().Contain("_inspectPropertyChangedHandler = null");
+        source.Should().NotContain("_viewModel.PropertyChanged += async (s, e) =>");
+    }
+
+    [Fact]
     public void ServiceInfo_ShouldRoundTripPortTokenAndScripts()
     {
         var info = new ServiceInfo("12345", "secret-token")

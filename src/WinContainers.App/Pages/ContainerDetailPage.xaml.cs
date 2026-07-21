@@ -15,6 +15,7 @@ namespace WinContainers_App.Pages;
 public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
 {
     private ContainerDetailViewModel? _viewModel;
+    private PropertyChangedEventHandler? _inspectPropertyChangedHandler;
     private DispatcherTimer? _logsTimer;
     private WebView2? _inspectWebView;
     private List<string> _fileNavigationHistory = [];
@@ -42,6 +43,7 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        DetachInspectPropertyChangedHandler();
 
         ContainerCardData data;
         if (e.Parameter is ContainerDetailArgs args)
@@ -71,17 +73,9 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
 
         _viewModel.LoadContainer(data);
 
-        _viewModel.PropertyChanged += async (s, e) =>
-        {
-            if (e.PropertyName == nameof(ContainerDetailViewModel.InspectJson))
-            {
-                var json = _viewModel.InspectJson;
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    await InitializeInspectWebViewAsync(json);
-                }
-            }
-        };
+        _inspectPropertyChangedHandler = OnViewModelPropertyChanged;
+        if (_inspectPropertyChangedHandler is not null)
+            _viewModel.PropertyChanged += _inspectPropertyChangedHandler;
 
         _ = _viewModel.LoadLogsAsync();
         _ = _viewModel.LoadInspectAsync();
@@ -93,7 +87,27 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         base.OnNavigatedFrom(e);
+        DetachInspectPropertyChangedHandler();
         StopLogsTimer();
+    }
+
+    private void DetachInspectPropertyChangedHandler()
+    {
+        if (_viewModel is not null && _inspectPropertyChangedHandler is not null)
+            _viewModel.PropertyChanged -= _inspectPropertyChangedHandler;
+
+        _inspectPropertyChangedHandler = null;
+    }
+
+    private async void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ContainerDetailViewModel.InspectJson) &&
+            sender is ContainerDetailViewModel viewModel)
+        {
+            var json = viewModel.InspectJson;
+            if (!string.IsNullOrWhiteSpace(json))
+                await InitializeInspectWebViewAsync(json);
+        }
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e)
