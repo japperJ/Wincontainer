@@ -37,6 +37,9 @@ public sealed partial class SettingsPage : Page
             ? Color.FromArgb(255, 0, 200, 83)
             : Color.FromArgb(255, 255, 179, 0));
         VersionText.Text = _viewModel.VersionText;
+        WslcUpdateStatusText.Text = _viewModel.WslcUpdateStatus;
+        UpdateWslcButton.IsEnabled = _viewModel.WslcUpdateAvailable && !_viewModel.IsCheckingWslcUpdate;
+        CheckWslcUpdateButton.IsEnabled = !_viewModel.IsCheckingWslcUpdate;
     }
 
     private void ApplyPortButton_Click(object sender, RoutedEventArgs e)
@@ -63,5 +66,20 @@ public sealed partial class SettingsPage : Page
     {
         _viewModel.RemoteApiLoggingEnabled = RemoteApiLoggingToggle.IsOn;
         _viewModel.SaveLoggingSettings();
+    }
+
+    private async void CheckWslcUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        CheckWslcUpdateButton.IsEnabled = false;
+        await _viewModel.CheckWslcUpdateAsync();
+        UpdateStatusDisplay();
+    }
+
+    private async void UpdateWslcButton_Click(object sender, RoutedEventArgs e)
+    {
+        CheckWslcUpdateButton.IsEnabled = false;
+        UpdateWslcButton.IsEnabled = false;
+        await _viewModel.UpdateWslcAsync();
+        UpdateStatusDisplay();
     }
 }

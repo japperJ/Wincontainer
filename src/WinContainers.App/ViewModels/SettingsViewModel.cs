@@ -1,6 +1,7 @@
 using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers_App.Services;
+using LogLevel = WinContainers_App.Services.LogLevel;
 
 namespace WinContainers_App.ViewModels;
 
@@ -8,6 +9,30 @@ public partial class SettingsViewModel : ViewModelBase
 {
     private readonly IOutputService _output;
     private readonly AppSettingsService _settingsService;
+    private readonly WslcUpdateService _wslcUpdateService;
+
+    private bool _isCheckingWslcUpdate;
+    public bool IsCheckingWslcUpdate
+    {
+        get => _isCheckingWslcUpdate;
+        private set => SetProperty(ref _isCheckingWslcUpdate, value);
+    }
+
+    private bool _wslcUpdateAvailable;
+    public bool WslcUpdateAvailable
+    {
+        get => _wslcUpdateAvailable;
+        private set => SetProperty(ref _wslcUpdateAvailable, value);
+    }
+
+    private string _wslcUpdateStatus = "Use Check for updates to look for a newer WSLC release.";
+    public string WslcUpdateStatus
+    {
+        get => _wslcUpdateStatus;
+        private set => SetProperty(ref _wslcUpdateStatus, value);
+    }
+
+    private WslcUpdateInfo? _availableWslcUpdate;
 
     private string? _portText;
     public string? PortText
@@ -77,10 +102,11 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
-    public SettingsViewModel(IOutputService output, AppSettingsService settingsService)
+    public SettingsViewModel(IOutputService output, AppSettingsService settingsService, WslcUpdateService wslcUpdateService)
     {
         _output = output;
         _settingsService = settingsService;
+        _wslcUpdateService = wslcUpdateService;
     }
 
     public async Task LoadAsync()
@@ -131,5 +157,58 @@ public partial class SettingsViewModel : ViewModelBase
         settings.ApiLoggingEnabled = _output.ApiLoggingEnabled;
         settings.RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
         _settingsService.Save(settings);
+    }
+
+    public async Task CheckWslcUpdateAsync()
+    {
+        IsCheckingWslcUpdate = true;
+        WslcUpdateAvailable = false;
+        _availableWslcUpdate = null;
+        try
+        {
+            var installedVersion = await App.ServiceClient.GetVersionAsync();
+            _availableWslcUpdate = await _wslcUpdateService.CheckForUpdateAsync(installedVersion);
+            WslcUpdateAvailable = _availableWslcUpdate is not null;
+            WslcUpdateStatus = WslcUpdateAvailable
+                ? $"WSLC {_availableWslcUpdate!.Version} is available."
+                : $"WSLC is up to date ({WslcVersionFormatter.Format(installedVersion)}).";
+        }
+        catch (Exception ex)
+        {
+            WslcUpdateStatus = $"Update check failed: {ex.Message}";
+            _output.Write(WslcUpdateStatus, LogLevel.Warning);
+        }
+        finally
+        {
+            IsCheckingWslcUpdate = false;
+        }
+    }
+
+    public async Task UpdateWslcAsync()
+    {
+        if (_availableWslcUpdate is null)
+        {
+            return;
+        }
+
+        IsCheckingWslcUpdate = true;
+        try
+        {
+            WslcUpdateStatus = $"Downloading WSLC {_availableWslcUpdate.Version}...";
+            await _wslcUpdateService.InstallAsync(_availableWslcUpdate);
+            WslcUpdateStatus = "WSLC updated. Restart Windows if wslc is not available yet.";
+            WslcUpdateAvailable = false;
+            _availableWslcUpdate = null;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            WslcUpdateStatus = $"WSLC update failed: {ex.Message}";
+            _output.Write(WslcUpdateStatus, LogLevel.Error);
+        }
+        finally
+        {
+            IsCheckingWslcUpdate = false;
+        }
     }
 }

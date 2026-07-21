@@ -45,6 +45,7 @@ public partial class App : Application
         services.AddSingleton<ContainerService>();
         services.AddSingleton<WslcDriver>();
         services.AddSingleton<TemplateCatalogService>();
+        services.AddSingleton<WslcUpdateService>();
 
         services.AddTransient<ShellViewModel>();
         services.AddTransient<DashboardViewModel>();
@@ -66,11 +67,11 @@ public partial class App : Application
     {
         DispatcherQueue = DispatcherQueue.GetForCurrentThread();
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {
-                UpdateService.CheckForUpdates();
+                await UpdateService.CheckForUpdatesAsync();
             }
             catch (Exception ex)
             {

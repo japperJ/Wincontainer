@@ -1,5 +1,4 @@
 using System.Text;
-using Windows.Storage;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 using SvcLogLevel = WinContainers_App.Services.LogLevel;
@@ -22,6 +21,9 @@ public sealed class TemplateCatalogService
     private const string RemoteUrl = "https://raw.githubusercontent.com/japperj/wincontainer-templates/main/templates.yaml";
     private const string CacheFileName = "templates.yaml";
     private static readonly TimeSpan CacheStaleness = TimeSpan.FromHours(24);
+    private static readonly string CacheDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "WinContainers");
 
     private static readonly List<TemplateCatalogEntry> SeedTemplates =
     [
@@ -134,14 +136,14 @@ public sealed class TemplateCatalogService
     {
         try
         {
-            var file = await ApplicationData.Current.LocalFolder.TryGetItemAsync(CacheFileName);
-            if (file is null) return null;
+            var path = Path.Combine(CacheDirectory, CacheFileName);
+            if (!File.Exists(path)) return null;
 
-            var lastModified = (file as StorageFile)?.DateCreated ?? DateTimeOffset.MinValue;
-            if (DateTimeOffset.UtcNow - lastModified > CacheStaleness)
+            var lastModified = File.GetLastWriteTimeUtc(path);
+            if (DateTime.UtcNow - lastModified > CacheStaleness)
                 return null;
 
-            var yaml = await FileIO.ReadTextAsync((StorageFile)file);
+            var yaml = await File.ReadAllTextAsync(path);
             return ParseYaml(yaml);
         }
         catch (Exception ex)
@@ -159,9 +161,8 @@ public sealed class TemplateCatalogService
                 .WithNamingConvention(UnderscoredNamingConvention.Instance)
                 .Build();
             var yaml = serializer.Serialize(templates);
-            var file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                CacheFileName, CreationCollisionOption.ReplaceExisting);
-            await FileIO.WriteTextAsync(file, yaml);
+            Directory.CreateDirectory(CacheDirectory);
+            await File.WriteAllTextAsync(Path.Combine(CacheDirectory, CacheFileName), yaml);
         }
         catch (Exception ex)
         {

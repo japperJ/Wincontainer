@@ -63,8 +63,9 @@ public static class WslcCommands
         var sb = new System.Text.StringBuilder("run --detach");
         if (!string.IsNullOrWhiteSpace(name))
             sb.Append($" --name {Quote(name)}");
-        if (!string.IsNullOrWhiteSpace(restart) && restart != "no")
-            sb.Append($" --restart {Quote(restart)}");
+        // WSLC's run command does not support Docker's --restart option.
+        // Keep the parameter for the service contract, but do not emit an
+        // argument that causes every non-default run to fail.
         if (ports is not null)
             foreach (var p in ports.Where(p => !string.IsNullOrWhiteSpace(p)))
                 sb.Append($" --publish {Quote(p)}");

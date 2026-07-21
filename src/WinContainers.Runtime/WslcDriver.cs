@@ -5,39 +5,18 @@ using WinContainers.Core;
 
 namespace WinContainers.Runtime;
 
-public sealed class WslcDriver : IDisposable
+public sealed class WslcDriver
 {
     private const int DefaultTimeoutMs = 30000;
+    private const int RuntimeProbeTimeoutMs = 15000;
     private const int SlowTimeoutMs = 120000;
-    private const int MaxKeepAliveFailures = 5;
-    private static readonly TimeSpan KeepAliveFailureWindow = TimeSpan.FromMinutes(5);
-
-    private readonly object _keepAliveLock = new();
-    private Process? _keepAliveProcess;
-    private bool _disposed;
-    private int _keepAliveFailureCount;
-    private DateTime _keepAliveStartTime;
-
-    public WslcDriver()
-    {
-        AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
-        AppDomain.CurrentDomain.DomainUnload += OnDomainUnload;
-
-        try
-        {
-            StartKeepAliveProcess();
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[WslcDriver] Keep-alive process failed to start: {ex}");
-        }
-    }
-
     public async Task<bool> IsAvailableAsync(CancellationToken ct)
     {
         try
         {
-            var result = await RunAsync("--version", DefaultTimeoutMs, ct);
+            // --version only proves that the CLI is installed. Probe the runtime
+            // itself so a broken WSL/WSLC installation is reported as unavailable.
+            var result = await RunAsync(WslcCommands.ContainerPs(), RuntimeProbeTimeoutMs, ct);
             return result.ExitCode == 0;
         }
         catch (Exception ex)
@@ -191,160 +170,6 @@ public sealed class WslcDriver : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        lock (_keepAliveLock)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            StopKeepAliveProcessCore();
-        }
-
-        GC.SuppressFinalize(this);
-    }
-
-    private void OnProcessExit(object? sender, EventArgs e) => Dispose();
-
-    private void OnDomainUnload(object? sender, EventArgs e) => Dispose();
-
-    private void StartKeepAliveProcess()
-    {
-        lock (_keepAliveLock)
-        {
-            StartKeepAliveProcessLocked();
-        }
-    }
-
-    private void StartKeepAliveProcessLocked()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        StopKeepAliveProcessCore();
-
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo("wsl.exe", "-u root --exec sleep infinity")
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true
-            },
-            EnableRaisingEvents = true
-        };
-
-        process.Exited += OnKeepAliveExited;
-        _keepAliveStartTime = DateTime.UtcNow;
-        process.Start();
-        _keepAliveProcess = process;
-        Trace.WriteLine($"[WslcDriver] Keep-alive process started (pid {process.Id}).");
-    }
-
-    private void OnKeepAliveExited(object? sender, EventArgs e)
-    {
-        try
-        {
-            var process = sender as Process;
-            if (process is not null)
-            {
-                process.Exited -= OnKeepAliveExited;
-                process.Dispose();
-            }
-
-            TimeSpan delay;
-            bool shouldRestart;
-            lock (_keepAliveLock)
-            {
-                if (_keepAliveProcess != process || _disposed)
-                {
-                    return;
-                }
-
-                _keepAliveProcess = null;
-
-                var lifetime = DateTime.UtcNow - _keepAliveStartTime;
-                if (lifetime > TimeSpan.FromSeconds(30))
-                {
-                    _keepAliveFailureCount = 0;
-                }
-                else
-                {
-                    _keepAliveFailureCount++;
-                }
-
-                if (_keepAliveFailureCount > MaxKeepAliveFailures)
-                {
-                    Trace.WriteLine("[WslcDriver] Keep-alive process failed repeatedly; stopping restart.");
-                    return;
-                }
-
-                var seconds = Math.Min(30, 2 * Math.Pow(2, _keepAliveFailureCount));
-                delay = TimeSpan.FromSeconds(seconds);
-                shouldRestart = true;
-            }
-
-            if (shouldRestart)
-            {
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(delay);
-                    lock (_keepAliveLock)
-                    {
-                        if (!_disposed)
-                        {
-                            StartKeepAliveProcessLocked();
-                        }
-                    }
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[WslcDriver] Keep-alive restart failed: {ex}");
-        }
-    }
-
-    private void StopKeepAliveProcess()
-    {
-        lock (_keepAliveLock)
-        {
-            StopKeepAliveProcessCore();
-        }
-    }
-
-    private void StopKeepAliveProcessCore()
-    {
-        var process = _keepAliveProcess;
-        _keepAliveProcess = null;
-
-        if (process is null)
-        {
-            return;
-        }
-
-        try
-        {
-            process.Exited -= OnKeepAliveExited;
-            if (!process.HasExited)
-            {
-                TryKill(process);
-            }
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[WslcDriver] Stop keep-alive failed: {ex}");
-        }
-        finally
-        {
-            process.Dispose();
-        }
-    }
-
     private static ProcessStartInfo BuildStartInfo(string arguments)
     {
         var wslcPath = RuntimeTools.ResolveExecutablePath("wslc");
@@ -360,7 +185,8 @@ public sealed class WslcDriver : IDisposable
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            WorkingDirectory = Path.GetTempPath()
         };
     }
 

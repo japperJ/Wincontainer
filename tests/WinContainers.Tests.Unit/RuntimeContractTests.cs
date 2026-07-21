@@ -283,10 +283,32 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcVersionFormatter_ShouldExtractWslcVersion()
+    {
+        WslcVersionFormatter.Format("wslc 2.9.4.0").Should().Be("2.9.4.0");
+    }
+
+    [Fact]
+    public void WslcRuntimeProbe_ShouldUseAContainerCommandInsteadOfVersionOnly()
+    {
+        WslcCommands.ContainerPs().Should().NotBe(WslcCommands.Version());
+        WslcCommands.ContainerPs().Should().Contain("container ps");
+    }
+
+    [Fact]
     public void WslcCommands_ShouldQuoteSpacesInArgs()
     {
         WslcCommands.ContainerStart("my container").Should().Contain("\"my container\"");
         WslcCommands.ImagePull("my image:v2").Should().Be("image pull \"my image:v2\"");
+    }
+
+    [Fact]
+    public void WslcCommands_Run_ShouldNotEmitUnsupportedRestartOption()
+    {
+        var command = WslcCommands.Run("linuxserver/heimdall:latest", "heimdall97", restart: "unless-stopped");
+
+        command.Should().Be("run --detach --name heimdall97 linuxserver/heimdall:latest");
+        command.Should().NotContain("--restart");
     }
 
     [Fact]

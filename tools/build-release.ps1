@@ -104,8 +104,33 @@ if (Test-Path $PfxPath) {
 
 if ($LASTEXITCODE -ne 0) { throw "Velopack pack failed" }
 
-# 5. Create ISO containing the installer and portable package
-Write-Host "--- Step 5: Creating ISO ---" -ForegroundColor Yellow
+# 5. Wrap the Velopack setup so it can close a running WinContainers process
+# before Velopack renames the installed application directory.
+Write-Host "--- Step 5: Building installer bootstrapper ---" -ForegroundColor Yellow
+$setupPath = Join-Path $releaseDir "WinContainers-stable-Setup.exe"
+$payloadPath = Join-Path $releaseDir "WinContainers-stable-Setup.payload.exe"
+$bootstrapperProject = Join-Path $solutionDir "tools\InstallerBootstrapper\InstallerBootstrapper.csproj"
+$bootstrapperDir = Join-Path $solutionDir "publish\InstallerBootstrapper"
+
+Move-Item $setupPath $payloadPath -Force
+if (Test-Path $bootstrapperDir) {
+    Remove-Item $bootstrapperDir -Recurse -Force
+}
+
+dotnet publish $bootstrapperProject `
+    -c Release `
+    -r win-x64 `
+    --self-contained `
+    -p:BootstrapPayloadPath=$payloadPath `
+    -o $bootstrapperDir `
+    --nologo -v q
+if ($LASTEXITCODE -ne 0) { throw "Installer bootstrapper build failed" }
+
+Copy-Item (Join-Path $bootstrapperDir "InstallerBootstrapper.exe") $setupPath -Force
+Remove-Item $payloadPath -Force
+
+# 6. Create ISO containing the installer and portable package
+Write-Host "--- Step 6: Creating ISO ---" -ForegroundColor Yellow
 $oscdimgCandidates = @(
     "${env:ProgramFiles(x86)}\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\oscdimg.exe",
     "${env:ProgramFiles(x86)}\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\x86\Oscdimg\oscdimg.exe"

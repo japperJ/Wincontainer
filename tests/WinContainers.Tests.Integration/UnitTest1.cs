@@ -91,12 +91,12 @@ public class UnitTest1
             Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
         }
     }
-    [Fact(Skip = "nerdctl runtime is not available in CI by default")]
-    public void NerdctlRuntime_ShouldBeReachableInWsl()
+    [Fact(Skip = "WSLC is not available in CI by default")]
+    public void WslcRuntime_ShouldBeReachable()
     {
         using var process = new Process
         {
-            StartInfo = new ProcessStartInfo("wsl", "nerdctl --version")
+            StartInfo = new ProcessStartInfo("wslc", "--version")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,

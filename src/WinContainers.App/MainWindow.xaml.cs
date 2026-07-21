@@ -52,9 +52,7 @@ public sealed partial class MainWindow : Window
 
         AppWindow.Closing += (_, args) =>
         {
-            args.Cancel = true;
-            ShowWindow(hwnd, SW_HIDE);
-            _output.Write("WinContainers minimized to tray. Right-click the tray icon to exit.", LogLevel.Info);
+            TrayService.Stop();
         };
 
         TrayService.ShowWindowRequested += () => DispatcherQueue.TryEnqueue(() =>
@@ -75,7 +73,6 @@ public sealed partial class MainWindow : Window
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);
 
-    private const int SW_HIDE = 0;
     private const int SW_SHOW = 5;
 
     [DllImport("user32.dll")]

@@ -5,20 +5,22 @@ namespace WinContainers_App;
 
 public static class UpdateService
 {
-    private const string GitHubRepoUrl = "https://github.com/YOUR_USER/WinContainers";
+    private const string GitHubRepoUrl = "https://github.com/japperJ/Wincontainer";
 
-    public static void CheckForUpdates()
+    public static async Task CheckForUpdatesAsync()
     {
         try
         {
             var updateManager = new UpdateManager(
                 new GithubSource(GitHubRepoUrl, null, false));
 
-            var newVersion = updateManager.CheckForUpdates();
+            var newVersion = await updateManager.CheckForUpdatesAsync();
             if (newVersion != null)
             {
-                updateManager.DownloadUpdates(newVersion);
-                updateManager.ApplyUpdatesAndRestart(newVersion);
+                await updateManager.DownloadUpdatesAsync(newVersion);
+                // The app hosts Kestrel and a tray thread. Let Velopack coordinate
+                // process shutdown before replacing files from the running release.
+                updateManager.WaitExitThenApplyUpdates(newVersion);
             }
         }
         catch (Exception ex)

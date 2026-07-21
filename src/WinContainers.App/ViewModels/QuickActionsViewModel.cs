@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Net.Http;
+using System.Net.NetworkInformation;
 using System.Text.Json;
 using Microsoft.UI.Dispatching;
 using WinContainers.Core.Models;
@@ -359,6 +360,13 @@ public partial class QuickActionsViewModel : ViewModelBase
         set => SetProperty(ref _hasConflicts, value);
     }
 
+    private bool _hasBlockingConflicts;
+    public bool HasBlockingConflicts
+    {
+        get => _hasBlockingConflicts;
+        private set => SetProperty(ref _hasBlockingConflicts, value);
+    }
+
     private string _conflictSummary = string.Empty;
     public string ConflictSummary
     {
@@ -550,6 +558,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             PopulateFormFromService(first);
             ConflictWarnings = [];
             HasConflicts = false;
+            HasBlockingConflicts = false;
             ConflictSummary = string.Empty;
 
             ParsedServices = services;
@@ -674,6 +683,11 @@ public partial class QuickActionsViewModel : ViewModelBase
         }
 
         await RefreshComposeConflictsAsync();
+        if (HasBlockingConflicts)
+        {
+            _output.Write("Container creation stopped because one or more host ports are already in use.", ServiceLogLevel.Error);
+            return;
+        }
         if (HasConflicts)
             _output.Write($"Compose has {ConflictWarnings.Count} warning(s). Review the preview before continuing if these are not intentional.", ServiceLogLevel.Warning);
 
@@ -809,6 +823,7 @@ public partial class QuickActionsViewModel : ViewModelBase
                     : ContainerNameText;
                 ConflictWarnings = [];
                 HasConflicts = false;
+                HasBlockingConflicts = false;
                 ConflictSummary = string.Empty;
                 ParsedServices =
                 [
@@ -1066,12 +1081,16 @@ public partial class QuickActionsViewModel : ViewModelBase
                 .Select(p => p!.Trim())
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+            var activeSystemPorts = GetActiveTcpPorts();
+
             foreach (var (service, hostPort) in services.SelectMany(s => s.Ports
                          .Select(p => (Service: s, HostPort: ExtractPortNumber(p.Host)))
                          .Where(item => !string.IsNullOrWhiteSpace(item.HostPort))))
             {
                 if (!string.IsNullOrWhiteSpace(hostPort) && usedHostPorts.Contains(hostPort))
                     warnings.Add($"Host port {hostPort} for '{service.ContainerName}' is already mapped by a running container.");
+                else if (int.TryParse(hostPort, out var portNumber) && activeSystemPorts.Contains(portNumber))
+                    warnings.Add($"Host port {hostPort} for '{service.ContainerName}' is already in use by another Windows process.");
             }
 
             warnings.AddRange(FindDuplicateHostPorts(services));
@@ -1143,6 +1162,7 @@ public partial class QuickActionsViewModel : ViewModelBase
 
             ConflictWarnings = new ObservableCollection<string>(warnings);
             HasConflicts = warnings.Count > 0;
+            HasBlockingConflicts = warnings.Any(w => w.Contains("already in use by another Windows process", StringComparison.Ordinal));
             ConflictSummary = warnings.Count > 0
                 ? $"{warnings.Count} potential conflict(s) detected"
                 : string.Empty;
@@ -1206,6 +1226,21 @@ public partial class QuickActionsViewModel : ViewModelBase
         return path.Replace('\\', '/').Trim().TrimEnd('/');
     }
 
+    private static HashSet<int> GetActiveTcpPorts()
+    {
+        try
+        {
+            return IPGlobalProperties.GetIPGlobalProperties()
+                .GetActiveTcpListeners()
+                .Select(endpoint => endpoint.Port)
+                .ToHashSet();
+        }
+        catch (NetworkInformationException)
+        {
+            return [];
+        }
+    }
+
     #endregion
 
     #region Container Management
@@ -1235,6 +1270,13 @@ public partial class QuickActionsViewModel : ViewModelBase
             .Where(p => !string.IsNullOrWhiteSpace(p.Host) && !string.IsNullOrWhiteSpace(p.Container))
             .Select(p => $"{p.Host}:{p.Container}")
             .ToList();
+
+        await RefreshConflictsAsync([BuildCurrentServiceConfig()]);
+        if (HasBlockingConflicts)
+        {
+            _output.Write("Container creation stopped because one or more host ports are already in use.", ServiceLogLevel.Error);
+            return;
+        }
 
         var volumes = Volumes
             .Where(v => !string.IsNullOrWhiteSpace(v.Source) && !string.IsNullOrWhiteSpace(v.Target))

@@ -99,10 +99,11 @@ public static class ServiceHost
         app.MapGet("/api/health", async (CancellationToken ct) =>
         {
             var version = await driver.GetVersionAsync(ct);
+            var runtimeAvailable = await driver.IsAvailableAsync(ct);
             return Results.Ok(new
             {
                 ok = true,
-                wslcAvailable = !version.Contains("error", StringComparison.OrdinalIgnoreCase),
+                wslcAvailable = runtimeAvailable,
                 wslcVersion = version,
                 appVersion = "WinContainers WSLC"
             });

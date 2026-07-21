@@ -1,22 +1,22 @@
 namespace WinContainers.Core;
 
+using System.Text.RegularExpressions;
+
 public static class WslcVersionFormatter
 {
     /// <summary>
     /// Formats raw "wslc --version" output into a clean version string.
-    /// Input typically looks like:
-    ///   wslc compatibility bridge (nerdctl backend)
-    ///   nerdctl version 2.3.1
-    /// Returns "2.3.1" (or the raw output if the version line is not found).
+    /// Returns the first semantic version found (or the raw output if no version is found).
     /// </summary>
     public static string Format(string versionOutput)
     {
         foreach (var line in versionOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
         {
             var trimmed = line.Trim();
-            if (trimmed.StartsWith("nerdctl version", StringComparison.OrdinalIgnoreCase))
+            var match = Regex.Match(trimmed, @"\b\d+\.\d+\.\d+(?:\.\d+)?\b");
+            if (match.Success)
             {
-                return trimmed["nerdctl version".Length..].Trim();
+                return match.Value;
             }
         }
 
