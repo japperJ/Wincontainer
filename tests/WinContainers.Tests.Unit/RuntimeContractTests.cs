@@ -389,6 +389,20 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void OutputService_ShouldBoundInMemoryHistory()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Services/OutputService.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("MaxHistoryEntries = 1000");
+        source.Should().Contain("in-memory diagnostic buffer");
+        source.Should().Contain("_history.RemoveAt(0)");
+        source.Should().Contain("_history.Count >= MaxHistoryEntries");
+    }
+
+    [Fact]
     public void WslcResourceParser_ShouldParseVolumeList()
     {
         const string output = "DRIVER VOLUME NAME\nlocal app-data\nlocal cache";

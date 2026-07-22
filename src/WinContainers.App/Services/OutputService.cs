@@ -4,6 +4,7 @@ namespace WinContainers_App.Services;
 
 public sealed class OutputService : IOutputService, IApiRequestLogger
 {
+    private const int MaxHistoryEntries = 1000;
     private static readonly Lazy<OutputService> _instance = new(() => new());
     public static OutputService Instance => _instance.Value;
 
@@ -23,6 +24,9 @@ public sealed class OutputService : IOutputService, IApiRequestLogger
     public void Write(string text, LogLevel level)
     {
         LastOutput = text;
+        // History is an in-memory diagnostic buffer, not an archival log.
+        if (_history.Count >= MaxHistoryEntries)
+            _history.RemoveAt(0);
         _history.Add((level, text));
         OutputWritten?.Invoke(this, new OutputWrittenEventArgs(text, level));
     }
