@@ -50,6 +50,7 @@ public sealed partial class ContainersControl : UserControl
     {
         if (sender is not Button { DataContext: ContainerCardData c } btn) return;
         using var guard = new ButtonGuard(btn);
+        MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunContainerActionAsync("Start", c.Id);
     }
 
@@ -57,6 +58,7 @@ public sealed partial class ContainersControl : UserControl
     {
         if (sender is not Button { DataContext: ContainerCardData c } btn) return;
         using var guard = new ButtonGuard(btn);
+        MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunContainerActionAsync("Stop", c.Id);
     }
 
@@ -87,6 +89,7 @@ public sealed partial class ContainersControl : UserControl
             removeVolumes = result == ContentDialogResult.Primary;
         }
 
+        MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunContainerActionAsync("Remove", c.Id,
             volumesToRemove: removeVolumes ? volumeNames : null);
     }
@@ -126,6 +129,7 @@ public sealed partial class ContainersControl : UserControl
     {
         if (sender is not Button { DataContext: ContainerGroup group } btn) return;
         using var guard = new GroupButtonGuard(btn, group);
+        MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunGroupActionAsync("Start", group);
     }
 
@@ -133,6 +137,7 @@ public sealed partial class ContainersControl : UserControl
     {
         if (sender is not Button { DataContext: ContainerGroup group } btn) return;
         using var guard = new GroupButtonGuard(btn, group);
+        MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunGroupActionAsync("Stop", group);
     }
 
@@ -140,6 +145,7 @@ public sealed partial class ContainersControl : UserControl
     {
         if (sender is not Button { DataContext: ContainerGroup group } btn) return;
         using var guard = new GroupButtonGuard(btn, group);
+        MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunGroupActionAsync("Remove", group);
     }
 
@@ -218,6 +224,11 @@ public sealed partial class ContainersControl : UserControl
             var url = $"http://{portStr}/";
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
         }
+    }
+
+    private void PortLink_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
     }
 
     private sealed class ButtonGuard : IDisposable

@@ -48,7 +48,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="models:PortLinkItem">
                                     <StackPanel Orientation="Horizontal" Spacing="2">
-                                        <HyperlinkButton Content="{x:Bind Url}" Click="PortLink_Click" />
+                                        <HyperlinkButton Content="{x:Bind Url}" Click="PortLink_Click" Tapped="PortLink_Tapped" />
                                         <TextBlock Text="{x:Bind Detail}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
                                 </DataTemplate>

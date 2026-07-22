@@ -417,6 +417,49 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void PortLinkClick_ShouldStopTheEventBeforeLaunchingTheBrowser()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/ContainersControl.xaml"));
+        var codeBehindPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/ContainersControl.xaml.cs"));
+        var xaml = File.ReadAllText(xamlPath);
+        var source = File.ReadAllText(codeBehindPath);
+
+        xaml.Should().Contain("Tapped=\"PortLink_Tapped\"");
+        source.Should().Contain("private void PortLink_Tapped(object sender, TappedRoutedEventArgs e)");
+        source.Should().Contain("e.Handled = true;");
+    }
+
+    [Fact]
+    public void ContainerListActions_ShouldShowOutputPaneBeforeRunning()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/ContainersControl.xaml.cs"));
+        var source = File.ReadAllText(path);
+
+        foreach (var handler in new[]
+        {
+            "StartContainer_Click",
+            "StopContainer_Click",
+            "RemoveContainer_Click",
+            "StartGroup_Click",
+            "StopGroup_Click",
+            "RemoveGroup_Click"
+        })
+        {
+            var handlerStart = source.IndexOf(handler, StringComparison.Ordinal);
+            handlerStart.Should().BeGreaterThanOrEqualTo(0, because: $"{handler} should exist");
+            var nextHandler = source.IndexOf("private ", handlerStart + handler.Length, StringComparison.Ordinal);
+            var handlerSource = source.Substring(handlerStart, nextHandler < 0 ? source.Length - handlerStart : nextHandler - handlerStart);
+            handlerSource.Should().Contain("EnsureOutputPaneVisible()", because: $"{handler} should show action output");
+        }
+    }
+
+    [Fact]
     public void WslcResourceParser_ShouldParseVolumeList()
     {
         const string output = "DRIVER VOLUME NAME\nlocal app-data\nlocal cache";
