@@ -118,11 +118,11 @@ public sealed class WslcServiceClient
         return ExtractField(json, "output") ?? json;
     }
 
-    public async Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? restart = null)
+    public async Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/containers/run");
         ApplyAuth(request);
-        request.Content = JsonContent.Create(new { image, name, ports, volumes, env, restart });
+        request.Content = JsonContent.Create(new { image, name, ports, volumes, env });
         var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }

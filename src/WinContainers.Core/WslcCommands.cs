@@ -58,14 +58,11 @@ public static class WslcCommands
 
     public static string Login(string host, string username) => $"login {Quote(host)} --username {Quote(username)} --password-stdin";
 
-    public static string Run(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? restart = null)
+    public static string Run(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null)
     {
         var sb = new System.Text.StringBuilder("run --detach");
         if (!string.IsNullOrWhiteSpace(name))
             sb.Append($" --name {Quote(name)}");
-        // WSLC's run command does not support Docker's --restart option.
-        // Keep the parameter for the service contract, but do not emit an
-        // argument that causes every non-default run to fail.
         if (ports is not null)
             foreach (var p in ports.Where(p => !string.IsNullOrWhiteSpace(p)))
                 sb.Append($" --publish {Quote(p)}");

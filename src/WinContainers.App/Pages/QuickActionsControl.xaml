@@ -137,12 +137,6 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Restart policy -->
-                    <StackPanel Spacing="4">
-                        <ComboBox x:Name="RestartPolicyCombo" Header="Restart policy" Width="300" SelectedIndex="0" AutomationProperties.Name="Restart policy" />
-                        <TextBlock Text="Choose 'unless-stopped' or 'always' to start the container again after a Windows or WSL restart. 'no' leaves it stopped but still preserves it in the container list." TextWrapping="Wrap" Width="520" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    </StackPanel>
-
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button x:Name="CreateAndStartButton" Content="Create + Start" Style="{StaticResource AccentButtonStyle}" Click="CreateAndStartButton_Click" AutomationProperties.Name="Create and start container" />
                         <Button x:Name="PullImageButton" Content="Pull image" Click="PullImageButton_Click" AutomationProperties.Name="Pull image" />

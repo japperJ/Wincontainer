@@ -16,9 +16,6 @@ public sealed partial class QuickActionsControl : UserControl
         _viewModel = ViewModelLocator.QuickActionsViewModel;
         DataContext = _viewModel;
 
-        RestartPolicyCombo.ItemsSource = _viewModel.RestartPolicies;
-        RestartPolicyCombo.SelectedIndex = 0;
-
         _viewModel.PropertyChanged += (_, e) =>
         {
             switch (e.PropertyName)
@@ -38,9 +35,6 @@ public sealed partial class QuickActionsControl : UserControl
                 case nameof(_viewModel.EnvVars):
                     UpdateEnvVarsHeader();
                     break;
-                case nameof(_viewModel.RestartPolicy):
-                    SyncRestartPolicyFromViewModel();
-                    break;
             }
         };
 
@@ -48,13 +42,6 @@ public sealed partial class QuickActionsControl : UserControl
         _viewModel.Volumes.CollectionChanged += (_, _) => UpdateVolumesHeader();
         _viewModel.EnvVars.CollectionChanged += (_, _) => UpdateEnvVarsHeader();
 
-        RestartPolicyCombo.SelectionChanged += (_, _) =>
-        {
-            if (RestartPolicyCombo.SelectedItem is string policy)
-            {
-                _viewModel.RestartPolicy = policy;
-            }
-        };
     }
 
     private void UpdatePortsHeader()
@@ -70,18 +57,6 @@ public sealed partial class QuickActionsControl : UserControl
     private void UpdateEnvVarsHeader()
     {
         EnvVarsHeader.Text = $"\u25BC Environment ({_viewModel.EnvVars.Count})";
-    }
-
-    private void SyncRestartPolicyFromViewModel()
-    {
-        for (var i = 0; i < _viewModel.RestartPolicies.Length; i++)
-        {
-            if (_viewModel.RestartPolicies[i] == _viewModel.RestartPolicy)
-            {
-                RestartPolicyCombo.SelectedIndex = i;
-                break;
-            }
-        }
     }
 
     private void ToggleCollapsible(TextBlock header, StackPanel panel)

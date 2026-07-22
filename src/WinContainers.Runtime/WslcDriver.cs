@@ -87,8 +87,8 @@ public sealed class WslcDriver
     public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) =>
         RunAndCaptureAsync(WslcCommands.NetworkRemove(name), DefaultTimeoutMs, ct);
 
-    public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? restart = null, CancellationToken ct = default) =>
-        RunAndCaptureAsync(WslcCommands.Run(image, name, ports, volumes, env, restart), DefaultTimeoutMs, ct);
+    public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default) =>
+        RunAndCaptureAsync(WslcCommands.Run(image, name, ports, volumes, env), DefaultTimeoutMs, ct);
 
     public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default)
     {

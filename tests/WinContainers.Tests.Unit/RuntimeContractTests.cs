@@ -362,10 +362,30 @@ public class RuntimeContractTests
     [Fact]
     public void WslcCommands_Run_ShouldNotEmitUnsupportedRestartOption()
     {
-        var command = WslcCommands.Run("linuxserver/heimdall:latest", "heimdall97", restart: "unless-stopped");
+        var command = WslcCommands.Run("linuxserver/heimdall:latest", "heimdall97");
 
         command.Should().Be("run --detach --name heimdall97 linuxserver/heimdall:latest");
         command.Should().NotContain("--restart");
+    }
+
+    [Fact]
+    public void QuickActions_ShouldNotExposeUnsupportedRestartPolicyConfiguration()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/QuickActionsControl.xaml"));
+        var codeBehindPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/QuickActionsControl.xaml.cs"));
+        var clientPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Services/WslcServiceClient.cs"));
+
+        File.ReadAllText(xamlPath).Should().NotContain("RestartPolicyCombo");
+        File.ReadAllText(codeBehindPath).Should().NotContain("RestartPolicy");
+        var clientSource = File.ReadAllText(clientPath);
+        clientSource.Should().NotContain("RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? restart");
+        clientSource.Should().NotContain("JsonContent.Create(new { image, name, ports, volumes, env, restart })");
     }
 
     [Fact]

@@ -87,7 +87,6 @@ public sealed class ParsedServiceConfig
     public List<(string Host, string Container)> Ports { get; set; } = [];
     public List<(string Source, string Target)> Volumes { get; set; } = [];
     public List<(string Name, string Value)> EnvVars { get; set; } = [];
-    public string RestartPolicy { get; set; } = "no";
     public string Summary => $"{ContainerName}  ({Image}){(Ports.Count > 0 ? $"  {Ports.Count} port(s)" : "")}{(Volumes.Count > 0 ? $"  {Volumes.Count} volume(s)" : "")}{(EnvVars.Count > 0 ? $"  {EnvVars.Count} env(s)" : "")}";
 }
 
@@ -101,8 +100,6 @@ public partial class QuickActionsViewModel : ViewModelBase
     private List<TemplateCatalogItem> _allTemplates = [];
     private int _conflictCheckVersion;
     private bool _suppressFormConflictRefresh;
-
-    public string[] RestartPolicies { get; } = ["no", "on-failure", "always", "unless-stopped"];
 
     public QuickActionsViewModel(IOutputService output, TemplateCatalogService catalogService)
     {
@@ -288,13 +285,6 @@ public partial class QuickActionsViewModel : ViewModelBase
     {
         get => _selectedImageResult;
         set => SetProperty(ref _selectedImageResult, value);
-    }
-
-    private string _restartPolicy = "no";
-    public string RestartPolicy
-    {
-        get => _restartPolicy;
-        set => SetProperty(ref _restartPolicy, value);
     }
 
     private bool _showComposePreview;
@@ -538,14 +528,7 @@ public partial class QuickActionsViewModel : ViewModelBase
 
                 if (!string.IsNullOrWhiteSpace(svc.Restart))
                 {
-                    cfg.RestartPolicy = svc.Restart.ToLowerInvariant() switch
-                    {
-                        "no" => "no",
-                        "on-failure" => "on-failure",
-                        "always" => "always",
-                        "unless-stopped" => "unless-stopped",
-                        _ => "no"
-                    };
+                    _output.Write($"Compose service '{name}' requests restart policy '{svc.Restart}', but WSLC does not support restart policies. The policy will be ignored.", ServiceLogLevel.Warning);
                 }
 
                 services.Add(cfg);
@@ -554,7 +537,6 @@ public partial class QuickActionsViewModel : ViewModelBase
             var first = services[0];
             ImageSearchText = first.Image;
             ContainerNameText = first.ContainerName;
-            RestartPolicy = first.RestartPolicy;
             PopulateFormFromService(first);
             ConflictWarnings = [];
             HasConflicts = false;
@@ -704,7 +686,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             var env = svc.EnvVars.Select(e => string.IsNullOrWhiteSpace(e.Value) ? e.Name : $"{e.Name}={e.Value}").ToList();
 
             _output.Write($"Running container '{svc.ContainerName}' from '{svc.Image}' (ports={ports.Count}, volumes={volumes.Count}, env={env.Count})...");
-            var runOutput = await App.ServiceClient.RunContainerAsync(svc.Image, svc.ContainerName, ports, volumes, env, svc.RestartPolicy);
+            var runOutput = await App.ServiceClient.RunContainerAsync(svc.Image, svc.ContainerName, ports, volumes, env);
             _output.Write($"Run '{svc.ContainerName}': {runOutput}");
         }
 
@@ -722,7 +704,6 @@ public partial class QuickActionsViewModel : ViewModelBase
         {
             ImageSearchText = "";
             ContainerNameText = "";
-            RestartPolicy = "no";
             Ports.Clear();
             Volumes.Clear();
             EnvVars.Clear();
@@ -778,16 +759,9 @@ public partial class QuickActionsViewModel : ViewModelBase
                     case "--restart":
                         if (i + 1 < args.Length)
                         {
-                            var rp = args[++i].ToLowerInvariant();
-                            var mapped = rp switch
-                            {
-                                "no" => "no",
-                                "on-failure" => "on-failure",
-                                "always" => "always",
-                                "unless-stopped" => "unless-stopped",
-                                _ => "no"
-                            };
-                            RestartPolicy = mapped;
+                            var policy = args[++i];
+                            if (!string.Equals(policy, "no", StringComparison.OrdinalIgnoreCase))
+                                _output.Write($"Docker run requests restart policy '{policy}', but WSLC does not support restart policies. The policy will be ignored.", ServiceLogLevel.Warning);
                         }
                         break;
                 }
@@ -835,7 +809,6 @@ public partial class QuickActionsViewModel : ViewModelBase
                         Ports = [.. Ports.Select(p => (p.Host, p.Container))],
                         Volumes = [.. Volumes.Select(v => (v.Source, v.Target))],
                         EnvVars = [.. EnvVars.Select(e => (e.Name, e.Value))],
-                        RestartPolicy = RestartPolicy
                     }
                 ];
                 ShowComposePreview = true;
@@ -1045,7 +1018,6 @@ public partial class QuickActionsViewModel : ViewModelBase
             Ports = [.. Ports.Select(p => (p.Host, p.Container))],
             Volumes = [.. Volumes.Select(v => (v.Source, v.Target))],
             EnvVars = [.. EnvVars.Select(e => (e.Name, e.Value))],
-            RestartPolicy = RestartPolicy
         };
     }
 
@@ -1288,10 +1260,8 @@ public partial class QuickActionsViewModel : ViewModelBase
             .Select(e => string.IsNullOrWhiteSpace(e.Value) ? e.Name : $"{e.Name}={e.Value}")
             .ToList();
 
-        var restart = RestartPolicy;
-
         _output.Write($"Creating and starting container '{name}' from image '{image}'...");
-        var runOutput = await App.ServiceClient.RunContainerAsync(image, name, ports, volumes, env, restart);
+        var runOutput = await App.ServiceClient.RunContainerAsync(image, name, ports, volumes, env);
         _output.Write($"Run: {runOutput}");
     }
 

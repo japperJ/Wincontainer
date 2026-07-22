@@ -120,7 +120,7 @@ public static class ServiceHost
             Results.Ok(new { output = await driver.GetContainersAsync(ct) }));
 
         app.MapPost("/api/containers/run", async (RunContainerRequest request, CancellationToken ct) =>
-            Results.Ok(new { output = await driver.RunContainerAsync(request.Image, request.Name, request.Ports, request.Volumes, request.Env, request.Restart, ct) }));
+            Results.Ok(new { output = await driver.RunContainerAsync(request.Image, request.Name, request.Ports, request.Volumes, request.Env, ct) }));
 
         app.MapPost("/api/containers/{id}/start", async (string id, CancellationToken ct) =>
             Results.Ok(new { output = await driver.StartContainerAsync(id, ct) }));
@@ -199,7 +199,7 @@ public static class ServiceHost
 }
 
 public sealed record PullImageRequest(string Image);
-public sealed record RunContainerRequest(string Image, string? Name, List<string>? Ports, List<string>? Volumes, List<string>? Env, string? Restart);
+public sealed record RunContainerRequest(string Image, string? Name, List<string>? Ports, List<string>? Volumes, List<string>? Env);
 public sealed record RenameContainerRequest(string Name);
 public sealed record CreateVolumeRequest(string Name);
 public sealed record CreateNetworkRequest(string Name);
