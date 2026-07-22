@@ -410,6 +410,31 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void ContainerFilePaths_ShouldUseCentralizedShellQuoting()
+    {
+        var commandsPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Core/WslcCommands.cs"));
+        var viewModelPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/ViewModels/ContainerDetailViewModel.cs"));
+        var commandsSource = File.ReadAllText(commandsPath);
+        var viewModelSource = File.ReadAllText(viewModelPath);
+
+        commandsSource.Should().Contain("public static string ShellQuote(string value)");
+        commandsSource.Should().Contain("value.Replace(\"'\", \"'\\\\''\"");
+        viewModelSource.Should().Contain("WslcCommands.ShellQuote(path)");
+        viewModelSource.Should().Contain("WslcCommands.ShellQuote(filePath)");
+        viewModelSource.Should().NotContain("private static string EscapePath");
+        viewModelSource.Should().NotContain("private static string ShellQuote");
+
+        WslcCommands.ShellQuote("/tmp/$(touch pwned)")
+            .Should().Be("'/tmp/$(touch pwned)'");
+        WslcCommands.ShellQuote("it's safe")
+            .Should().Be("'it'\\''s safe'");
+    }
+
+    [Fact]
     public void RuntimeTools_ShouldCheckExecutableOnPath()
     {
         RuntimeTools.IsExecutableAvailable("wslc");

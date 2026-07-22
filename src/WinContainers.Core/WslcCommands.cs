@@ -82,6 +82,9 @@ public static class WslcCommands
     private static string Quote(string value) =>
         value.Contains(' ') ? $"\"{value.Replace("\"", "\\\"")}\"" : value;
 
+    public static string ShellQuote(string value) =>
+        $"'{value.Replace("'", "'\\''", StringComparison.Ordinal)}'";
+
     private static string Optional(string flag, string? value) =>
         string.IsNullOrWhiteSpace(value) ? "" : $" {flag} {Quote(value)}";
 }

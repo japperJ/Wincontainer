@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Runtime.Models;
@@ -546,7 +547,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"ls -lap {EscapePath(path)}");
+            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"ls -lap {WslcCommands.ShellQuote(path)}");
             var entries = new ObservableCollection<FileEntryData>();
 
             // Add parent directory entry ("..") if not at root
@@ -602,11 +603,6 @@ public partial class ContainerDetailViewModel : ViewModelBase
         }
     }
 
-    private static string EscapePath(string path)
-    {
-        return path.Contains(' ') ? $"\"{path.Replace("\"", "\\\"")}\"" : path;
-    }
-
     public async Task OpenFileViewerAsync(FileEntryData entry)
     {
         var filePath = CurrentFilePath.TrimEnd('/') + "/" + entry.Name;
@@ -624,7 +620,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"cat {EscapePath(filePath)}");
+            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"cat {WslcCommands.ShellQuote(filePath)}");
             FileContent = output ?? "(empty or error)";
             FileEditContent = FileContent;
         }
@@ -653,7 +649,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
     {
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"cat {EscapePath(filePath)}", false);
+            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"cat {WslcCommands.ShellQuote(filePath)}", false);
             if (output.StartsWith("error"))
                 throw new InvalidOperationException(output);
             return output;
@@ -668,20 +664,18 @@ public partial class ContainerDetailViewModel : ViewModelBase
     private async Task WriteFileViaStdin(string filePath, string content)
     {
         var encodedContent = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(content ?? string.Empty));
-        var script = $"printf '%s' '{encodedContent}' | base64 -d > {ShellQuote(filePath)}";
+        var script = $"printf '%s' '{encodedContent}' | base64 -d > {WslcCommands.ShellQuote(filePath)}";
         var output = await App.ServiceClient.ExecContainerAsync(ContainerId, script, true, "/bin/sh");
         if (!string.IsNullOrWhiteSpace(output) && output.StartsWith("error", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(output);
     }
-
-    private static string ShellQuote(string value) => $"'{value.Replace("'", "'\\''", StringComparison.Ordinal)}'";
 
     public async Task ChangePermissionsAsync(FileEntryData entry, string mode)
     {
         var filePath = CurrentFilePath.TrimEnd('/') + "/" + entry.Name;
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"chmod {mode} {EscapePath(filePath)}");
+            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"chmod {mode} {WslcCommands.ShellQuote(filePath)}");
             if (!string.IsNullOrWhiteSpace(output) && output.StartsWith("error", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException(output);
 
