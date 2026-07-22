@@ -449,6 +449,45 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void ContainerService_ShouldDelegateNulDelimitedFileParsing()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Services/ContainerService.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("WslcFileParser.Parse");
+    }
+
+    [Fact]
+    public void WslcFileParser_ShouldPreserveNamesFromNulDelimitedRecords()
+    {
+        var output = "d\tname with spaces\0f\tline\tbreak\0f\tquote'file\0";
+
+        var entries = WslcFileParser.Parse(output);
+
+        entries.Select(entry => (entry.Name, entry.Type)).Should().Equal(
+            ("name with spaces", "dir"),
+            ("line\tbreak", "file"),
+            ("quote'file", "file"));
+    }
+
+    [Fact]
+    public void ContainerFileListing_ShouldUseDelimitedShellOutputAndServiceParser()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/ViewModels/ContainerDetailViewModel.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("_containerService.ParseFileEntries(output)");
+        source.Should().Contain("printf 'd\\\\t%s\\\\0'");
+        source.Should().Contain("printf 'f\\\\t%s\\\\0'");
+        source.Should().NotContain("ls -lap");
+        source.Should().NotContain("line.Split(' ', StringSplitOptions.RemoveEmptyEntries)");
+    }
+
+    [Fact]
     public void RuntimeTools_ShouldCheckExecutableOnPath()
     {
         RuntimeTools.IsExecutableAvailable("wslc");

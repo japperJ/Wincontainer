@@ -12,6 +12,10 @@ public sealed class ContainerService
 
     public List<FileEntryData> ParseFileEntries(string rawOutput)
     {
+        var delimitedEntries = WslcFileParser.Parse(rawOutput ?? "");
+        if (rawOutput?.Contains('\0') == true)
+            return delimitedEntries;
+
         var entries = new List<FileEntryData>();
         if (string.IsNullOrWhiteSpace(rawOutput))
             return entries;

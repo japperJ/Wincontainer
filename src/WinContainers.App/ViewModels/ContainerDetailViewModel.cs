@@ -547,7 +547,13 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"ls -lap {WslcCommands.ShellQuote(path)}");
+            var quotedPath = WslcCommands.ShellQuote(path);
+            var listingCommand =
+                $"for entry in {quotedPath}/* {quotedPath}/.[!.]* {quotedPath}/..?*; do " +
+                "[ -e \"$entry\" ] || [ -L \"$entry\" ] || continue; " +
+                "if [ -d \"$entry\" ]; then printf 'd\\t%s\\0' \"${entry##*/}\"; " +
+                "else printf 'f\\t%s\\0' \"${entry##*/}\"; fi; done";
+            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, listingCommand, true, "/bin/sh");
             var entries = new ObservableCollection<FileEntryData>();
 
             // Add parent directory entry ("..") if not at root
@@ -564,26 +570,15 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
             if (!string.IsNullOrWhiteSpace(output) && !output.StartsWith("error"))
             {
-                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                foreach (var entry in _containerService.ParseFileEntries(output))
                 {
-                    // Skip "total X" line
-                    if (line.StartsWith("total ")) continue;
-                    
-                    // Parse ls -l format: perms links owner group size date name
-                    var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length < 8) continue;
-                    
-                    var perms = parts[0];
-                    var name = string.Join(" ", parts.Skip(8)); // name may contain spaces
-                    if (name == "." || name == "..") continue;
-                    
-                    var isDir = perms.StartsWith('d') || name.EndsWith('/');
+                    var isDir = entry.Type == "dir";
                     entries.Add(new FileEntryData
                     {
-                        Name = name,
+                        Name = entry.Name,
                         Type = isDir ? "dir" : "file",
                         Icon = isDir ? "\uE838" : "\uE996",
-                        Permissions = perms
+                        Permissions = isDir ? "d" : "-"
                     });
                 }
             }
