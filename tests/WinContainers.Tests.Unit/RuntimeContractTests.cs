@@ -131,6 +131,20 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcDriver_ShouldBoundOutputCleanupAfterTimeout()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/WslcDriver.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("await DrainOutputAsync(stdoutTask, stderrTask)");
+        source.Should().Contain("Task.WhenAll(stdoutTask, stderrTask)");
+        source.Should().Contain("WaitAsync(TimeSpan.FromMilliseconds(OutputCleanupTimeoutMs))");
+        source.Should().Contain("task.Exception");
+    }
+
+    [Fact]
     public void WslcDriver_ShouldExposeExpectedMethods()
     {
         var methods = typeof(WslcDriver).GetMethods()

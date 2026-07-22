@@ -10,6 +10,7 @@ public sealed class WslcDriver
     private const int DefaultTimeoutMs = 30000;
     private const int RuntimeProbeTimeoutMs = 15000;
     private const int SlowTimeoutMs = 120000;
+    private const int OutputCleanupTimeoutMs = 5000;
     public async Task<bool> IsAvailableAsync(CancellationToken ct)
     {
         try
@@ -149,7 +150,31 @@ public sealed class WslcDriver
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             TryKill(process);
+            await DrainOutputAsync(stdoutTask, stderrTask);
             return new RunResult(-1, string.Empty, $"Command timed out after {timeoutMs}ms.");
+        }
+    }
+
+    private static async Task DrainOutputAsync(Task<string> stdoutTask, Task<string> stderrTask)
+    {
+        var outputTask = Task.WhenAll(stdoutTask, stderrTask);
+
+        try
+        {
+            await outputTask.WaitAsync(TimeSpan.FromMilliseconds(OutputCleanupTimeoutMs));
+        }
+        catch (TimeoutException)
+        {
+            Trace.WriteLine($"[WslcDriver] Output cleanup timed out after {OutputCleanupTimeoutMs}ms.");
+            _ = outputTask.ContinueWith(
+                task => _ = task.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[WslcDriver] Output cleanup failed: {ex}");
         }
     }
 
