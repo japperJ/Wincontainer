@@ -403,6 +403,20 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void Application_ShouldDeclareTheWindowIconAsItsExecutableIcon()
+    {
+        var projectPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/WinContainers.App.csproj"));
+        var windowPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml.cs"));
+
+        File.ReadAllText(projectPath).Should().Contain("<ApplicationIcon>Assets\\AppIcon.ico</ApplicationIcon>");
+        File.ReadAllText(windowPath).Should().Contain("AppWindow.SetIcon(\"Assets/AppIcon.ico\")");
+    }
+
+    [Fact]
     public void WslcResourceParser_ShouldParseVolumeList()
     {
         const string output = "DRIVER VOLUME NAME\nlocal app-data\nlocal cache";
