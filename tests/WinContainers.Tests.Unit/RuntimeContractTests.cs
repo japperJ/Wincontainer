@@ -145,6 +145,20 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void OnboardingViewModel_ShouldCleanupElevatedTempFilesOnEveryExitPath()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/ViewModels/OnboardingViewModel.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("var invocationDir = Path.Combine");
+        source.Should().Contain("Directory.CreateDirectory(invocationDir)");
+        source.Should().Contain("finally");
+        source.Should().Contain("TryDeleteTempDirectory(invocationDir)");
+    }
+
+    [Fact]
     public void WslcDriver_ShouldExposeExpectedMethods()
     {
         var methods = typeof(WslcDriver).GetMethods()

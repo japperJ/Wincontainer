@@ -424,31 +424,34 @@ public partial class OnboardingViewModel : ViewModelBase
     private static async Task<(int ExitCode, string Output)> RunElevatedCommandAsync(string command, int timeoutSeconds)
     {
         var scriptDir = Path.Combine(Path.GetTempPath(), "WinContainers");
-        Directory.CreateDirectory(scriptDir);
         var runId = Guid.NewGuid().ToString("N");
-        var scriptPath = Path.Combine(scriptDir, $"elevated-cmd-{runId}.ps1");
-        var launcherPath = Path.Combine(scriptDir, $"elevated-launcher-{runId}.ps1");
-        var logPath = Path.Combine(scriptDir, $"elevated-output-{runId}.log");
+        var invocationDir = Path.Combine(scriptDir, $"elevated-{runId}");
+        Directory.CreateDirectory(invocationDir);
+        var scriptPath = Path.Combine(invocationDir, "command.ps1");
+        var launcherPath = Path.Combine(invocationDir, "launcher.ps1");
+        var logPath = Path.Combine(invocationDir, "output.log");
 
-        File.WriteAllText(scriptPath, $"{command}\n");
-        var escapedScriptPath = EscapePowerShellString(scriptPath);
-        var escapedLogPath = EscapePowerShellString(logPath);
-        var launcher = "$ErrorActionPreference = 'Stop'\n" +
-            "try {\n" +
+        try
+        {
+            File.WriteAllText(scriptPath, $"{command}\n");
+            var escapedScriptPath = EscapePowerShellString(scriptPath);
+            var escapedLogPath = EscapePowerShellString(logPath);
+            var launcher = "$ErrorActionPreference = 'Stop'\n" +
+                "try {\n" +
             $"    & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '{escapedScriptPath}' *> '{escapedLogPath}'\n" +
             "    exit $LASTEXITCODE\n" +
             "} catch {\n" +
             $"    $_ | Out-File -FilePath '{escapedLogPath}' -Append\n" +
             "    exit 1\n" +
             "}\n";
-        File.WriteAllText(launcherPath, launcher);
+            File.WriteAllText(launcherPath, launcher);
 
-        var elevatedCommand = $"try {{ $p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File','{EscapePowerShellString(launcherPath)}') -Verb RunAs -Wait -PassThru; exit $p.ExitCode }} catch {{ $_ | Out-File -FilePath '{EscapePowerShellString(logPath)}' -Append; exit 1223 }}";
-        var encodedCommand = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(elevatedCommand));
+            var elevatedCommand = $"try {{ $p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File','{EscapePowerShellString(launcherPath)}') -Verb RunAs -Wait -PassThru; exit $p.ExitCode }} catch {{ $_ | Out-File -FilePath '{EscapePowerShellString(logPath)}' -Append; exit 1223 }}";
+            var encodedCommand = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(elevatedCommand));
 
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
                 Arguments = $"-NoProfile -NonInteractive -EncodedCommand {encodedCommand}",
@@ -457,21 +460,21 @@ public partial class OnboardingViewModel : ViewModelBase
                 UseShellExecute = false,
                 CreateNoWindow = true
             }
-        };
+            };
 
-        process.Start();
+            process.Start();
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
 
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token);
-            await Task.WhenAll(stdoutTask, stderrTask);
-        }
-        catch (OperationCanceledException)
-        {
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+                await Task.WhenAll(stdoutTask, stderrTask);
+            }
+            catch (OperationCanceledException)
+            {
             try
             {
                 if (!process.HasExited)
@@ -487,35 +490,36 @@ public partial class OnboardingViewModel : ViewModelBase
             }
 
             return (-1, $"Command timed out after {timeoutSeconds} seconds.");
+            }
+
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+            var logOutput = File.Exists(logPath) ? await File.ReadAllTextAsync(logPath) : "";
+            var combined = string.IsNullOrWhiteSpace(logOutput)
+                ? (string.IsNullOrEmpty(stderr) ? stdout : $"{stdout}\n{stderr}")
+                : logOutput;
+
+            return (process.ExitCode, combined.Trim());
         }
-
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
-        var logOutput = File.Exists(logPath) ? await File.ReadAllTextAsync(logPath) : "";
-        var combined = string.IsNullOrWhiteSpace(logOutput)
-            ? (string.IsNullOrEmpty(stderr) ? stdout : $"{stdout}\n{stderr}")
-            : logOutput;
-
-        TryDeleteTempFile(scriptPath);
-        TryDeleteTempFile(launcherPath);
-        TryDeleteTempFile(logPath);
-
-        return (process.ExitCode, combined.Trim());
+        finally
+        {
+            TryDeleteTempDirectory(invocationDir);
+        }
     }
 
-    private static void TryDeleteTempFile(string path)
+    private static void TryDeleteTempDirectory(string path)
     {
         try
         {
-            File.Delete(path);
+            Directory.Delete(path, recursive: true);
         }
         catch (IOException ex)
         {
-            Debug.WriteLine($"[Onboarding] Failed to delete temp file '{path}': {ex.Message}");
+            Debug.WriteLine($"[Onboarding] Failed to delete temp directory '{path}': {ex.Message}");
         }
         catch (UnauthorizedAccessException ex)
         {
-            Debug.WriteLine($"[Onboarding] No permission to delete temp file '{path}': {ex.Message}");
+            Debug.WriteLine($"[Onboarding] No permission to delete temp directory '{path}': {ex.Message}");
         }
     }
 
