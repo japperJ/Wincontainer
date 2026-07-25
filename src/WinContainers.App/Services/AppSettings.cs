@@ -7,4 +7,10 @@ public sealed class AppSettings
     public bool ApiLoggingEnabled { get; set; }
 
     public bool RemoteApiLoggingEnabled { get; set; }
+
+    public string UpdateChannel { get; set; } = "Stable";
+
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
+
+    public string? DeferredUpdateVersion { get; set; }
 }

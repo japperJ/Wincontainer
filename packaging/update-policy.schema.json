@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "minimumSupportedVersion", "message", "updatedAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "minimumSupportedVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
+    "message": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}

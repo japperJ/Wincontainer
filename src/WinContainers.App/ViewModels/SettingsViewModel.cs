@@ -2,6 +2,7 @@ using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers_App.Services;
 using LogLevel = WinContainers_App.Services.LogLevel;
+using Velopack;
 
 namespace WinContainers_App.ViewModels;
 
@@ -102,6 +103,47 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    private string _updateChannel = UpdateService.StableChannel;
+    public string UpdateChannel
+    {
+        get => _updateChannel;
+        set
+        {
+            if (SetProperty(ref _updateChannel, value))
+            {
+                var settings = _settingsService.Load();
+                settings.UpdateChannel = value;
+                _settingsService.Save(settings);
+            }
+        }
+    }
+
+    public string AppVersion => UpdateService.CurrentVersion;
+    public bool IsPortable => UpdateService.IsPortable;
+
+    private bool _isCheckingAppUpdate;
+    public bool IsCheckingAppUpdate
+    {
+        get => _isCheckingAppUpdate;
+        private set => SetProperty(ref _isCheckingAppUpdate, value);
+    }
+
+    private bool _appUpdateAvailable;
+    public bool AppUpdateAvailable
+    {
+        get => _appUpdateAvailable;
+        private set => SetProperty(ref _appUpdateAvailable, value);
+    }
+
+    private string _appUpdateStatus = "Use Check for updates to look for a newer WinContainers release.";
+    public string AppUpdateStatus
+    {
+        get => _appUpdateStatus;
+        private set => SetProperty(ref _appUpdateStatus, value);
+    }
+
+    private UpdateInfo? _availableAppUpdate;
+
     public SettingsViewModel(IOutputService output, AppSettingsService settingsService, WslcUpdateService wslcUpdateService)
     {
         _output = output;
@@ -113,6 +155,10 @@ public partial class SettingsViewModel : ViewModelBase
     {
         ApiLoggingEnabled = _output.ApiLoggingEnabled;
         RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
+        var settings = _settingsService.Load();
+        UpdateChannel = string.Equals(settings.UpdateChannel, UpdateService.BetaChannel, StringComparison.OrdinalIgnoreCase)
+            ? UpdateService.BetaChannel
+            : UpdateService.StableChannel;
         PortText = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
         TokenText = ServiceEndpointResolver.ResolveToken();
         StatusText = $"Current endpoint: {ServiceEndpointResolver.Resolve()}";
@@ -157,6 +203,80 @@ public partial class SettingsViewModel : ViewModelBase
         settings.ApiLoggingEnabled = _output.ApiLoggingEnabled;
         settings.RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
         _settingsService.Save(settings);
+    }
+
+    public async Task CheckAppUpdateAsync()
+    {
+        IsCheckingAppUpdate = true;
+        AppUpdateAvailable = false;
+        _availableAppUpdate = null;
+        try
+        {
+            var settings = _settingsService.Load();
+            var update = await UpdateService.CheckForUpdatesAsync(UpdateChannel);
+            settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
+            _settingsService.Save(settings);
+            _availableAppUpdate = update;
+            AppUpdateAvailable = update is not null && !string.Equals(
+                settings.DeferredUpdateVersion, update.TargetFullRelease.Version.ToString(), StringComparison.OrdinalIgnoreCase);
+            AppUpdateStatus = AppUpdateAvailable
+                ? $"WinContainers {update!.TargetFullRelease.Version} is available."
+                : $"WinContainers is up to date ({AppVersion}).";
+        }
+        catch (Exception ex)
+        {
+            AppUpdateStatus = $"Update check failed: {ex.Message}";
+            _output.Write(AppUpdateStatus, LogLevel.Warning);
+        }
+        finally
+        {
+            IsCheckingAppUpdate = false;
+        }
+    }
+
+    public async Task InstallAppUpdateAsync()
+    {
+        if (_availableAppUpdate is null)
+        {
+            return;
+        }
+
+        IsCheckingAppUpdate = true;
+        try
+        {
+            AppUpdateStatus = IsPortable
+                ? "Downloading the portable update. Close WinContainers and replace the portable folder when prompted."
+                : $"Downloading WinContainers {_availableAppUpdate.TargetFullRelease.Version}...";
+            await UpdateService.DownloadAndApplyAsync(_availableAppUpdate, UpdateChannel);
+            AppUpdateAvailable = false;
+            _availableAppUpdate = null;
+            AppUpdateStatus = IsPortable
+                ? "Portable update downloaded. Restart from the new folder to finish the update."
+                : "Update downloaded. WinContainers will restart to apply it.";
+        }
+        catch (Exception ex)
+        {
+            AppUpdateStatus = $"Update install failed: {ex.Message}";
+            _output.Write(AppUpdateStatus, LogLevel.Error);
+        }
+        finally
+        {
+            IsCheckingAppUpdate = false;
+        }
+    }
+
+    public void DeferAppUpdate()
+    {
+        if (_availableAppUpdate is null)
+        {
+            return;
+        }
+
+        var settings = _settingsService.Load();
+        settings.DeferredUpdateVersion = _availableAppUpdate.TargetFullRelease.Version.ToString();
+        _settingsService.Save(settings);
+        AppUpdateAvailable = false;
+        AppUpdateStatus = "Update deferred. Use Check for updates to review it again.";
     }
 
     public async Task CheckWslcUpdateAsync()

@@ -26,6 +26,8 @@ public sealed partial class SettingsPage : Page
         TokenBox.Text = _viewModel.TokenText;
         ApiLoggingToggle.IsOn = _viewModel.ApiLoggingEnabled;
         RemoteApiLoggingToggle.IsOn = _viewModel.RemoteApiLoggingEnabled;
+        AppVersionText.Text = _viewModel.AppVersion;
+        UpdateChannelBox.SelectedValue = _viewModel.UpdateChannel;
         UpdateStatusDisplay();
     }
 
@@ -37,6 +39,10 @@ public sealed partial class SettingsPage : Page
             ? Color.FromArgb(255, 0, 200, 83)
             : Color.FromArgb(255, 255, 179, 0));
         VersionText.Text = _viewModel.VersionText;
+        AppUpdateStatusText.Text = _viewModel.AppUpdateStatus;
+        CheckAppUpdateButton.IsEnabled = !_viewModel.IsCheckingAppUpdate;
+        InstallAppUpdateButton.IsEnabled = _viewModel.AppUpdateAvailable && !_viewModel.IsCheckingAppUpdate;
+        DeferAppUpdateButton.IsEnabled = _viewModel.AppUpdateAvailable && !_viewModel.IsCheckingAppUpdate;
         WslcUpdateStatusText.Text = _viewModel.WslcUpdateStatus;
         UpdateWslcButton.IsEnabled = _viewModel.WslcUpdateAvailable && !_viewModel.IsCheckingWslcUpdate;
         CheckWslcUpdateButton.IsEnabled = !_viewModel.IsCheckingWslcUpdate;
@@ -73,6 +79,32 @@ public sealed partial class SettingsPage : Page
         CheckWslcUpdateButton.IsEnabled = false;
         await _viewModel.CheckWslcUpdateAsync();
         UpdateStatusDisplay();
+    }
+
+    private async void CheckAppUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.CheckAppUpdateAsync();
+        UpdateStatusDisplay();
+    }
+
+    private async void InstallAppUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.InstallAppUpdateAsync();
+        UpdateStatusDisplay();
+    }
+
+    private void DeferAppUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.DeferAppUpdate();
+        UpdateStatusDisplay();
+    }
+
+    private void UpdateChannelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (UpdateChannelBox.SelectedValue is string channel)
+        {
+            _viewModel.UpdateChannel = channel;
+        }
     }
 
     private async void UpdateWslcButton_Click(object sender, RoutedEventArgs e)

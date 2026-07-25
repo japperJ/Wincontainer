@@ -1,0 +1,36 @@
+name: Windows Release Build
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and test
+        run: |
+          dotnet build WinContainers.slnx -c Release --nologo -v q
+          dotnet test tests/WinContainers.Tests.Unit/WinContainers.Tests.Unit.csproj -c Release --nologo -v q
+      - name: Build release artifacts
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $channel = if ($tag -match '-') { 'Beta' } else { 'Stable' }
+          ./tools/build-release.ps1 -Version $tag.Substring(1) -Channel $channel -SkipIso
+          ./tools/test-release-contracts.ps1 -PolicyPath ./update-policy.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WinContainers-${{ github.ref_name }}
+          path: |
+            release/*
+            update-policy.json

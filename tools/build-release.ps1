@@ -1,13 +1,18 @@
 param(
     [string]$Configuration = "Release",
-    [string]$Version = "1.0.0",
-    [string]$PfxPath = ""
+    [string]$Version = "0.0.1",
+    [string]$PfxPath = "",
+    [ValidateSet("Stable", "Beta")]
+    [string]$Channel = "Stable",
+    [switch]$SkipIso,
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
 $solutionDir = Split-Path $PSScriptRoot -Parent
 $solutionFile = Join-Path $solutionDir "WinContainers.slnx"
 $appProject = Join-Path $solutionDir "src\WinContainers.App\WinContainers.App.csproj"
+$channelName = $Channel.ToLowerInvariant()
 
 # Default PFX path if not specified
 if (-not $PfxPath) {
@@ -22,12 +27,13 @@ Write-Host ""
 # 1. Build BuildTasks first (custom MSBuild task required by App project)
 Write-Host "--- Step 1: Building BuildTasks ---" -ForegroundColor Yellow
 $buildTasksProject = Join-Path $solutionDir "src\BuildTasks\BuildTasks.csproj"
-dotnet build $buildTasksProject -c $Configuration --nologo -v q
+dotnet build $buildTasksProject -c $Configuration -p:UseSharedCompilation=false --nologo -v q
 if ($LASTEXITCODE -ne 0) { throw "BuildTasks build failed" }
 
-# 2. Restore + Build solution
-Write-Host "--- Step 2: Building solution ---" -ForegroundColor Yellow
-dotnet build $solutionFile -c $Configuration --nologo -v q
+# 2. Build the app project. BuildTasks was built separately so the custom task
+# assembly is not rebuilt while the app project loads it.
+Write-Host "--- Step 2: Building app ---" -ForegroundColor Yellow
+dotnet build $appProject -c $Configuration -p:UseSharedCompilation=false -p:Version=$Version -p:InformationalVersion=$Version --nologo -v q
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
 # 3. Publish self-contained folder (required for reliable WinUI 3 unpackaged deployment)
@@ -47,6 +53,10 @@ dotnet publish $appProject `
     -p:PublishSingleFile=false `
     -p:PublishTrimmed=false `
     -p:PublishReadyToRun=true `
+    -p:Version=$Version `
+    -p:InformationalVersion=$Version `
+    -p:BuildProjectReferences=false `
+    -p:UseSharedCompilation=false `
     -o $publishDir `
     --nologo -v q
 
@@ -84,6 +94,15 @@ if (-not (Test-Path $releaseDir)) {
     New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 }
 
+if ($Force) {
+    Write-Host "  Clearing generated $channelName Velopack state before packing" -ForegroundColor Yellow
+    Get-ChildItem $releaseDir -File | Where-Object {
+        $_.Name -in @("assets.$channelName.json", "releases.$channelName.json", "RELEASES-$channelName") -or
+        $_.Name -match "^WinContainers-$channelName-" -or
+        $_.Name -match "^WinContainers-[0-9].*-$channelName-(full|delta)\.nupkg$"
+    } | Remove-Item -Force
+}
+
 $signArgs = @()
 if (Test-Path $PfxPath) {
     Write-Host "  Signing with: $PfxPath" -ForegroundColor Yellow
@@ -99,7 +118,7 @@ if (Test-Path $PfxPath) {
     --mainExe WinContainers.App.exe `
     --packDir $publishDir `
     --outputDir $releaseDir `
-    --channel stable `
+    --channel $channelName `
     @signArgs
 
 if ($LASTEXITCODE -ne 0) { throw "Velopack pack failed" }
@@ -107,8 +126,8 @@ if ($LASTEXITCODE -ne 0) { throw "Velopack pack failed" }
 # 5. Wrap the Velopack setup so it can close a running WinContainers process
 # before Velopack renames the installed application directory.
 Write-Host "--- Step 5: Building installer bootstrapper ---" -ForegroundColor Yellow
-$setupPath = Join-Path $releaseDir "WinContainers-stable-Setup.exe"
-$payloadPath = Join-Path $releaseDir "WinContainers-stable-Setup.payload.exe"
+$setupPath = Join-Path $releaseDir "WinContainers-$channelName-Setup.exe"
+$payloadPath = Join-Path $releaseDir "WinContainers-$channelName-Setup.payload.exe"
 $bootstrapperProject = Join-Path $solutionDir "tools\InstallerBootstrapper\InstallerBootstrapper.csproj"
 $bootstrapperDir = Join-Path $solutionDir "publish\InstallerBootstrapper"
 
@@ -122,6 +141,7 @@ dotnet publish $bootstrapperProject `
     -r win-x64 `
     --self-contained `
     -p:BootstrapPayloadPath=$payloadPath `
+    -p:UseSharedCompilation=false `
     -o $bootstrapperDir `
     --nologo -v q
 if ($LASTEXITCODE -ne 0) { throw "Installer bootstrapper build failed" }
@@ -137,28 +157,34 @@ $oscdimgCandidates = @(
 )
 $oscdimg = $oscdimgCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $oscdimg) {
-    throw "oscdimg.exe was not found. Install the Windows ADK Deployment Tools to create an ISO."
+    if ($SkipIso) {
+        Write-Warning "oscdimg.exe was not found; skipping ISO creation."
+    } else {
+        throw "oscdimg.exe was not found. Install the Windows ADK Deployment Tools to create an ISO."
+    }
 }
 
-$isoStagingDir = Join-Path $releaseDir "iso-staging"
-$isoPath = Join-Path $releaseDir "WinContainers-$Version.iso"
-if (Test-Path $isoStagingDir) {
+if ($oscdimg) {
+    $isoStagingDir = Join-Path $releaseDir "iso-staging"
+    $isoPath = Join-Path $releaseDir "WinContainers-$Version.iso"
+    if (Test-Path $isoStagingDir) {
+        Remove-Item $isoStagingDir -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $isoStagingDir -Force | Out-Null
+
+    Copy-Item (Join-Path $releaseDir "WinContainers-$channelName-Setup.exe") `
+    (Join-Path $isoStagingDir "WinContainers-Setup-$Version.exe")
+    Copy-Item (Join-Path $releaseDir "WinContainers-$channelName-Portable.zip") `
+        (Join-Path $isoStagingDir "WinContainers-Portable-$Version.zip")
+
+    if (Test-Path $isoPath) {
+        Remove-Item $isoPath -Force
+    }
+
+    & $oscdimg -m -o -u2 -udfver102 -l"WinContainers" $isoStagingDir $isoPath | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "ISO creation failed" }
     Remove-Item $isoStagingDir -Recurse -Force
 }
-New-Item -ItemType Directory -Path $isoStagingDir -Force | Out-Null
-
-Copy-Item (Join-Path $releaseDir "WinContainers-stable-Setup.exe") `
-    (Join-Path $isoStagingDir "WinContainers-Setup-$Version.exe")
-Copy-Item (Join-Path $releaseDir "WinContainers-stable-Portable.zip") `
-    (Join-Path $isoStagingDir "WinContainers-Portable-$Version.zip")
-
-if (Test-Path $isoPath) {
-    Remove-Item $isoPath -Force
-}
-
-& $oscdimg -m -o -u2 -udfver102 -l"WinContainers" $isoStagingDir $isoPath | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "ISO creation failed" }
-Remove-Item $isoStagingDir -Recurse -Force
 
 Write-Host ""
 Write-Host "=== Release built successfully ===" -ForegroundColor Green

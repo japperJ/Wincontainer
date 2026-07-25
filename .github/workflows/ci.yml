@@ -2,12 +2,14 @@ name: ci
 
 on:
   push:
-    branches: [ "**" ]
+    branches: [main]
   pull_request:
-    branches: [ "**" ]
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  build-and-test:
     runs-on: windows-latest
     steps:
       - name: Check out repository

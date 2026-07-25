@@ -54,7 +54,23 @@
                          <TextBlock Grid.Row="1" Grid.Column="1" x:Name="VersionText" Text="" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                      </Grid>
 
-                    <StackPanel Spacing="8">
+                     <StackPanel Spacing="8">
+                        <TextBlock Text="WinContainers Updates" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="Version" />
+                        <TextBlock x:Name="AppVersionText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <ComboBox x:Name="UpdateChannelBox" Header="Update channel" SelectedValuePath="Tag" SelectionChanged="UpdateChannelBox_SelectionChanged" Width="220">
+                            <ComboBoxItem Content="Stable" Tag="stable" />
+                            <ComboBoxItem Content="Beta" Tag="beta" />
+                        </ComboBox>
+                        <TextBlock x:Name="AppUpdateStatusText" Text="Use Check for updates to look for a newer WinContainers release." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="CheckAppUpdateButton" Content="Check for updates" Click="CheckAppUpdateButton_Click" />
+                            <Button x:Name="InstallAppUpdateButton" Content="Download and Install" Click="InstallAppUpdateButton_Click" IsEnabled="False" />
+                            <Button x:Name="DeferAppUpdateButton" Content="Later" Click="DeferAppUpdateButton_Click" IsEnabled="False" />
+                        </StackPanel>
+                     </StackPanel>
+
+                     <StackPanel Spacing="8">
                         <TextBlock Text="WSLC Updates" Style="{StaticResource SubtitleTextBlockStyle}" />
                         <TextBlock x:Name="WslcUpdateStatusText" Text="Use Check for updates to look for a newer WSLC release." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <StackPanel Orientation="Horizontal" Spacing="8">

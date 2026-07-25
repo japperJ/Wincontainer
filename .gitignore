@@ -9,3 +9,5 @@ WinContainer*.iso
 release/
 publish/
 tools/WinContainers-dev.pfx
+.planning/
+docs/plans/

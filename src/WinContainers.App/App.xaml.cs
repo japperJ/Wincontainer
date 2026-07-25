@@ -71,11 +71,19 @@ public partial class App : Application
         {
             try
             {
-                await UpdateService.CheckForUpdatesAsync();
+                var settingsService = Services.GetRequiredService<AppSettingsService>();
+                var settings = settingsService.Load();
+                if (settings.LastUpdateCheckUtc is null ||
+                    DateTimeOffset.UtcNow - settings.LastUpdateCheckUtc.Value >= TimeSpan.FromHours(24))
+                {
+                    await UpdateService.CheckForUpdatesAsync(settings.UpdateChannel);
+                    settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
+                    settingsService.Save(settings);
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Update check failed: {ex}");
+                System.Diagnostics.Debug.WriteLine($"Automatic update check failed: {ex.Message}");
             }
         });
 
