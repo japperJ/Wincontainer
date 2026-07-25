@@ -15,7 +15,8 @@ Run from the repository root in PowerShell:
 ```
 
 The command builds the existing Velopack installer, portable ZIP, full and
-delta packages, and ISO when the Windows ADK is available. It creates a draft
+delta packages. ISO files are intentionally not part of normal builds or
+GitHub Releases. It creates a draft
 GitHub Release by default. Add `-Publish` only after reviewing the draft.
 Use `-Force` to remove a failed local output directory before rebuilding.
 

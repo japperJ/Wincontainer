@@ -26,17 +26,22 @@ if (Test-Path $output) {
 }
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 
-$buildArgs = @("-Version", $version, "-Channel", $channel, "-SkipIso")
-if ($Force) { $buildArgs += "-Force" }
-& (Join-Path $root "tools\build-release.ps1") @buildArgs
+$buildParams = @{
+    Version = $version
+    Channel = $channel
+}
+if ($Force) { $buildParams.Force = $true }
+& (Join-Path $root "tools\build-release.ps1") @buildParams
 if ($LASTEXITCODE -ne 0) { throw "Release build failed." }
 $releaseDir = Join-Path $root "release"
 Copy-Item (Join-Path $root "update-policy.json") $releaseDir -Force
 Copy-Item (Join-Path $releaseDir "*") $output -Recurse -Force
 
 $assets = @(Get-ChildItem $output -File | Where-Object {
+    $_.Name -notmatch "\.iso$" -and (
     $_.Name -match "^WinContainers-$version(?:[-.]|$)" -or
     $_.Name -in @("WinContainers-$($channel.ToLowerInvariant())-Setup.exe", "WinContainers-$($channel.ToLowerInvariant())-Portable.zip")
+    )
 })
 if ($assets.Count -eq 0) { throw "No release assets found in $releaseDir." }
 $checksumEntries = foreach ($asset in $assets) {
@@ -48,6 +53,21 @@ $checksumPath = Join-Path $output "WinContainers-$Tag-checksums.json"
     ConvertTo-Json -Depth 5 | Set-Content $checksumPath -Encoding utf8NoBOM
 & (Join-Path $root "tools\test-release-contracts.ps1") -PolicyPath (Join-Path $output "update-policy.json") -ChecksumPath $checksumPath
 if ($LASTEXITCODE -ne 0) { throw "Release contract validation failed." }
+
+$remoteTagExists = $false
+& git ls-remote --exit-code --quiet origin "refs/tags/$Tag" *> $null
+if ($LASTEXITCODE -eq 0) {
+    $remoteTagExists = $true
+}
+if (-not $remoteTagExists) {
+    & git show-ref --verify --quiet "refs/tags/$Tag" *> $null
+    if ($LASTEXITCODE -ne 0) {
+        & git tag -a $Tag -m "Release $Tag"
+        if ($LASTEXITCODE -ne 0) { throw "Unable to create local tag $Tag." }
+    }
+    & git push origin "refs/tags/$Tag"
+    if ($LASTEXITCODE -ne 0) { throw "Unable to push tag $Tag." }
+}
 
 $releaseArgs = @("release", "create", $Tag, "--verify-tag", "--title", "$Tag $channel", "--generate-notes")
 if (-not $Publish) { $releaseArgs += "--draft" }

@@ -4,7 +4,6 @@ param(
     [string]$PfxPath = "",
     [ValidateSet("Stable", "Beta")]
     [string]$Channel = "Stable",
-    [switch]$SkipIso,
     [switch]$Force
 )
 
@@ -148,43 +147,6 @@ if ($LASTEXITCODE -ne 0) { throw "Installer bootstrapper build failed" }
 
 Copy-Item (Join-Path $bootstrapperDir "InstallerBootstrapper.exe") $setupPath -Force
 Remove-Item $payloadPath -Force
-
-# 6. Create ISO containing the installer and portable package
-Write-Host "--- Step 6: Creating ISO ---" -ForegroundColor Yellow
-$oscdimgCandidates = @(
-    "${env:ProgramFiles(x86)}\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\oscdimg.exe",
-    "${env:ProgramFiles(x86)}\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\x86\Oscdimg\oscdimg.exe"
-)
-$oscdimg = $oscdimgCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $oscdimg) {
-    if ($SkipIso) {
-        Write-Warning "oscdimg.exe was not found; skipping ISO creation."
-    } else {
-        throw "oscdimg.exe was not found. Install the Windows ADK Deployment Tools to create an ISO."
-    }
-}
-
-if ($oscdimg) {
-    $isoStagingDir = Join-Path $releaseDir "iso-staging"
-    $isoPath = Join-Path $releaseDir "WinContainers-$Version.iso"
-    if (Test-Path $isoStagingDir) {
-        Remove-Item $isoStagingDir -Recurse -Force
-    }
-    New-Item -ItemType Directory -Path $isoStagingDir -Force | Out-Null
-
-    Copy-Item (Join-Path $releaseDir "WinContainers-$channelName-Setup.exe") `
-    (Join-Path $isoStagingDir "WinContainers-Setup-$Version.exe")
-    Copy-Item (Join-Path $releaseDir "WinContainers-$channelName-Portable.zip") `
-        (Join-Path $isoStagingDir "WinContainers-Portable-$Version.zip")
-
-    if (Test-Path $isoPath) {
-        Remove-Item $isoPath -Force
-    }
-
-    & $oscdimg -m -o -u2 -udfver102 -l"WinContainers" $isoStagingDir $isoPath | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "ISO creation failed" }
-    Remove-Item $isoStagingDir -Recurse -Force
-}
 
 Write-Host ""
 Write-Host "=== Release built successfully ===" -ForegroundColor Green

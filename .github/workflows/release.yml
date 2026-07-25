@@ -26,7 +26,7 @@ jobs:
         run: |
           $tag = '${{ github.ref_name }}'
           $channel = if ($tag -match '-') { 'Beta' } else { 'Stable' }
-          ./tools/build-release.ps1 -Version $tag.Substring(1) -Channel $channel -SkipIso
+          ./tools/build-release.ps1 -Version $tag.Substring(1) -Channel $channel
           ./tools/test-release-contracts.ps1 -PolicyPath ./update-policy.json
       - uses: actions/upload-artifact@v4
         with:

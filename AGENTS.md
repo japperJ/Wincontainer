@@ -10,7 +10,7 @@
 - After changing code, publish before launching the UI:
   `dotnet publish src/WinContainers.App/WinContainers.App.csproj -c Debug -r win-x64 --self-contained -p:PublishTrimmed=false -o publish/WinContainers --nologo -v q`.
 - A running `publish/WinContainers/WinContainers.App.exe` locks the publish output. Kill that process before rebuilding; launch with `Start-Process -FilePath publish/WinContainers/WinContainers.App.exe`.
-- Release packaging is `pwsh tools/build-release.ps1 -Version <version>`; it requires `vpk`, and ISO creation additionally requires Windows ADK `oscdimg.exe`. Run `pwsh tools/generate-cert.ps1` only when a local signing certificate is needed; `*.pfx` is ignored.
+- Release packaging is `pwsh tools/build-release.ps1 -Version <version>`; it requires `vpk`. ISO files are not generated or published. Run `pwsh tools/generate-cert.ps1` only when a local signing certificate is needed; `*.pfx` is ignored.
 
 ## Architecture
 
