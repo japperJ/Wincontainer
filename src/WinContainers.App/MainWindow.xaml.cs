@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = $"WinContainers v{UpdateService.CurrentVersion}";
         Instance = this;
 
         _navigation = ViewModelLocator.NavigationService;

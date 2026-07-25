@@ -40,7 +40,13 @@ Copy-Item (Join-Path $releaseDir "*") $output -Recurse -Force
 $assets = @(Get-ChildItem $output -File | Where-Object {
     $_.Name -notmatch "\.iso$" -and (
     $_.Name -match "^WinContainers-$version(?:[-.]|$)" -or
-    $_.Name -in @("WinContainers-$($channel.ToLowerInvariant())-Setup.exe", "WinContainers-$($channel.ToLowerInvariant())-Portable.zip")
+    $_.Name -in @(
+        "WinContainers-$($channel.ToLowerInvariant())-Setup.exe",
+        "WinContainers-$($channel.ToLowerInvariant())-Portable.zip",
+        "assets.$($channel.ToLowerInvariant()).json",
+        "releases.$($channel.ToLowerInvariant()).json",
+        "RELEASES-$($channel.ToLowerInvariant())"
+    )
     )
 })
 if ($assets.Count -eq 0) { throw "No release assets found in $releaseDir." }
