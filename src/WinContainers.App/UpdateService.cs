@@ -11,7 +11,7 @@ public static class UpdateService
     public const string BetaChannel = "beta";
 
     public static string CurrentVersion =>
-        Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version
         ?? Assembly.GetEntryAssembly()?.GetName().Version?.ToString()
         ?? "0.0.0";
 
