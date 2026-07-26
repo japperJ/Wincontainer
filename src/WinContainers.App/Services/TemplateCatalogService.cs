@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 using SvcLogLevel = WinContainers_App.Services.LogLevel;
@@ -20,6 +21,8 @@ public sealed class TemplateCatalogService
 {
     private const string RemoteUrl = "https://raw.githubusercontent.com/japperj/wincontainer-templates/main/templates.yaml";
     private const string CacheFileName = "templates.yaml";
+    private const string RemoteMetadataUrl = "https://raw.githubusercontent.com/japperj/wincontainer-templates/main/templates.metadata.yaml";
+    private const string MetadataCacheFileName = "templates.metadata.yaml";
     private static readonly TimeSpan CacheStaleness = TimeSpan.FromHours(24);
     private static readonly string CacheDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -49,6 +52,7 @@ public sealed class TemplateCatalogService
 
     private readonly IOutputService _output;
     private List<TemplateCatalogEntry>? _cached;
+    private Dictionary<string, TemplateMetadataEntry>? _metadataCached;
 
     public TemplateCatalogService(IOutputService output)
     {
@@ -183,6 +187,133 @@ public sealed class TemplateCatalogService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Template YAML parse failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task<Dictionary<string, TemplateMetadataEntry>> GetMetadataAsync()
+    {
+        if (_metadataCached is not null)
+            return _metadataCached;
+
+        var loaded = await TryLoadMetadataFromCacheAsync();
+        if (loaded is not null)
+        {
+            _metadataCached = loaded;
+            _ = RefreshMetadataInBackgroundAsync();
+            return _metadataCached;
+        }
+
+        loaded = await TryFetchMetadataFromRemoteAsync();
+        if (loaded is not null)
+        {
+            _metadataCached = loaded;
+            _ = SaveMetadataToCacheAsync(loaded);
+            return _metadataCached;
+        }
+
+        _output.Write("Template metadata unavailable — enrichments won't be shown", SvcLogLevel.Warning);
+        _metadataCached = [];
+        return _metadataCached;
+    }
+
+    public async Task<Dictionary<string, TemplateMetadataEntry>> RefreshMetadataAsync()
+    {
+        _output.Write("Refreshing template metadata...");
+        var loaded = await TryFetchMetadataFromRemoteAsync();
+        if (loaded is not null)
+        {
+            _metadataCached = loaded;
+            _ = SaveMetadataToCacheAsync(loaded);
+            _output.Write($"Template metadata refreshed ({loaded.Count} entries)");
+        }
+        else
+        {
+            _output.Write("Metadata refresh failed — keeping current metadata", SvcLogLevel.Warning);
+        }
+        return _metadataCached ?? [];
+    }
+
+    private async Task RefreshMetadataInBackgroundAsync()
+    {
+        try
+        {
+            await Task.Delay(3000);
+            var remote = await TryFetchMetadataFromRemoteAsync();
+            if (remote is not null)
+            {
+                _metadataCached = remote;
+                await SaveMetadataToCacheAsync(remote);
+                _output.Write($"Template metadata refreshed ({remote.Count} entries)");
+            }
+        }
+        catch (Exception ex)
+        {
+            _output.Write($"Background metadata refresh failed: {ex.Message}", SvcLogLevel.Warning);
+        }
+    }
+
+    private async Task<Dictionary<string, TemplateMetadataEntry>?> TryFetchMetadataFromRemoteAsync()
+    {
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var json = await client.GetStringAsync(RemoteMetadataUrl);
+            return ParseMetadataJson(json);
+        }
+        catch (Exception ex)
+        {
+            _output.Write($"Metadata fetch failed: {ex.Message}", SvcLogLevel.Warning);
+            return null;
+        }
+    }
+
+    private async Task<Dictionary<string, TemplateMetadataEntry>?> TryLoadMetadataFromCacheAsync()
+    {
+        try
+        {
+            var path = Path.Combine(CacheDirectory, MetadataCacheFileName);
+            if (!File.Exists(path)) return null;
+
+            var lastModified = File.GetLastWriteTimeUtc(path);
+            if (DateTime.UtcNow - lastModified > CacheStaleness)
+                return null;
+
+            var json = await File.ReadAllTextAsync(path);
+            return ParseMetadataJson(json);
+        }
+        catch (Exception ex)
+        {
+            _output.Write($"Metadata cache read failed: {ex.Message}", SvcLogLevel.Warning);
+            return null;
+        }
+    }
+
+    private async Task SaveMetadataToCacheAsync(Dictionary<string, TemplateMetadataEntry> metadata)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(metadata.Values.ToList(), new JsonSerializerOptions { WriteIndented = true });
+            Directory.CreateDirectory(CacheDirectory);
+            await File.WriteAllTextAsync(Path.Combine(CacheDirectory, MetadataCacheFileName), json);
+        }
+        catch (Exception ex)
+        {
+            _output.Write($"Metadata cache write failed: {ex.Message}", SvcLogLevel.Warning);
+        }
+    }
+
+    private static Dictionary<string, TemplateMetadataEntry>? ParseMetadataJson(string json)
+    {
+        try
+        {
+            var entries = JsonSerializer.Deserialize<List<TemplateMetadataEntry>>(json);
+            if (entries is null) return null;
+            return entries.ToDictionary(e => e.Name, e => e);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Metadata JSON parse failed: {ex.Message}");
             return null;
         }
     }

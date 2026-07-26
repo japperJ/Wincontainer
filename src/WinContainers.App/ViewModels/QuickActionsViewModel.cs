@@ -22,10 +22,11 @@ public sealed record ImageResult(string Name, string Description, string StarCou
     public string FullDisplayName => $"{Name}  (★{StarCount}){(IsOfficial ? "  ✓ Official" : "")}{(PullCount != "0" ? $"  ↓{PullCount}M" : "")}";
 }
 
-public sealed record TemplateCatalogItem(string Name, string Description, string Category, string Image, string Compose, string ContainerName, string Website)
+public sealed record TemplateCatalogItem(string Name, string Description, string Category, string Image, string Compose, string ContainerName, string Website, TemplateMetadataEntry? Metadata = null)
 {
     public string Summary => $"{Name} • {Category}";
     public string FullSummary => $"{Name}  ({Description})";
+    public bool HasMetadata => Metadata is not null;
 }
 
 public partial class PortEntry : ObservableObject
@@ -125,8 +126,12 @@ public partial class QuickActionsViewModel : ViewModelBase
         try
         {
             var entries = await _catalogService.GetTemplatesAsync();
+            var metadata = await _catalogService.GetMetadataAsync();
             _allTemplates = [.. entries.Select(e => new TemplateCatalogItem(
-                e.Name, e.Description, e.Category, e.Image, e.Compose, e.ContainerName, e.Website))];
+                e.Name, e.Description, e.Category, e.Image, e.Compose, e.ContainerName, e.Website,
+                metadata.TryGetValue(e.Name, out var m) ? m : null))];
+
+            MetadataLoadStatus = metadata.Count == 0 ? "Template metadata unavailable — enrichments won't be shown" : null;
 
             var cats = _allTemplates.Select(t => t.Category).Distinct().OrderBy(c => c).ToList();
             Categories.Clear();
@@ -153,8 +158,12 @@ public partial class QuickActionsViewModel : ViewModelBase
         try
         {
             var entries = await _catalogService.RefreshAsync();
+            var metadata = await _catalogService.RefreshMetadataAsync();
             _allTemplates = [.. entries.Select(e => new TemplateCatalogItem(
-                e.Name, e.Description, e.Category, e.Image, e.Compose, e.ContainerName, e.Website))];
+                e.Name, e.Description, e.Category, e.Image, e.Compose, e.ContainerName, e.Website,
+                metadata.TryGetValue(e.Name, out var m) ? m : null))];
+
+            MetadataLoadStatus = metadata.Count == 0 ? "Template metadata unavailable — enrichments won't be shown" : null;
 
             var cats = _allTemplates.Select(t => t.Category).Distinct().OrderBy(c => c).ToList();
             Categories.Clear();
@@ -405,6 +414,13 @@ public partial class QuickActionsViewModel : ViewModelBase
             if (SetProperty(ref _templateCatalogSearchText, value))
                 ApplyCategoryFilter();
         }
+    }
+
+    private string? _metadataLoadStatus;
+    public string? MetadataLoadStatus
+    {
+        get => _metadataLoadStatus;
+        set => SetProperty(ref _metadataLoadStatus, value);
     }
 
     #endregion

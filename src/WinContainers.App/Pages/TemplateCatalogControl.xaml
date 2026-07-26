@@ -7,7 +7,8 @@
     <UserControl.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
     </UserControl.Resources>
-    <ScrollViewer>
+    <Grid>
+        <ScrollViewer>
         <StackPanel Spacing="16" Padding="24,16,24,24">
             <StackPanel Spacing="4">
                 <TextBlock Text="Template Catalog" Style="{StaticResource TitleTextBlockStyle}" />
@@ -33,17 +34,21 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <TextBox Header="Search templates" PlaceholderText="Filter by name, category, image..." Text="{Binding TemplateCatalogSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search template catalog" />
+                    <InfoBar x:Name="MetadataInfoBar" Severity="Informational" IsOpen="False" IsClosable="True" Margin="0,0,0,8" />
                     <ListView x:Name="TemplateCatalogList" ItemsSource="{Binding TemplateCatalog}" Height="360" SelectionMode="Single" SelectionChanged="TemplateCatalogList_SelectionChanged" ScrollViewer.VerticalScrollBarVisibility="Auto">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border Padding="12,10" CornerRadius="10" Margin="0,0,0,4" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <StackPanel Spacing="4">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="4">
                                             <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                             <TextBlock Text="{Binding Description}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding Category}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                         </StackPanel>
                                         <TextBlock Grid.Column="1" Text="{Binding Image}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" FontFamily="Consolas" />
+                                        <Button Grid.Column="2" Visibility="{Binding HasMetadata, Converter={StaticResource BoolToVisibilityConverter}}" Click="MetadataInfoButton_Click" Padding="6" Background="Transparent" ToolTipService.ToolTip="More info about this template" AutomationProperties.Name="More info about this template">
+                                            <FontIcon Glyph="&#xE946;" FontSize="14" />
+                                        </Button>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -66,4 +71,10 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
+    <ContentDialog x:Name="MetadataDialog" Title="Template Details" CloseButtonText="Close" MaxWidth="500" MaxHeight="600" DefaultButton="Close">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="MetadataDialogContent" Spacing="16" />
+        </ScrollViewer>
+    </ContentDialog>
+    </Grid>
 </UserControl>
