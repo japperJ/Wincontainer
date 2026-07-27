@@ -161,7 +161,10 @@ public class RuntimeContractTests
     [Fact]
     public void WslcDriver_ShouldExposeExpectedMethods()
     {
-        var methods = typeof(IWslcDriver).GetMethods()
+        typeof(WslcDriver).GetInterfaces().Should().Contain(typeof(IWslcDriver));
+
+        var methods = typeof(WslcDriver).GetMethods()
+            .Where(m => m.DeclaringType == typeof(WslcDriver))
             .Select(m => m.Name)
             .Distinct()
             .ToHashSet();
