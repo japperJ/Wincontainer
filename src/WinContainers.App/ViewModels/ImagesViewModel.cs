@@ -11,6 +11,7 @@ public partial class ImagesViewModel : ViewModelBase
 {
     private readonly ContainerService _containerService;
     private readonly IOutputService _output;
+    private readonly IWslcServiceClient _serviceClient;
 
     private string? _statusText;
     public string? StatusText
@@ -57,10 +58,11 @@ public partial class ImagesViewModel : ViewModelBase
         set => SetProperty(ref _layersCountText, value);
     }
 
-    public ImagesViewModel(ContainerService containerService, IOutputService output)
+    public ImagesViewModel(ContainerService containerService, IOutputService output, IWslcServiceClient serviceClient)
     {
         _containerService = containerService;
         _output = output;
+        _serviceClient = serviceClient;
     }
 
     public async Task LoadImagesAsync()
@@ -68,10 +70,10 @@ public partial class ImagesViewModel : ViewModelBase
         IsLoading = true;
         StatusText = "Loading images...";
 
-        var imageOutput = await App.ServiceClient.GetImagesAsync();
+        var imageOutput = await _serviceClient.GetImagesAsync();
         var images = WslcContainerParser.ParseImages(imageOutput ?? "");
 
-        var containerOutput = await App.ServiceClient.GetContainersAsync();
+        var containerOutput = await _serviceClient.GetContainersAsync();
         var containers = WslcContainerParser.ParseContainers(containerOutput ?? "");
         var inUseNames = _containerService.GetInUseImageNames(containers);
 
@@ -105,7 +107,7 @@ public partial class ImagesViewModel : ViewModelBase
     {
         try
         {
-            var output = await App.ServiceClient.RemoveImageAsync(image.ID);
+            var output = await _serviceClient.RemoveImageAsync(image.ID);
             if (!string.IsNullOrWhiteSpace(output) && output.StartsWith("error", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException(output);
 

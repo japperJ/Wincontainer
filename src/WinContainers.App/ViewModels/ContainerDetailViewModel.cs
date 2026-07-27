@@ -18,6 +18,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
     private readonly ContainerService _containerService;
     private readonly IDialogService _dialog;
     private readonly INavigationService _navigation;
+    private readonly IWslcServiceClient _serviceClient;
     #endregion
 
     #region Observable Properties
@@ -312,12 +313,14 @@ public partial class ContainerDetailViewModel : ViewModelBase
         IOutputService output,
         ContainerService containerService,
         IDialogService dialog,
-        INavigationService navigation)
+        INavigationService navigation,
+        IWslcServiceClient serviceClient)
     {
         _output = output;
         _containerService = containerService;
         _dialog = dialog;
         _navigation = navigation;
+        _serviceClient = serviceClient;
     }
 
     public void LoadContainer(ContainerCardData data)
@@ -355,7 +358,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
     {
         try
         {
-            var output = await App.ServiceClient.GetContainersAsync();
+            var output = await _serviceClient.GetContainersAsync();
             var entries = WslcContainerParser.ParseContainers(output ?? "");
             var match = entries.Find(c => c.Id == ContainerId || c.Name == ContainerName);
 
@@ -391,10 +394,10 @@ public partial class ContainerDetailViewModel : ViewModelBase
         {
             var output = action switch
             {
-                "Start" => await App.ServiceClient.StartContainerAsync(ContainerId),
-                "Stop" => await App.ServiceClient.StopContainerAsync(ContainerId),
-                "Restart" => await App.ServiceClient.RestartContainerAsync(ContainerId),
-                "Delete" => await App.ServiceClient.RemoveContainerAsync(ContainerId),
+                "Start" => await _serviceClient.StartContainerAsync(ContainerId),
+                "Stop" => await _serviceClient.StopContainerAsync(ContainerId),
+                "Restart" => await _serviceClient.RestartContainerAsync(ContainerId),
+                "Delete" => await _serviceClient.RemoveContainerAsync(ContainerId),
                 _ => null
             };
 
@@ -423,7 +426,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
     {
         try
         {
-            var logs = await App.ServiceClient.GetContainerLogsAsync(ContainerId, 500);
+            var logs = await _serviceClient.GetContainerLogsAsync(ContainerId, 500);
             var msg = $"Container '{ContainerName}' exited after start.";
 
             if (!string.IsNullOrWhiteSpace(logs))
@@ -459,7 +462,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
     {
         try
         {
-            var output = await App.ServiceClient.GetContainerLogsAsync(ContainerId, 500);
+            var output = await _serviceClient.GetContainerLogsAsync(ContainerId, 500);
             LogsContent = string.IsNullOrWhiteSpace(output) ? "(no logs)" : output;
             LogsInfoText = $"Auto-refreshing every 3s — {(output?.Length ?? 0)} chars";
         }
@@ -474,7 +477,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
         try
         {
             InspectStatusText = "Loading...";
-            var output = await App.ServiceClient.GetContainersAsync();
+            var output = await _serviceClient.GetContainersAsync();
             var entries = WslcContainerParser.ParseContainers(output ?? "");
             var match = entries.Find(c => c.Id == ContainerId || c.Name == ContainerName);
             InspectJson = match is not null
@@ -511,7 +514,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, command, useShell: true, shell: shell);
+            var output = await _serviceClient.ExecContainerAsync(ContainerId, command, useShell: true, shell: shell);
             _output.Write($"Shell result: len={output?.Length ?? 0}");
             AppendShellOutput(string.IsNullOrWhiteSpace(output) ? "(no output)\n" : output + "\n");
         }
@@ -553,7 +556,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
                 "[ -e \"$entry\" ] || [ -L \"$entry\" ] || continue; " +
                 "if [ -d \"$entry\" ]; then printf 'd\\t%s\\0' \"${entry##*/}\"; " +
                 "else printf 'f\\t%s\\0' \"${entry##*/}\"; fi; done";
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, listingCommand, true, "/bin/sh");
+            var output = await _serviceClient.ExecContainerAsync(ContainerId, listingCommand, true, "/bin/sh");
             var entries = new ObservableCollection<FileEntryData>();
 
             // Add parent directory entry ("..") if not at root
@@ -615,7 +618,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"cat {WslcCommands.ShellQuote(filePath)}");
+            var output = await _serviceClient.ExecContainerAsync(ContainerId, $"cat {WslcCommands.ShellQuote(filePath)}");
             FileContent = output ?? "(empty or error)";
             FileEditContent = FileContent;
         }
@@ -644,7 +647,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
     {
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"cat {WslcCommands.ShellQuote(filePath)}", false);
+            var output = await _serviceClient.ExecContainerAsync(ContainerId, $"cat {WslcCommands.ShellQuote(filePath)}", false);
             if (output.StartsWith("error"))
                 throw new InvalidOperationException(output);
             return output;
@@ -660,7 +663,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
     {
         var encodedContent = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(content ?? string.Empty));
         var script = $"printf '%s' '{encodedContent}' | base64 -d > {WslcCommands.ShellQuote(filePath)}";
-        var output = await App.ServiceClient.ExecContainerAsync(ContainerId, script, true, "/bin/sh");
+        var output = await _serviceClient.ExecContainerAsync(ContainerId, script, true, "/bin/sh");
         if (!string.IsNullOrWhiteSpace(output) && output.StartsWith("error", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(output);
     }
@@ -670,7 +673,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
         var filePath = CurrentFilePath.TrimEnd('/') + "/" + entry.Name;
         try
         {
-            var output = await App.ServiceClient.ExecContainerAsync(ContainerId, $"chmod {mode} {WslcCommands.ShellQuote(filePath)}");
+            var output = await _serviceClient.ExecContainerAsync(ContainerId, $"chmod {mode} {WslcCommands.ShellQuote(filePath)}");
             if (!string.IsNullOrWhiteSpace(output) && output.StartsWith("error", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException(output);
 

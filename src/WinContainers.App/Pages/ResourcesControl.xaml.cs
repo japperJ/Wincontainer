@@ -23,7 +23,7 @@ public sealed partial class ResourcesControl : UserControl
     public ResourcesControl()
     {
         InitializeComponent();
-        _viewModel = new ResourceListViewModel(ViewModelLocator.OutputService);
+        _viewModel = new ResourceListViewModel(ViewModelLocator.OutputService, ViewModelLocator.ServiceClient);
         Loaded += ResourcesControl_Loaded;
     }
 

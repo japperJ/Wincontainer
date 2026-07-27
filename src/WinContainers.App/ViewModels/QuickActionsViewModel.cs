@@ -97,15 +97,17 @@ public partial class QuickActionsViewModel : ViewModelBase
     private static readonly HttpClient DockerHubClient = new();
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly TemplateCatalogService _catalogService;
+    private readonly IWslcServiceClient _serviceClient;
     private CancellationTokenSource? _searchCts;
     private List<TemplateCatalogItem> _allTemplates = [];
     private int _conflictCheckVersion;
     private bool _suppressFormConflictRefresh;
 
-    public QuickActionsViewModel(IOutputService output, TemplateCatalogService catalogService)
+    public QuickActionsViewModel(IOutputService output, TemplateCatalogService catalogService, IWslcServiceClient serviceClient)
     {
         _output = output;
         _catalogService = catalogService;
+        _serviceClient = serviceClient;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         if (_dispatcherQueue == null)
         {
@@ -694,7 +696,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         foreach (var svc in services)
         {
             _output.Write($"Pulling image '{svc.Image}'...");
-            var pullOutput = await App.ServiceClient.PullImageAsync(svc.Image);
+            var pullOutput = await _serviceClient.PullImageAsync(svc.Image);
             _output.Write($"Pull '{svc.Image}': {pullOutput}");
 
             var ports = svc.Ports.Select(p => $"{p.Host}:{p.Container}").ToList();
@@ -702,7 +704,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             var env = svc.EnvVars.Select(e => string.IsNullOrWhiteSpace(e.Value) ? e.Name : $"{e.Name}={e.Value}").ToList();
 
             _output.Write($"Running container '{svc.ContainerName}' from '{svc.Image}' (ports={ports.Count}, volumes={volumes.Count}, env={env.Count})...");
-            var runOutput = await App.ServiceClient.RunContainerAsync(svc.Image, svc.ContainerName, ports, volumes, env);
+            var runOutput = await _serviceClient.RunContainerAsync(svc.Image, svc.ContainerName, ports, volumes, env);
             _output.Write($"Run '{svc.ContainerName}': {runOutput}");
         }
 
@@ -1042,7 +1044,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         var checkVersion = Interlocked.Increment(ref _conflictCheckVersion);
         try
         {
-            var output = await App.ServiceClient.GetContainersAsync();
+            var output = await _serviceClient.GetContainersAsync();
             var running = WslcContainerParser.ParseContainers(output ?? "")
                 .Where(c => ContainerService.IsRunningStatus(c.Status))
                 .ToList();
@@ -1091,7 +1093,7 @@ public partial class QuickActionsViewModel : ViewModelBase
 
                 try
                 {
-                    var inspectOutput = await App.ServiceClient.InspectContainerAsync(container.Id);
+                    var inspectOutput = await _serviceClient.InspectContainerAsync(container.Id);
                     if (checkVersion != _conflictCheckVersion)
                         return;
                     usedMounts.AddRange(WslcContainerParser.ParseMountsFromInspect(inspectOutput ?? ""));
@@ -1243,7 +1245,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         }
 
         _output.Write($"Pulling image '{image}'...");
-        var pullOutput = await App.ServiceClient.PullImageAsync(image);
+        var pullOutput = await _serviceClient.PullImageAsync(image);
         _output.Write($"Pull: {pullOutput}");
 
         var name = ContainerNameText?.Trim();
@@ -1277,7 +1279,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             .ToList();
 
         _output.Write($"Creating and starting container '{name}' from image '{image}'...");
-        var runOutput = await App.ServiceClient.RunContainerAsync(image, name, ports, volumes, env);
+        var runOutput = await _serviceClient.RunContainerAsync(image, name, ports, volumes, env);
         _output.Write($"Run: {runOutput}");
     }
 
@@ -1294,9 +1296,9 @@ public partial class QuickActionsViewModel : ViewModelBase
 
         var output = scriptName switch
         {
-            "Start-Container" => await App.ServiceClient.StartContainerAsync(id),
-            "Stop-Container" => await App.ServiceClient.StopContainerAsync(id),
-            "Remove-Container" => await App.ServiceClient.RemoveContainerAsync(id),
+            "Start-Container" => await _serviceClient.StartContainerAsync(id),
+            "Stop-Container" => await _serviceClient.StopContainerAsync(id),
+            "Remove-Container" => await _serviceClient.RemoveContainerAsync(id),
             _ => null
         };
         _output.Write($"{scriptName}: {output ?? "(not implemented)"}");
@@ -1312,7 +1314,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         }
 
         _output.Write($"Pulling image '{image}'...");
-        var output = await App.ServiceClient.PullImageAsync(image);
+        var output = await _serviceClient.PullImageAsync(image);
         _output.Write($"Pull: {output}");
     }
 
