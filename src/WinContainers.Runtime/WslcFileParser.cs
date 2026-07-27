@@ -40,13 +40,13 @@ public static class WslcFileParser
 
     public static List<FileEntryData> ParseFileEntries(string rawOutput)
     {
-        var delimitedEntries = Parse(rawOutput ?? "");
-        if (rawOutput?.Contains('\0') == true)
-            return delimitedEntries;
+        if (string.IsNullOrWhiteSpace(rawOutput))
+            return [];
+
+        if (rawOutput.Contains('\0'))
+            return Parse(rawOutput);
 
         var entries = new List<FileEntryData>();
-        if (string.IsNullOrWhiteSpace(rawOutput))
-            return entries;
 
         var cleaned = rawOutput.Trim();
         if (cleaned.Length == 0 || cleaned == "[]") return entries;
