@@ -9,7 +9,6 @@ namespace WinContainers_App.ViewModels;
 
 public partial class ImagesViewModel : ViewModelBase
 {
-    private readonly ContainerService _containerService;
     private readonly IOutputService _output;
     private readonly IWslcServiceClient _serviceClient;
 
@@ -58,9 +57,8 @@ public partial class ImagesViewModel : ViewModelBase
         set => SetProperty(ref _layersCountText, value);
     }
 
-    public ImagesViewModel(ContainerService containerService, IOutputService output, IWslcServiceClient serviceClient)
+    public ImagesViewModel(IOutputService output, IWslcServiceClient serviceClient)
     {
-        _containerService = containerService;
         _output = output;
         _serviceClient = serviceClient;
     }
@@ -75,7 +73,7 @@ public partial class ImagesViewModel : ViewModelBase
 
         var containerOutput = await _serviceClient.GetContainersAsync();
         var containers = WslcContainerParser.ParseContainers(containerOutput ?? "");
-        var inUseNames = _containerService.GetInUseImageNames(containers);
+        var inUseNames = WslcContainerParser.GetInUseImageNames(containers);
 
         foreach (var img in images)
         {

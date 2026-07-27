@@ -13,7 +13,6 @@ public partial class ContainersViewModel : ViewModelBase
 {
     private const int BackgroundPollIntervalMs = 10000;
     private readonly IOutputService _output;
-    private readonly ContainerService _containerService;
     private readonly IDialogService _dialog;
     private readonly INavigationService _navigation;
     private readonly IWslcServiceClient _serviceClient;
@@ -57,13 +56,11 @@ public partial class ContainersViewModel : ViewModelBase
 
     public ContainersViewModel(
         IOutputService output,
-        ContainerService containerService,
         IDialogService dialog,
         INavigationService navigation,
         IWslcServiceClient serviceClient)
     {
         _output = output;
-        _containerService = containerService;
         _dialog = dialog;
         _navigation = navigation;
         _serviceClient = serviceClient;
@@ -113,7 +110,7 @@ public partial class ContainersViewModel : ViewModelBase
                 return;
             }
 
-            var combined = _containerService.ParseContainerEntries(output ?? "");
+            var combined = WslcContainerParser.ParseContainers(output ?? "");
 
             _allContainers = combined;
             App.DispatcherQueue.TryEnqueue(() =>
@@ -280,7 +277,7 @@ public partial class ContainersViewModel : ViewModelBase
         {
             foreach (var container in group.Containers)
             {
-                if (action == "Start" && ContainerService.IsRunningStatus(container.Status))
+                if (action == "Start" && WslcContainerParser.IsRunningStatus(container.Status))
                 {
                     _output.Write($"  Skipping {container.Name} (already running)");
                     continue;

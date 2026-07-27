@@ -15,7 +15,6 @@ public partial class ContainerDetailViewModel : ViewModelBase
     #region Constructor and Fields
 
     private readonly IOutputService _output;
-    private readonly ContainerService _containerService;
     private readonly IDialogService _dialog;
     private readonly INavigationService _navigation;
     private readonly IWslcServiceClient _serviceClient;
@@ -311,13 +310,11 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
     public ContainerDetailViewModel(
         IOutputService output,
-        ContainerService containerService,
         IDialogService dialog,
         INavigationService navigation,
         IWslcServiceClient serviceClient)
     {
         _output = output;
-        _containerService = containerService;
         _dialog = dialog;
         _navigation = navigation;
         _serviceClient = serviceClient;
@@ -348,8 +345,8 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
     private void UpdateHeaderState()
     {
-        IsStartEnabled = ContainerService.IsExitedStatus(ContainerStatus) || ContainerStatus == "Created";
-        IsStopEnabled = ContainerService.IsRunningStatus(ContainerStatus);
+        IsStartEnabled = WslcContainerParser.IsExitedStatus(ContainerStatus) || ContainerStatus == "Created";
+        IsStopEnabled = WslcContainerParser.IsRunningStatus(ContainerStatus);
         IsRestartEnabled = IsStartEnabled || IsStopEnabled;
         IsDeleteEnabled = true;
     }
@@ -412,7 +409,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
             await RefreshContainerStateAsync();
 
-            if (action == "Start" && ContainerService.IsExitedStatus(ContainerStatus))
+            if (action == "Start" && WslcContainerParser.IsExitedStatus(ContainerStatus))
                 await ShowContainerExitErrorAsync();
         }
         catch (Exception ex)
@@ -573,7 +570,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
             if (!string.IsNullOrWhiteSpace(output) && !output.StartsWith("error"))
             {
-                foreach (var entry in _containerService.ParseFileEntries(output))
+                foreach (var entry in WslcFileParser.ParseFileEntries(output))
                 {
                     var isDir = entry.Type == "dir";
                     entries.Add(new FileEntryData

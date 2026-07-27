@@ -539,14 +539,15 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public void ContainerService_ShouldDelegateNulDelimitedFileParsing()
+    public void WslcFileParser_ShouldExposeParseFileEntriesMethod()
     {
         var path = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
-            "../../../../../src/WinContainers.App/Services/ContainerService.cs"));
+            "../../../../../src/WinContainers.Runtime/WslcFileParser.cs"));
         var source = File.ReadAllText(path);
 
-        source.Should().Contain("WslcFileParser.Parse");
+        source.Should().Contain("ParseFileEntries");
+        source.Should().Contain("JsonDocument.Parse");
     }
 
     [Fact]
@@ -570,7 +571,7 @@ public class RuntimeContractTests
             "../../../../../src/WinContainers.App/ViewModels/ContainerDetailViewModel.cs"));
         var source = File.ReadAllText(path);
 
-        source.Should().Contain("_containerService.ParseFileEntries(output)");
+        source.Should().Contain("WslcFileParser.ParseFileEntries(output)");
         source.Should().Contain("printf 'd\\\\t%s\\\\0'");
         source.Should().Contain("printf 'f\\\\t%s\\\\0'");
         source.Should().NotContain("ls -lap");

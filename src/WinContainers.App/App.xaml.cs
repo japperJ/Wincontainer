@@ -40,7 +40,6 @@ public partial class App : Application
         services.AddSingleton<IDialogService>(sp =>
             new DialogService(() => (_window as MainWindow)?.Content?.XamlRoot));
 
-        services.AddSingleton<ContainerService>();
         services.AddSingleton<IWslcServiceClient>(sp =>
             new WslcServiceClient(ServiceEndpointResolver.Resolve(), sp.GetRequiredService<IOutputService>()));
         services.AddSingleton<TemplateCatalogService>();
