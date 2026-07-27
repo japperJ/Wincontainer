@@ -4,6 +4,7 @@ using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Runtime.Models;
+using WinContainers_App.Models;
 using WinContainers_App.Services;
 using ServiceLogLevel = WinContainers_App.Services.LogLevel;
 
@@ -320,7 +321,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
         _serviceClient = serviceClient;
     }
 
-    public void LoadContainer(ContainerCardData data)
+    public void LoadContainer(ContainerViewModel data)
     {
         ContainerId = data.Id;
         ContainerName = data.Name;
