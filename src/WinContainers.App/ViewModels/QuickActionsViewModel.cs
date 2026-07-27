@@ -1046,7 +1046,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         {
             var output = await _serviceClient.GetContainersAsync();
             var running = WslcContainerParser.ParseContainers(output ?? "")
-                .Where(c => ContainerService.IsRunningStatus(c.Status))
+                .Where(c => WslcContainerParser.IsRunningStatus(c.Status))
                 .ToList();
 
             var warnings = new List<string>();

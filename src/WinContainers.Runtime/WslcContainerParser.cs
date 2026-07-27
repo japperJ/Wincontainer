@@ -311,4 +311,31 @@ public static class WslcContainerParser
 
         return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
+
+    public static bool IsRunningStatus(string status)
+        => status.StartsWith("Up", StringComparison.OrdinalIgnoreCase) || status.StartsWith("Running", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsExitedStatus(string status)
+        => status.StartsWith("Exited", StringComparison.OrdinalIgnoreCase) || status.StartsWith("Stopped", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsPausedStatus(string status)
+        => status.StartsWith("Paused", StringComparison.OrdinalIgnoreCase);
+
+    public static List<string> GetInUseImageNames(List<ContainerCardData> containers)
+    {
+        var names = new List<string>();
+        foreach (var c in containers)
+        {
+            var image = c.Image ?? "";
+            var idx = image.IndexOf('/');
+            if (idx >= 0 && (image.IndexOf('.') >= 0 && image.IndexOf('.') < idx || image.IndexOf(':') >= 0 && image.IndexOf(':') < idx))
+                image = image[(idx + 1)..];
+            if (image.StartsWith("library/", StringComparison.OrdinalIgnoreCase))
+                image = image["library/".Length..];
+            if (!image.Contains(':'))
+                image += ":latest";
+            names.Add(image);
+        }
+        return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
 }

@@ -8,7 +8,6 @@ namespace WinContainers_App.ViewModels;
 public partial class OverviewViewModel : ViewModelBase
 {
     private readonly IOutputService _output;
-    private readonly ContainerService _containerService;
     private readonly IWslcServiceClient _serviceClient;
 
     private string? _statusText;
@@ -67,10 +66,9 @@ public partial class OverviewViewModel : ViewModelBase
         set => SetProperty(ref _setupHintText, value);
     }
 
-    public OverviewViewModel(IOutputService output, ContainerService containerService, IWslcServiceClient serviceClient)
+    public OverviewViewModel(IOutputService output, IWslcServiceClient serviceClient)
     {
         _output = output;
-        _containerService = containerService;
         _serviceClient = serviceClient;
     }
 
@@ -88,7 +86,7 @@ public partial class OverviewViewModel : ViewModelBase
             var containers = WslcContainerParser.ParseContainers(containerOutput ?? "");
 
             var totalCount = containers.Count;
-            var runningCount = containers.Count(c => ContainerService.IsRunningStatus(c.Status));
+            var runningCount = containers.Count(c => WslcContainerParser.IsRunningStatus(c.Status));
 
             ContainerCountText = $"Containers: {totalCount}";
             RunningCountText = $"Running: {runningCount}";
