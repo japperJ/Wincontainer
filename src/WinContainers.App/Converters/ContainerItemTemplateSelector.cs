@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using WinContainers.Runtime.Models;
+using WinContainers_App.Models;
 
 namespace WinContainers_App.Converters;
 
@@ -11,7 +11,7 @@ public sealed class ContainerItemTemplateSelector : DataTemplateSelector
 
     protected override DataTemplate SelectTemplateCore(object item)
     {
-        if (item is ContainerGroup)
+        if (item is ContainerGroupViewModel)
             return GroupHeaderTemplate!;
         return ContainerTemplate!;
     }

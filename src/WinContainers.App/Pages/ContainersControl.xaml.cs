@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using WinContainers.Runtime.Models;
+using WinContainers_App.Models;
 using WinContainers_App.Services;
 using WinContainers_App.ViewModels;
 
@@ -43,13 +43,13 @@ public sealed partial class ContainersControl : UserControl
 
     private void GroupHeader_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button button && button.DataContext is ContainerGroup group)
+        if (sender is Button button && button.DataContext is ContainerGroupViewModel group)
             _viewModel.ToggleGroupExpanded(group);
     }
 
     private async void StartContainer_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: ContainerCardData c } btn) return;
+        if (sender is not Button { DataContext: ContainerViewModel c } btn) return;
         using var guard = new ButtonGuard(btn);
         MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunContainerActionAsync("Start", c.Id);
@@ -57,7 +57,7 @@ public sealed partial class ContainersControl : UserControl
 
     private async void StopContainer_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: ContainerCardData c } btn) return;
+        if (sender is not Button { DataContext: ContainerViewModel c } btn) return;
         using var guard = new ButtonGuard(btn);
         MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunContainerActionAsync("Stop", c.Id);
@@ -65,7 +65,7 @@ public sealed partial class ContainersControl : UserControl
 
     private async void RemoveContainer_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: ContainerCardData c } btn) return;
+        if (sender is not Button { DataContext: ContainerViewModel c } btn) return;
         using var guard = new ButtonGuard(btn);
 
         var volumeNames = await GetContainerVolumeNamesAsync(c.Id);
@@ -128,7 +128,7 @@ public sealed partial class ContainersControl : UserControl
 
     private async void StartGroup_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: ContainerGroup group } btn) return;
+        if (sender is not Button { DataContext: ContainerGroupViewModel group } btn) return;
         using var guard = new GroupButtonGuard(btn, group);
         MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunGroupActionAsync("Start", group);
@@ -136,7 +136,7 @@ public sealed partial class ContainersControl : UserControl
 
     private async void StopGroup_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: ContainerGroup group } btn) return;
+        if (sender is not Button { DataContext: ContainerGroupViewModel group } btn) return;
         using var guard = new GroupButtonGuard(btn, group);
         MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunGroupActionAsync("Stop", group);
@@ -144,7 +144,7 @@ public sealed partial class ContainersControl : UserControl
 
     private async void RemoveGroup_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: ContainerGroup group } btn) return;
+        if (sender is not Button { DataContext: ContainerGroupViewModel group } btn) return;
         using var guard = new GroupButtonGuard(btn, group);
         MainWindow.Instance?.EnsureOutputPaneVisible();
         await _viewModel.RunGroupActionAsync("Remove", group);
@@ -160,7 +160,7 @@ public sealed partial class ContainersControl : UserControl
             original = VisualTreeHelper.GetParent(original);
         }
 
-        if (sender is Border { DataContext: ContainerCardData entry })
+        if (sender is Border { DataContext: ContainerViewModel entry })
             _viewModel.NavigateToDetail(entry);
     }
 
@@ -180,7 +180,7 @@ public sealed partial class ContainersControl : UserControl
     private async void GroupRename_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
-        if (button.DataContext is not ContainerGroup group) return;
+        if (button.DataContext is not ContainerGroupViewModel group) return;
 
         var (confirmed, newName) = await ShowRenameDialogAsync("Rename project", "New project name:", group.DisplayName);
         if (!confirmed || string.IsNullOrWhiteSpace(newName)) return;
@@ -255,7 +255,7 @@ public sealed partial class ContainersControl : UserControl
         private readonly Button _btn;
         private readonly object _origContent;
 
-        public GroupButtonGuard(Button btn, ContainerGroup group)
+        public GroupButtonGuard(Button btn, ContainerGroupViewModel group)
         {
             _btn = btn;
             _origContent = btn.Content;

@@ -1,8 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using WinContainers_App.Models;
 using WinContainers_App.ViewModels;
-using WinContainers.Runtime.Models;
 
 namespace WinContainers_App.Pages;
 
@@ -32,7 +32,7 @@ public sealed partial class DashboardPage : Page
         }
     }
 
-    public void ShowContainerDetail(ContainerCardData entry)
+    public void ShowContainerDetail(ContainerViewModel entry)
     {
         RemoveContainerDetail();
 

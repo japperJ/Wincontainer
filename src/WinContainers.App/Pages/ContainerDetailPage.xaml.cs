@@ -8,6 +8,7 @@ using WinRT.Interop;
 using WinContainers_App;
 using WinContainers.Core.Models;
 using WinContainers.Runtime.Models;
+using WinContainers_App.Models;
 using WinContainers_App.ViewModels;
 
 namespace WinContainers_App.Pages;
@@ -43,7 +44,7 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
 
     public bool IsEmbedded { get; set; }
 
-    public void LoadContainer(ContainerCardData data)
+    public void LoadContainer(ContainerViewModel data)
     {
         DetachInspectPropertyChangedHandler();
 
@@ -75,10 +76,10 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
         base.OnNavigatedTo(e);
         DetachInspectPropertyChangedHandler();
 
-        ContainerCardData data;
+        ContainerViewModel data;
         if (e.Parameter is ContainerDetailArgs args)
         {
-            data = new ContainerCardData
+            data = new ContainerViewModel
             {
                 Id = args.Id,
                 Name = args.Name,
@@ -88,7 +89,7 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
                 CreatedAt = args.CreatedAt
             };
         }
-        else if (e.Parameter is ContainerCardData cardData)
+        else if (e.Parameter is ContainerViewModel cardData)
         {
             data = cardData;
         }

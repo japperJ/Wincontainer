@@ -5,7 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:WinContainers_App.Pages"
-    xmlns:models="using:WinContainers.Runtime.Models"
+    xmlns:models="using:WinContainers_App.Models"
     xmlns:converters="using:WinContainers_App.Converters"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -14,7 +14,7 @@
         <converters:StatusToColorConverter x:Key="StatusToColorConverter" />
         <converters:ExpandCollapseConverter x:Key="ExpandCollapseConverter" />
         <!-- Container row template used for all containers (standalone or inside expanded groups) -->
-        <DataTemplate x:Key="ContainerRowTemplate" x:DataType="models:ContainerCardData">
+        <DataTemplate x:Key="ContainerRowTemplate" x:DataType="models:ContainerViewModel">
             <Border Padding="12,8" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Background="Transparent" Tapped="ContainerRow_Tapped">
                 <Grid>
                     <Rectangle x:Name="GroupIndicator" Width="3" HorizontalAlignment="Left" Fill="{ThemeResource SystemAccentColor}" Opacity="0.35" x:Load="{x:Bind IsInGroup}" />
@@ -46,7 +46,7 @@
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="models:PortLinkItem">
+                                <DataTemplate x:DataType="models:PortLinkViewModel">
                                     <StackPanel Orientation="Horizontal" Spacing="2">
                                         <HyperlinkButton Content="{x:Bind Url}" Click="PortLink_Click" Tapped="PortLink_Tapped" />
                                         <TextBlock Text="{x:Bind Detail}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -62,7 +62,7 @@
         <converters:ContainerItemTemplateSelector x:Key="ContainerTemplateSelector"
             ContainerTemplate="{StaticResource ContainerRowTemplate}">
             <converters:ContainerItemTemplateSelector.GroupHeaderTemplate>
-                <DataTemplate x:DataType="models:ContainerGroup">
+                <DataTemplate x:DataType="models:ContainerGroupViewModel">
                     <Border Padding="0" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                         <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Padding="12,8" Click="GroupHeader_Click">
                             <Grid ColumnSpacing="8" Padding="0">

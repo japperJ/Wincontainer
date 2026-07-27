@@ -40,10 +40,29 @@ public partial class App : Application
         services.AddSingleton<IDialogService>(sp =>
             new DialogService(() => (_window as MainWindow)?.Content?.XamlRoot));
 
+        services.AddHttpClient("WslcApi", (sp, client) =>
+        {
+            client.Timeout = HttpClientTimeouts.ServiceTimeout;
+        });
+
+        services.AddHttpClient("WslcUpdate", (sp, client) =>
+        {
+            client.Timeout = HttpClientTimeouts.UpdateTimeout;
+        });
+
         services.AddSingleton<IWslcServiceClient>(sp =>
-            new WslcServiceClient(ServiceEndpointResolver.Resolve(), sp.GetRequiredService<IOutputService>()));
+        {
+            var factory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = factory.CreateClient("WslcApi");
+            return new WslcServiceClient(httpClient, ServiceEndpointResolver.Resolve(), sp.GetRequiredService<IOutputService>());
+        });
         services.AddSingleton<TemplateCatalogService>();
-        services.AddSingleton<WslcUpdateService>();
+        services.AddSingleton<WslcUpdateService>(sp =>
+        {
+            var factory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = factory.CreateClient("WslcUpdate");
+            return new WslcUpdateService(httpClient);
+        });
 
         services.AddTransient<ShellViewModel>();
         services.AddTransient<DashboardViewModel>();

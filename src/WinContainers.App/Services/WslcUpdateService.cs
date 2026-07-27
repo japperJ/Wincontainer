@@ -12,10 +12,11 @@ public sealed record WslcUpdateInfo(string Version, string DownloadUrl, string S
 public sealed class WslcUpdateService
 {
     private const string ReleasesUrl = "https://api.github.com/repos/microsoft/WSL/releases?per_page=20";
-    private readonly HttpClient _http = HttpClientTimeouts.Create(HttpClientTimeouts.UpdateTimeout);
+    private readonly HttpClient _http;
 
-    public WslcUpdateService()
+    public WslcUpdateService(HttpClient httpClient)
     {
+        _http = httpClient;
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("WinContainers", "1.0"));
     }
 

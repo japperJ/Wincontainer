@@ -2,7 +2,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
-using WinContainers.Runtime.Models;
+using WinContainers_App.Models;
 using WinContainers_App.Pages;
 using WinContainers_App.Services;
 using ServiceLogLevel = WinContainers_App.Services.LogLevel;
@@ -17,7 +17,7 @@ public partial class ContainersViewModel : ViewModelBase
     private readonly INavigationService _navigation;
     private readonly IWslcServiceClient _serviceClient;
 
-    private List<ContainerCardData> _allContainers = [];
+    private List<ContainerViewModel> _allContainers = [];
 
     private readonly HashSet<string> _expandedProjects = [];
 
@@ -81,17 +81,17 @@ public partial class ContainersViewModel : ViewModelBase
             if (string.IsNullOrWhiteSpace(id)) return;
             await RunContainerActionAsync("Remove", id);
         });
-        StartGroupCommand = new AsyncRelayCommand<ContainerGroup?>(async group =>
+        StartGroupCommand = new AsyncRelayCommand<ContainerGroupViewModel?>(async group =>
         {
             if (group is null) return;
             await RunGroupActionAsync("Start", group);
         });
-        StopGroupCommand = new AsyncRelayCommand<ContainerGroup?>(async group =>
+        StopGroupCommand = new AsyncRelayCommand<ContainerGroupViewModel?>(async group =>
         {
             if (group is null) return;
             await RunGroupActionAsync("Stop", group);
         });
-        RemoveGroupCommand = new AsyncRelayCommand<ContainerGroup?>(async group =>
+        RemoveGroupCommand = new AsyncRelayCommand<ContainerGroupViewModel?>(async group =>
         {
             if (group is null) return;
             await RunGroupActionAsync("Remove", group);
@@ -112,7 +112,7 @@ public partial class ContainersViewModel : ViewModelBase
 
             var combined = WslcContainerParser.ParseContainers(output ?? "");
 
-            _allContainers = combined;
+            _allContainers = ContainerViewModel.FromCardDataList(combined);
             App.DispatcherQueue.TryEnqueue(() =>
             {
                 RebuildGroupedList();
@@ -129,7 +129,7 @@ public partial class ContainersViewModel : ViewModelBase
     {
         const string StandaloneKey = "\0";
 
-        var groups = new Dictionary<string, List<ContainerCardData>>();
+        var groups = new Dictionary<string, List<ContainerViewModel>>();
         foreach (var c in _allContainers)
         {
             var project = c.ProjectName;
@@ -159,7 +159,7 @@ public partial class ContainersViewModel : ViewModelBase
             {
                 var isExpanded = _expandedProjects.Contains(projectName);
                 var displayName = _projectDisplayNames.TryGetValue(projectName, out var dn) ? dn : projectName;
-                var group = new ContainerGroup
+                var group = new ContainerGroupViewModel
                 {
                     ProjectName = projectName,
                     DisplayName = displayName,
@@ -182,7 +182,7 @@ public partial class ContainersViewModel : ViewModelBase
         }
     }
 
-    public void ToggleGroupExpanded(ContainerGroup group)
+    public void ToggleGroupExpanded(ContainerGroupViewModel group)
     {
         if (group.IsExpanded)
         {
@@ -209,7 +209,7 @@ public partial class ContainersViewModel : ViewModelBase
         }
     }
 
-    public ContainerCardData? FindContainer(string id)
+    public ContainerViewModel? FindContainer(string id)
         => _allContainers.FirstOrDefault(c => c.Id == id || c.Name == id);
 
     public async Task RunContainerActionAsync(string action, string id, string? newName = null, List<string>? volumesToRemove = null)
@@ -266,7 +266,7 @@ public partial class ContainersViewModel : ViewModelBase
         return await _serviceClient.RenameContainerAsync(container.Id, normalized);
     }
 
-    public async Task RunGroupActionAsync(string action, ContainerGroup group)
+    public async Task RunGroupActionAsync(string action, ContainerGroupViewModel group)
     {
         group.IsBusy = true;
         foreach (var c in group.Containers)
@@ -303,7 +303,7 @@ public partial class ContainersViewModel : ViewModelBase
         await RefreshAsync();
     }
 
-    public async Task RunGroupRenameAsync(string newName, ContainerGroup group)
+    public async Task RunGroupRenameAsync(string newName, ContainerGroupViewModel group)
     {
         _output.Write($"Renaming group '{group.ProjectName}' → '{newName}' (UI-only rename, labels unchanged).");
 
@@ -315,7 +315,7 @@ public partial class ContainersViewModel : ViewModelBase
         await RefreshAsync();
     }
 
-    public void NavigateToDetail(ContainerCardData entry)
+    public void NavigateToDetail(ContainerViewModel entry)
     {
         _output.Write($"Selected container: {entry.Name} ({entry.Id})");
 
