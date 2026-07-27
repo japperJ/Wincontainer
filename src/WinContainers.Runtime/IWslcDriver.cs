@@ -26,5 +26,4 @@ public interface IWslcDriver
     Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default);
     Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default);
     Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default);
-    System.Diagnostics.Process StartStreamingProcess(string arguments);
 }

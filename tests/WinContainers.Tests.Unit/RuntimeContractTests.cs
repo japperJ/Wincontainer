@@ -161,26 +161,25 @@ public class RuntimeContractTests
     [Fact]
     public void WslcDriver_ShouldExposeExpectedMethods()
     {
-        var methods = typeof(WslcDriver).GetMethods()
-            .Where(m => m.DeclaringType == typeof(WslcDriver))
+        var methods = typeof(IWslcDriver).GetMethods()
             .Select(m => m.Name)
             .Distinct()
             .ToHashSet();
 
-        methods.Should().Contain(nameof(WslcDriver.GetVersionAsync));
-        methods.Should().Contain(nameof(WslcDriver.GetContainersAsync));
-        methods.Should().Contain(nameof(WslcDriver.StartContainerAsync));
-        methods.Should().Contain(nameof(WslcDriver.StopContainerAsync));
-        methods.Should().Contain(nameof(WslcDriver.RemoveContainerAsync));
-        methods.Should().Contain(nameof(WslcDriver.GetImagesAsync));
-        methods.Should().Contain(nameof(WslcDriver.PullImageAsync));
-        methods.Should().Contain(nameof(WslcDriver.RemoveImageAsync));
-        methods.Should().Contain(nameof(WslcDriver.GetVolumesAsync));
-        methods.Should().Contain(nameof(WslcDriver.CreateVolumeAsync));
-        methods.Should().Contain(nameof(WslcDriver.RemoveVolumeAsync));
-        methods.Should().Contain(nameof(WslcDriver.GetNetworksAsync));
-        methods.Should().Contain(nameof(WslcDriver.CreateNetworkAsync));
-        methods.Should().Contain(nameof(WslcDriver.RemoveNetworkAsync));
+        methods.Should().Contain(nameof(IWslcDriver.GetVersionAsync));
+        methods.Should().Contain(nameof(IWslcDriver.GetContainersAsync));
+        methods.Should().Contain(nameof(IWslcDriver.StartContainerAsync));
+        methods.Should().Contain(nameof(IWslcDriver.StopContainerAsync));
+        methods.Should().Contain(nameof(IWslcDriver.RemoveContainerAsync));
+        methods.Should().Contain(nameof(IWslcDriver.GetImagesAsync));
+        methods.Should().Contain(nameof(IWslcDriver.PullImageAsync));
+        methods.Should().Contain(nameof(IWslcDriver.RemoveImageAsync));
+        methods.Should().Contain(nameof(IWslcDriver.GetVolumesAsync));
+        methods.Should().Contain(nameof(IWslcDriver.CreateVolumeAsync));
+        methods.Should().Contain(nameof(IWslcDriver.RemoveVolumeAsync));
+        methods.Should().Contain(nameof(IWslcDriver.GetNetworksAsync));
+        methods.Should().Contain(nameof(IWslcDriver.CreateNetworkAsync));
+        methods.Should().Contain(nameof(IWslcDriver.RemoveNetworkAsync));
     }
 
     [Fact]
