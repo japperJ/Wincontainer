@@ -38,6 +38,7 @@ public sealed partial class TemplateCatalogControl : UserControl
         TemplateSummaryText.Text = $"{template.Image} • {template.Category}";
         WebsiteButton.NavigateUri = new Uri(template.Website);
         TemplateDetailsPanel.Visibility = Visibility.Visible;
+        TemplateDetailsPanel.StartBringIntoView();
 
         if (_viewModel.MetadataLoadStatus is { } status)
         {

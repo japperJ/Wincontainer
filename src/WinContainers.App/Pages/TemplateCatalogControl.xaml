@@ -8,7 +8,7 @@
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
     </UserControl.Resources>
     <Grid>
-        <ScrollViewer>
+        <ScrollViewer x:Name="CatalogScrollViewer">
         <StackPanel Spacing="16" Padding="24,16,24,24">
             <StackPanel Spacing="4">
                 <TextBlock Text="Template Catalog" Style="{StaticResource TitleTextBlockStyle}" />
