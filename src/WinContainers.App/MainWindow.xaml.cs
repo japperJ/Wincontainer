@@ -23,6 +23,8 @@ public sealed partial class MainWindow : Window
 
     public static int ReturnToPivotIndex { get; set; } = -1;
 
+    public Pages.DashboardPage? DashboardPageInstance { get; set; }
+
     private readonly INavigationService _navigation;
     private readonly IOutputService _output;
     private nint _mainHwnd;

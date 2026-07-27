@@ -19,6 +19,7 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
     private DispatcherTimer? _logsTimer;
     private WebView2? _inspectWebView;
     private List<string> _fileNavigationHistory = [];
+    private string _activeTab = "Logs";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -38,6 +39,35 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
     public ContainerDetailPage()
     {
         InitializeComponent();
+    }
+
+    public bool IsEmbedded { get; set; }
+
+    public void LoadContainer(ContainerCardData data)
+    {
+        DetachInspectPropertyChangedHandler();
+
+        _viewModel = ViewModelLocator.ContainerDetailViewModel;
+        ViewModel = _viewModel;
+        _viewModel.LoadContainer(data);
+
+        _inspectPropertyChangedHandler = OnViewModelPropertyChanged;
+        if (_inspectPropertyChangedHandler is not null)
+            _viewModel.PropertyChanged += _inspectPropertyChangedHandler;
+
+        _ = _viewModel.LoadLogsAsync();
+        _ = _viewModel.LoadInspectAsync();
+        _ = _viewModel.LoadFileListAsync("/");
+
+        StartLogsTimer();
+
+        if (IsEmbedded)
+        {
+            HeaderBorder.Visibility = Visibility.Collapsed;
+            InfoBarBorder.Visibility = Visibility.Collapsed;
+        }
+
+        SelectTab("Logs");
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -67,21 +97,7 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
             return;
         }
 
-        _viewModel = ViewModelLocator.ContainerDetailViewModel;
-
-        ViewModel = _viewModel;
-
-        _viewModel.LoadContainer(data);
-
-        _inspectPropertyChangedHandler = OnViewModelPropertyChanged;
-        if (_inspectPropertyChangedHandler is not null)
-            _viewModel.PropertyChanged += _inspectPropertyChangedHandler;
-
-        _ = _viewModel.LoadLogsAsync();
-        _ = _viewModel.LoadInspectAsync();
-        _ = _viewModel.LoadFileListAsync("/");
-
-        StartLogsTimer();
+        LoadContainer(data);
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -110,8 +126,62 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
         }
     }
 
+    // ─── Tab Navigation ────────────────────────────────────────
+
+    private void SelectTab(string tab)
+    {
+        _activeTab = tab;
+
+        LogsContent.Visibility = tab == "Logs" ? Visibility.Visible : Visibility.Collapsed;
+        InspectContent.Visibility = tab == "Inspect" ? Visibility.Visible : Visibility.Collapsed;
+        ShellContent.Visibility = tab == "Shell" ? Visibility.Visible : Visibility.Collapsed;
+        FilesContent.Visibility = tab == "Files" ? Visibility.Visible : Visibility.Collapsed;
+
+        UpdateTabButtonStyles();
+    }
+
+    private void UpdateTabButtonStyles()
+    {
+        LogsTabButton.Style = _activeTab == "Logs"
+            ? (Style)Application.Current.Resources["AccentButtonStyle"]
+            : (Style)Application.Current.Resources["DefaultButtonStyle"];
+        InspectTabButton.Style = _activeTab == "Inspect"
+            ? (Style)Application.Current.Resources["AccentButtonStyle"]
+            : (Style)Application.Current.Resources["DefaultButtonStyle"];
+        ShellTabButton.Style = _activeTab == "Shell"
+            ? (Style)Application.Current.Resources["AccentButtonStyle"]
+            : (Style)Application.Current.Resources["DefaultButtonStyle"];
+        FilesTabButton.Style = _activeTab == "Files"
+            ? (Style)Application.Current.Resources["AccentButtonStyle"]
+            : (Style)Application.Current.Resources["DefaultButtonStyle"];
+    }
+
+    private void LogsTabButton_Click(object sender, RoutedEventArgs e) => SelectTab("Logs");
+    private void InspectTabButton_Click(object sender, RoutedEventArgs e) => SelectTab("Inspect");
+    private void ShellTabButton_Click(object sender, RoutedEventArgs e) => SelectTab("Shell");
+    private void FilesTabButton_Click(object sender, RoutedEventArgs e) => SelectTab("Files");
+
+    // ─── Navigation ────────────────────────────────────────────
+
     private void BackButton_Click(object sender, RoutedEventArgs e)
-        => _viewModel?.NavigateBack();
+        => NavigateToDashboard();
+
+    private void NavigateToDashboard()
+    {
+        var parent = VisualTreeHelper.GetParent(this);
+        while (parent is not null)
+        {
+            if (parent is DashboardPage dashboard)
+            {
+                dashboard.RemoveContainerDetail();
+                return;
+            }
+            parent = VisualTreeHelper.GetParent(parent);
+        }
+
+        if (Frame.CanGoBack)
+            Frame.GoBack();
+    }
 
     // ─── Logs Tab ───────────────────────────────────────────────
 
@@ -267,7 +337,6 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
             string newPath;
             if (entry.Name == "..")
             {
-                // Go to parent directory
                 var current = _viewModel.CurrentFilePath.TrimEnd('/');
                 var lastSlash = current.LastIndexOf('/');
                 newPath = lastSlash <= 0 ? "/" : current.Substring(0, lastSlash);
@@ -511,7 +580,7 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
         if (_viewModel is not null)
         {
             await _viewModel.RunActionAsync("Delete");
-            _viewModel.NavigateBack();
+            NavigateToDashboard();
         }
     }
 

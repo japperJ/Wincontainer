@@ -8,7 +8,44 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Pivot x:Name="DashboardPivot" Padding="24,16,24,0">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Container detail actions bar (visible only when detail tab is active) -->
+        <Border x:Name="ContainerActionsBar" Grid.Row="0" Padding="16,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Visibility="Collapsed">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" Click="DetailBackButton_Click" AutomationProperties.Name="Back to containers" ToolTipService.ToolTip="Back to containers">
+                    <FontIcon Glyph="&#xE72B;" FontSize="14" />
+                </Button>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="DetailContainerName" Style="{StaticResource TitleTextBlockStyle}" TextTrimming="CharacterEllipsis" AutomationProperties.Name="Container name" />
+                </StackPanel>
+
+                <Border x:Name="DetailStatusBadge" Grid.Column="2" Padding="8,2,8,2" VerticalAlignment="Center" CornerRadius="4" Background="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Left">
+                    <TextBlock x:Name="DetailStatusText" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                </Border>
+
+                <StackPanel x:Name="DetailActionsPanel" Grid.Column="3" Orientation="Horizontal" Spacing="6">
+                    <Button x:Name="DetailStartButton" Content="Start" Click="DetailStartButton_Click" AutomationProperties.Name="Start container" />
+                    <Button x:Name="DetailStopButton" Content="Stop" Click="DetailStopButton_Click" AutomationProperties.Name="Stop container" />
+                    <Button x:Name="DetailRestartButton" Content="Restart" Click="DetailRestartButton_Click" AutomationProperties.Name="Restart container" />
+                    <Button x:Name="DetailDeleteButton" Content="Delete" Click="DetailDeleteButton_Click" AutomationProperties.Name="Delete container" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Pivot x:Name="DashboardPivot" Grid.Row="1" Padding="24,16,24,0" SelectionChanged="DashboardPivot_SelectionChanged">
         <PivotItem x:Name="OverviewTab" Header="Overview">
             <local:OverviewControl x:Name="OverviewContent" />
         </PivotItem>
@@ -34,4 +71,5 @@
             <local:ResourcesControl x:Name="NetworksContent" ResourceType="Networks" />
         </PivotItem>
     </Pivot>
+    </Grid>
 </Page>

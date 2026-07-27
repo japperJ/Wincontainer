@@ -318,6 +318,13 @@ public partial class ContainersViewModel : ViewModelBase
     public void NavigateToDetail(ContainerCardData entry)
     {
         _output.Write($"Selected container: {entry.Name} ({entry.Id})");
+
+        if (MainWindow.Instance?.DashboardPageInstance is { } dashboard)
+        {
+            dashboard.ShowContainerDetail(entry);
+            return;
+        }
+
         _navigation.NavigateTo<ContainerDetailPage>(entry);
     }
 
