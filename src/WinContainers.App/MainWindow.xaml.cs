@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using Windows.Graphics;
 using WinContainers.Core;
 using WinContainers_App.Pages;
@@ -26,11 +27,25 @@ public sealed partial class MainWindow : Window
     private readonly IOutputService _output;
     private nint _mainHwnd;
 
+    public bool IsRunningAsAdmin { get; }
+
     public MainWindow()
     {
         InitializeComponent();
         Title = $"WinContainers v{UpdateService.CurrentVersion}";
         Instance = this;
+
+        var identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        IsRunningAsAdmin = principal.IsInRole(WindowsBuiltInRole.Administrator);
+
+        System.Diagnostics.Debug.WriteLine($"[MainWindow] IsRunningAsAdmin={IsRunningAsAdmin}");
+
+        if (!IsRunningAsAdmin)
+        {
+            AdminWarningBar.Visibility = Visibility.Visible;
+            AdminWarningBar.IsOpen = true;
+        }
 
         _navigation = ViewModelLocator.NavigationService;
         _output = ViewModelLocator.OutputService;

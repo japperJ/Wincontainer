@@ -13,15 +13,24 @@
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition x:Name="ContentRow" Height="*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition x:Name="BottomContentRow" Height="0" />
         </Grid.RowDefinitions>
 
+        <InfoBar Grid.Row="0"
+                 x:Name="AdminWarningBar"
+                 IsClosable="False"
+                 Severity="Warning"
+                 Title="Not running as Administrator"
+                 Message="Some features (e.g. WSLC operations) may require elevated privileges. Right-click the app and select 'Run as administrator' for full functionality."
+                 Visibility="Collapsed" />
+
         <NavigationView
             x:Name="RootNavigation"
-            Grid.Row="0"
+            Grid.Row="1"
             PaneDisplayMode="Left"
             OpenPaneLength="280"
             CompactPaneLength="56"
@@ -41,11 +50,11 @@
             <Frame x:Name="RootFrame" />
         </NavigationView>
 
-        <Grid Grid.Row="1" Height="8" Background="Transparent" x:Name="OutputSplitter" PointerPressed="OutputSplitter_PointerPressed" PointerMoved="OutputSplitter_PointerMoved" PointerReleased="OutputSplitter_PointerReleased">
+        <Grid Grid.Row="2" Height="8" Background="Transparent" x:Name="OutputSplitter" PointerPressed="OutputSplitter_PointerPressed" PointerMoved="OutputSplitter_PointerMoved" PointerReleased="OutputSplitter_PointerReleased">
             <Rectangle Height="2" VerticalAlignment="Center" HorizontalAlignment="Stretch" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.6" />
         </Grid>
 
-        <Grid Grid.Row="2" Background="{ThemeResource LayerFillColorAltBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,4" ColumnSpacing="8">
+        <Grid Grid.Row="3" Background="{ThemeResource LayerFillColorAltBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,4" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -64,7 +73,7 @@
             <Button Grid.Column="4" x:Name="ToggleBottomPaneButton" Content="Output" Click="ToggleBottomPaneButton_Click" ToolTipService.ToolTip="Toggle output pane" AutomationProperties.Name="Toggle output pane" />
         </Grid>
 
-        <ScrollViewer Grid.Row="3" x:Name="OutputScrollViewer" Background="{ThemeResource LayerFillColorAltBrush}" Visibility="Collapsed">
+        <ScrollViewer Grid.Row="4" x:Name="OutputScrollViewer" Background="{ThemeResource LayerFillColorAltBrush}" Visibility="Collapsed">
             <TextBlock x:Name="OutputTextBlock" Padding="12,4" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontFamily="Consolas" FontSize="12" />
         </ScrollViewer>
     </Grid>
