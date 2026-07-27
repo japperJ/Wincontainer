@@ -5,7 +5,7 @@ using WinContainers.Core;
 
 namespace WinContainers.Runtime;
 
-public sealed class WslcDriver
+public sealed class WslcDriver : IWslcDriver
 {
     private const int DefaultTimeoutMs = 30000;
     private const int RuntimeProbeTimeoutMs = 15000;

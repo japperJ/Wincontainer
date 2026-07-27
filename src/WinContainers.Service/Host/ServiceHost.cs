@@ -45,7 +45,7 @@ public static class ServiceHost
             options.Limits.MaxRequestBodySize = null;
         });
 
-        builder.Services.AddSingleton<WslcDriver>();
+        builder.Services.AddSingleton<IWslcDriver, WslcDriver>();
 
         builder.Services.Configure<FormOptions>(o =>
         {
@@ -54,7 +54,7 @@ public static class ServiceHost
 
         var app = builder.Build();
 
-        var driver = app.Services.GetRequiredService<WslcDriver>();
+        var driver = app.Services.GetRequiredService<IWslcDriver>();
 
         app.Use(async (context, next) =>
         {
