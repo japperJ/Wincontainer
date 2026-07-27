@@ -7,7 +7,7 @@ using WinContainers.Core.Models;
 
 namespace WinContainers_App.Services;
 
-public sealed class WslcServiceClient
+public sealed class WslcServiceClient : IWslcServiceClient
 {
     private readonly HttpClient _http = HttpClientTimeouts.Create(HttpClientTimeouts.ServiceTimeout);
     private readonly string _baseUrl;
