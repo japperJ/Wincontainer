@@ -16,6 +16,7 @@ public partial class ContainersViewModel : ViewModelBase
     private readonly ContainerService _containerService;
     private readonly IDialogService _dialog;
     private readonly INavigationService _navigation;
+    private readonly IWslcServiceClient _serviceClient;
 
     private List<ContainerCardData> _allContainers = [];
 
@@ -58,12 +59,14 @@ public partial class ContainersViewModel : ViewModelBase
         IOutputService output,
         ContainerService containerService,
         IDialogService dialog,
-        INavigationService navigation)
+        INavigationService navigation,
+        IWslcServiceClient serviceClient)
     {
         _output = output;
         _containerService = containerService;
         _dialog = dialog;
         _navigation = navigation;
+        _serviceClient = serviceClient;
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         StartContainerCommand = new AsyncRelayCommand<string?>(async id =>
@@ -102,7 +105,7 @@ public partial class ContainersViewModel : ViewModelBase
     {
         try
         {
-            var output = await App.ServiceClient.GetContainersAsync();
+            var output = await _serviceClient.GetContainersAsync();
             if (!string.IsNullOrWhiteSpace(output) &&
                 output.StartsWith("wslc error (", StringComparison.OrdinalIgnoreCase))
             {
@@ -226,16 +229,16 @@ public partial class ContainersViewModel : ViewModelBase
             {
                 foreach (var vol in volumesToRemove)
                 {
-                    var volOutput = await App.ServiceClient.RemoveVolumeAsync(vol);
+                    var volOutput = await _serviceClient.RemoveVolumeAsync(vol);
                     _output.Write($"Removed volume '{vol}': {volOutput}");
                 }
             }
 
             var output = action switch
             {
-                "Start" => await App.ServiceClient.StartContainerAsync(id),
-                "Stop" => await App.ServiceClient.StopContainerAsync(id),
-                "Remove" => await App.ServiceClient.RemoveContainerAsync(id),
+                "Start" => await _serviceClient.StartContainerAsync(id),
+                "Stop" => await _serviceClient.StopContainerAsync(id),
+                "Remove" => await _serviceClient.RemoveContainerAsync(id),
                 "Rename" => await RenameContainerAsync(id, newName),
                 _ => null
             };
@@ -263,7 +266,7 @@ public partial class ContainersViewModel : ViewModelBase
             return $"Rename skipped: container '{id}' was not found.";
 
         container.Name = normalized;
-        return await App.ServiceClient.RenameContainerAsync(container.Id, normalized);
+        return await _serviceClient.RenameContainerAsync(container.Id, normalized);
     }
 
     public async Task RunGroupActionAsync(string action, ContainerGroup group)
@@ -285,9 +288,9 @@ public partial class ContainersViewModel : ViewModelBase
 
                 var output = action switch
                 {
-                    "Start" => await App.ServiceClient.StartContainerAsync(container.Id),
-                    "Stop" => await App.ServiceClient.StopContainerAsync(container.Id),
-                    "Remove" => await App.ServiceClient.RemoveContainerAsync(container.Id),
+                    "Start" => await _serviceClient.StartContainerAsync(container.Id),
+                    "Stop" => await _serviceClient.StopContainerAsync(container.Id),
+                    "Remove" => await _serviceClient.RemoveContainerAsync(container.Id),
                     _ => null
                 };
                 _output.Write($"  {container.Name}: {output ?? "(skipped)"}");

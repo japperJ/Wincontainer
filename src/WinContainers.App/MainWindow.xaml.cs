@@ -266,7 +266,7 @@ public sealed partial class MainWindow : Window
         {
             EnsureOutputPaneVisible();
             _output.Write("Checking WSLC version...");
-            var version = await App.ServiceClient.GetVersionAsync();
+            var version = await App.Services.GetRequiredService<IWslcServiceClient>().GetVersionAsync();
             _output.Write($"WSLC: {WslcVersionFormatter.Format(version)}");
         };
         stack.Children.Add(versionBtn);

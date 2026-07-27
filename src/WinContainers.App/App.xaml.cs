@@ -16,8 +16,6 @@ public partial class App : Application
     public static IServiceProvider Services { get; private set; } = null!;
     public static DispatcherQueue? DispatcherQueue { get; private set; }
 
-    public static WslcServiceClient ServiceClient { get; private set; } = null!;
-
     private Window? _window;
 
     public App()
@@ -43,7 +41,8 @@ public partial class App : Application
             new DialogService(() => (_window as MainWindow)?.Content?.XamlRoot));
 
         services.AddSingleton<ContainerService>();
-        services.AddSingleton<WslcDriver>();
+        services.AddSingleton<IWslcServiceClient>(sp =>
+            new WslcServiceClient(ServiceEndpointResolver.Resolve(), sp.GetRequiredService<IOutputService>()));
         services.AddSingleton<TemplateCatalogService>();
         services.AddSingleton<WslcUpdateService>();
 
@@ -101,7 +100,6 @@ public partial class App : Application
                     ServiceEndpointResolver.SetToken(settings.ApiToken);
                 }
 
-                ServiceClient = new WslcServiceClient(ServiceEndpointResolver.Resolve(), OutputService.Instance);
                 ServiceHost.Build([], OutputService.Instance).Run();
             }
             catch (Exception ex)

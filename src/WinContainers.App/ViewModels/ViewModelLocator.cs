@@ -31,4 +31,7 @@ public static class ViewModelLocator
 
     public static IOutputService OutputService =>
         App.Services.GetRequiredService<IOutputService>();
+
+    public static IWslcServiceClient ServiceClient =>
+        App.Services.GetRequiredService<IWslcServiceClient>();
 }

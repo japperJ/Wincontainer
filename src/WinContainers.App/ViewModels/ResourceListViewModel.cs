@@ -8,6 +8,7 @@ namespace WinContainers_App.ViewModels;
 public sealed class ResourceListViewModel : ViewModelBase
 {
     private readonly IOutputService _output;
+    private readonly IWslcServiceClient _serviceClient;
     private string _resourceType = "Volumes";
     private string _statusText = "";
     private bool _isLoading;
@@ -38,9 +39,10 @@ public sealed class ResourceListViewModel : ViewModelBase
         private set => SetProperty(ref _isLoading, value);
     }
 
-    public ResourceListViewModel(IOutputService output)
+    public ResourceListViewModel(IOutputService output, IWslcServiceClient serviceClient)
     {
         _output = output;
+        _serviceClient = serviceClient;
     }
 
     public async Task LoadAsync()
@@ -51,8 +53,8 @@ public sealed class ResourceListViewModel : ViewModelBase
         try
         {
             var output = string.Equals(ResourceType, "Networks", StringComparison.OrdinalIgnoreCase)
-                ? await App.ServiceClient.GetNetworksAsync()
-                : await App.ServiceClient.GetVolumesAsync();
+                ? await _serviceClient.GetNetworksAsync()
+                : await _serviceClient.GetVolumesAsync();
 
             var resources = string.Equals(ResourceType, "Networks", StringComparison.OrdinalIgnoreCase)
                 ? WslcResourceParser.ParseNetworks(output)
@@ -81,8 +83,8 @@ public sealed class ResourceListViewModel : ViewModelBase
         try
         {
             var output = string.Equals(ResourceType, "Networks", StringComparison.OrdinalIgnoreCase)
-                ? await App.ServiceClient.RemoveNetworkAsync(resource.Name)
-                : await App.ServiceClient.RemoveVolumeAsync(resource.Name);
+                ? await _serviceClient.RemoveNetworkAsync(resource.Name)
+                : await _serviceClient.RemoveVolumeAsync(resource.Name);
 
             if (!string.IsNullOrWhiteSpace(output) && output.StartsWith("error", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException(output);

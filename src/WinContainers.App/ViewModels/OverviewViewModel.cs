@@ -9,6 +9,7 @@ public partial class OverviewViewModel : ViewModelBase
 {
     private readonly IOutputService _output;
     private readonly ContainerService _containerService;
+    private readonly IWslcServiceClient _serviceClient;
 
     private string? _statusText;
     public string? StatusText
@@ -66,23 +67,24 @@ public partial class OverviewViewModel : ViewModelBase
         set => SetProperty(ref _setupHintText, value);
     }
 
-    public OverviewViewModel(IOutputService output, ContainerService containerService)
+    public OverviewViewModel(IOutputService output, ContainerService containerService, IWslcServiceClient serviceClient)
     {
         _output = output;
         _containerService = containerService;
+        _serviceClient = serviceClient;
     }
 
     public async Task RefreshAsync()
     {
         try
         {
-            var healthy = await App.ServiceClient.IsHealthyAsync();
+            var healthy = await _serviceClient.IsHealthyAsync();
             IsRuntimeAvailable = healthy;
 
-            var version = healthy ? await App.ServiceClient.GetVersionAsync() : "(unknown)";
+            var version = healthy ? await _serviceClient.GetVersionAsync() : "(unknown)";
             WslcVersionText = healthy ? $"WSLC: {version}" : "WSLC: unavailable";
 
-            var containerOutput = await App.ServiceClient.GetContainersAsync();
+            var containerOutput = await _serviceClient.GetContainersAsync();
             var containers = WslcContainerParser.ParseContainers(containerOutput ?? "");
 
             var totalCount = containers.Count;
@@ -91,7 +93,7 @@ public partial class OverviewViewModel : ViewModelBase
             ContainerCountText = $"Containers: {totalCount}";
             RunningCountText = $"Running: {runningCount}";
 
-            var imageOutput = await App.ServiceClient.GetImagesAsync();
+            var imageOutput = await _serviceClient.GetImagesAsync();
             var images = WslcContainerParser.ParseImages(imageOutput ?? "");
             ImageCountText = $"Images: {images.Count}";
 

@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using WinContainers.Runtime.Models;
+using WinContainers_App.Services;
 using WinContainers_App.ViewModels;
 
 namespace WinContainers_App.Pages;
@@ -98,7 +99,7 @@ public sealed partial class ContainersControl : UserControl
     {
         try
         {
-            var json = await App.ServiceClient.InspectContainerAsync(id);
+            var json = await App.Services.GetRequiredService<IWslcServiceClient>().InspectContainerAsync(id);
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
                 return [];

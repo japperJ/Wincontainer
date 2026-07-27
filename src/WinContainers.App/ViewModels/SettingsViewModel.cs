@@ -11,6 +11,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IOutputService _output;
     private readonly AppSettingsService _settingsService;
     private readonly WslcUpdateService _wslcUpdateService;
+    private readonly IWslcServiceClient _serviceClient;
 
     private bool _isCheckingWslcUpdate;
     public bool IsCheckingWslcUpdate
@@ -144,11 +145,12 @@ public partial class SettingsViewModel : ViewModelBase
 
     private UpdateInfo? _availableAppUpdate;
 
-    public SettingsViewModel(IOutputService output, AppSettingsService settingsService, WslcUpdateService wslcUpdateService)
+    public SettingsViewModel(IOutputService output, AppSettingsService settingsService, WslcUpdateService wslcUpdateService, IWslcServiceClient serviceClient)
     {
         _output = output;
         _settingsService = settingsService;
         _wslcUpdateService = wslcUpdateService;
+        _serviceClient = serviceClient;
     }
 
     public async Task LoadAsync()
@@ -165,8 +167,8 @@ public partial class SettingsViewModel : ViewModelBase
 
         try
         {
-            ServiceHealthy = await App.ServiceClient.IsHealthyAsync();
-            var version = await App.ServiceClient.GetVersionAsync();
+            ServiceHealthy = await _serviceClient.IsHealthyAsync();
+            var version = await _serviceClient.GetVersionAsync();
             VersionText = ServiceHealthy ? $"WSLC version: {WslcVersionFormatter.Format(version)}" : "Service unavailable";
             ServiceStatusText = ServiceHealthy ? "WSLC service is running" : "WSLC service is not responding";
         }
@@ -286,7 +288,7 @@ public partial class SettingsViewModel : ViewModelBase
         _availableWslcUpdate = null;
         try
         {
-            var installedVersion = await App.ServiceClient.GetVersionAsync();
+            var installedVersion = await _serviceClient.GetVersionAsync();
             _availableWslcUpdate = await _wslcUpdateService.CheckForUpdateAsync(installedVersion);
             WslcUpdateAvailable = _availableWslcUpdate is not null;
             WslcUpdateStatus = WslcUpdateAvailable
