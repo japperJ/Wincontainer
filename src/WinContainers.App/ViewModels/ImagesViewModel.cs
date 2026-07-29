@@ -164,7 +164,23 @@ public partial class ImagesViewModel : ViewModelBase
                     ? c.MountInfos.Select(m => $"{m.Source}:{m.Target}").ToList()
                     : null;
 
-                await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes);
+                var env = c.Env;
+                if (env is null or { Count: 0 })
+                {
+                    // Fall back to inspect to capture env vars not available from ps output
+                    try
+                    {
+                        var inspectOutput = await _serviceClient.InspectContainerAsync(c.Id);
+                        if (!string.IsNullOrWhiteSpace(inspectOutput))
+                            env = WslcContainerParser.ParseEnvFromInspect(inspectOutput);
+                    }
+                    catch
+                    {
+                        // Non-critical; proceed without env vars
+                    }
+                }
+
+                await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes, env);
                 _output.Write($"Recreated container '{c.Name}' with updated image {image.FullTag}");
             }
             catch (Exception ex)

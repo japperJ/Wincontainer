@@ -70,6 +70,7 @@ public static class WslcContainerParser
 
         var labels = ParseLabels(el);
         var mounts = GetMounts(el);
+        var env = ParseEnv(el);
 
         return new ContainerCardData
         {
@@ -81,6 +82,7 @@ public static class WslcContainerParser
             CreatedAt = GetField(el, "CreatedAt", ""),
             PortLinks = ContainerCardData.ParsePortLinksStatic(ports),
             Labels = labels.Count > 0 ? labels : null,
+            Env = env.Count > 0 ? env : null,
             MountInfos = mounts
         };
     }
@@ -225,6 +227,70 @@ public static class WslcContainerParser
         }
 
         return mounts;
+    }
+
+    private static List<string> ParseEnv(JsonElement element)
+    {
+        // Try top-level "Env" as an array of "KEY=val" strings
+        if (element.TryGetProperty("Env", out var envElement) && envElement.ValueKind == JsonValueKind.Array)
+        {
+            var result = new List<string>();
+            foreach (var item in envElement.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var val = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(val))
+                        result.Add(val);
+                }
+            }
+            return result;
+        }
+
+        // Try "Config.Env" (Docker inspect format)
+        if (element.TryGetProperty("Config", out var config) && config.ValueKind == JsonValueKind.Object &&
+            config.TryGetProperty("Env", out var configEnv) && configEnv.ValueKind == JsonValueKind.Array)
+        {
+            var result = new List<string>();
+            foreach (var item in configEnv.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var val = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(val))
+                        result.Add(val);
+                }
+            }
+            return result;
+        }
+
+        return [];
+    }
+
+    public static List<string> ParseEnvFromInspect(string rawOutput)
+    {
+        if (string.IsNullOrWhiteSpace(rawOutput))
+            return [];
+
+        var cleaned = rawOutput.Trim();
+        if (cleaned == "{}" || cleaned == "[]") return [];
+
+        try
+        {
+            using var doc = JsonDocument.Parse(cleaned);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+                root = root[0];
+
+            if (root.ValueKind == JsonValueKind.Object)
+                return ParseEnv(root);
+        }
+        catch (JsonException ex)
+        {
+            Trace.WriteLine($"[WslcContainerParser] ParseEnvFromInspect failed: {ex.Message}");
+        }
+
+        return [];
     }
 
     public static List<MountInfo> ParseMountsFromInspect(string rawOutput)
