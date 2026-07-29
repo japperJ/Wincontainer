@@ -13,6 +13,12 @@ $solutionFile = Join-Path $solutionDir "WinContainers.slnx"
 $appProject = Join-Path $solutionDir "src\WinContainers.App\WinContainers.App.csproj"
 $channelName = $Channel.ToLowerInvariant()
 
+# Clean up any previously published WinContainers process that could lock build output
+Get-Process -Name "WinContainers.App" -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host "  Stopping running WinContainers.App process (PID $($_.Id))..." -ForegroundColor Yellow
+    $_.Kill()
+}
+
 # Default PFX path if not specified
 if (-not $PfxPath) {
     $PfxPath = Join-Path $PSScriptRoot "WinContainers-dev.pfx"
@@ -147,6 +153,11 @@ if ($LASTEXITCODE -ne 0) { throw "Installer bootstrapper build failed" }
 
 Copy-Item (Join-Path $bootstrapperDir "InstallerBootstrapper.exe") $setupPath -Force
 Remove-Item $payloadPath -Force
+
+# 6. Clean up dotnet build server processes (MSBuild node reuse leaves dotnet.exe alive)
+Write-Host "--- Step 6: Cleaning up build server processes ---" -ForegroundColor Yellow
+dotnet build-server shutdown *> $null
+Write-Host "  Build servers shut down."
 
 Write-Host ""
 Write-Host "=== Release built successfully ===" -ForegroundColor Green
