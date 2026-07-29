@@ -154,15 +154,28 @@ public partial class ImagesViewModel : ViewModelBase
                 _output.Write($"Raw inspect output (first 500): {(inspectRaw?.Length > 500 ? inspectRaw[..500] : inspectRaw) ?? "null"}");
                 var inspectMounts = WslcContainerParser.ParseMountsFromInspect(inspectRaw ?? "");
                 var inspectEnv = WslcContainerParser.ParseEnvFromInspect(inspectRaw ?? "");
-                if (inspectMounts is null || inspectMounts.Count == 0)
+                var jsonKeys = WslcContainerParser.GetTopLevelJsonKeys(inspectRaw ?? "");
+
+                // Fall back to locally stored config when WSLC inspect doesn't return mounts/env
+                var savedConfig = ContainerConfigStore.LoadConfig(c.Name);
+                if ((inspectMounts == null || inspectMounts.Count == 0) && savedConfig?.Volumes.Count > 0)
                 {
-                    var keys = WslcContainerParser.GetTopLevelJsonKeys(inspectRaw ?? "");
-                    _output.Write($"Inspect mounts: 0 — top-level keys: [{keys}]");
+                    _output.Write($"Using saved config for volumes ({savedConfig.Volumes.Count} entries)");
+                    inspectMounts = savedConfig.Volumes
+                        .Select(v =>
+                        {
+                            var parts = v.Split(':', 2);
+                            return new MountInfo(parts[0], parts.Length > 1 ? parts[1] : "");
+                        })
+                        .ToList();
                 }
-                else
+                if ((inspectEnv == null || inspectEnv.Count == 0) && savedConfig?.Env.Count > 0)
                 {
-                    _output.Write($"Inspect mounts: {inspectMounts.Count}, env vars: {inspectEnv?.Count ?? 0}");
+                    _output.Write($"Using saved config for env vars ({savedConfig.Env.Count} entries)");
+                    inspectEnv = savedConfig.Env;
                 }
+
+                _output.Write($"Inspect: {inspectMounts?.Count ?? 0} mounts, {inspectEnv?.Count ?? 0} env vars — top-level keys: [{jsonKeys}]");
 
                 if (WslcContainerParser.IsRunningStatus(c.Status))
                     await _serviceClient.StopContainerAsync(c.Id);
