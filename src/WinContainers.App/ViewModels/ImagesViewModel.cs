@@ -149,6 +149,11 @@ public partial class ImagesViewModel : ViewModelBase
             {
                 _output.Write($"Recreating container '{c.Name}' ({c.Id})...");
 
+                // Inspect the container first to capture mounts and env (not available in ps output)
+                var inspectRaw = await _serviceClient.InspectContainerAsync(c.Id);
+                var inspectMounts = WslcContainerParser.ParseMountsFromInspect(inspectRaw ?? "");
+                var inspectEnv = WslcContainerParser.ParseEnvFromInspect(inspectRaw ?? "");
+
                 if (WslcContainerParser.IsRunningStatus(c.Status))
                     await _serviceClient.StopContainerAsync(c.Id);
 
@@ -160,25 +165,15 @@ public partial class ImagesViewModel : ViewModelBase
                         .ToList()
                     : null;
 
-                var volumes = c.MountInfos?.Count > 0
-                    ? c.MountInfos.Select(m => $"{m.Source}:{m.Target}").ToList()
-                    : null;
+                // Prefer inspect mounts (full details) over ps-output mounts
+                var volumes = inspectMounts?.Count > 0
+                    ? inspectMounts.Select(m => $"{m.Source}:{m.Target}").ToList()
+                    : c.MountInfos?.Count > 0
+                        ? c.MountInfos.Select(m => $"{m.Source}:{m.Target}").ToList()
+                        : null;
 
-                var env = c.Env;
-                if (env is null or { Count: 0 })
-                {
-                    // Fall back to inspect to capture env vars not available from ps output
-                    try
-                    {
-                        var inspectOutput = await _serviceClient.InspectContainerAsync(c.Id);
-                        if (!string.IsNullOrWhiteSpace(inspectOutput))
-                            env = WslcContainerParser.ParseEnvFromInspect(inspectOutput);
-                    }
-                    catch
-                    {
-                        // Non-critical; proceed without env vars
-                    }
-                }
+                // Prefer inspect env (not available in ps output at all) over whatever the parser found
+                var env = inspectEnv?.Count > 0 ? inspectEnv : c.Env;
 
                 await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes, env);
                 _output.Write($"Recreated container '{c.Name}' with updated image {image.FullTag}");
