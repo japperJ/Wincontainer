@@ -31,7 +31,7 @@
         <!-- Image list -->
         <ListView Grid.Row="1" x:Name="ImageListView" ItemsSource="{x:Bind ViewModel.Images, Mode=OneWay}" IsItemClickEnabled="True" SelectionMode="Single" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="16" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="0" ItemClick="ImageListView_ItemClick" Visibility="{x:Bind ViewModel.ShowDetail, Mode=OneWay, Converter={StaticResource InverseBoolToVisibilityConverter}}">
             <ListView.Header>
-                <Grid ColumnDefinitions="32,*,120,120,100,80,70" Padding="16,12,16,8">
+                <Grid ColumnDefinitions="32,*,120,120,100,80,80" Padding="16,12,16,8">
                     <TextBlock Grid.Column="0" Text="" />
                     <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <TextBlock Grid.Column="2" Text="Image ID" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -41,7 +41,7 @@
             </ListView.Header>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="models:ImageEntryData">
-                    <Grid ColumnDefinitions="32,*,120,120,100,80" Padding="16,8">
+                    <Grid ColumnDefinitions="32,*,120,120,100,80,80" Padding="16,8">
                         <Ellipse Grid.Column="0" Width="8" Height="8" Fill="#2ea043" Visibility="{x:Bind InUse, Converter={StaticResource BoolToVisibilityConverter}}" VerticalAlignment="Center" ToolTipService.ToolTip="In use by a container" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="{x:Bind Repository}" FontWeight="SemiBold" />
@@ -52,6 +52,8 @@
                         <TextBlock Grid.Column="4" Text="{x:Bind Size}" VerticalAlignment="Center" />
                         <Button Grid.Column="5" Content="Delete" Click="DeleteImageFromList_Click"
                                 AutomationProperties.Name="Delete image" />
+                        <Button Grid.Column="6" Content="Update" Click="UpdateImageFromList_Click"
+                                AutomationProperties.Name="Update image" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
@@ -65,11 +67,12 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                 <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto">
+                 <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                      <Button Grid.Column="0" Content="Back" Click="BackToImageList_Click" AutomationProperties.Name="Back to image list" />
                      <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.SelectedImage.FullTag, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" Margin="12,0,0,0" />
                      <Button Grid.Column="2" Content="Delete" Click="DeleteSelectedImage_Click" AutomationProperties.Name="Delete selected image" Margin="8,0,0,0" />
-                     <Button Grid.Column="3" Content="Refresh" Click="RefreshImages_Click" AutomationProperties.Name="Refresh images" Margin="8,0,0,0" />
+                     <Button Grid.Column="3" Content="Update" Click="UpdateSelectedImage_Click" AutomationProperties.Name="Update selected image" Margin="8,0,0,0" />
+                     <Button Grid.Column="4" Content="Refresh" Click="RefreshImages_Click" AutomationProperties.Name="Refresh images" Margin="8,0,0,0" />
                  </Grid>
 
 

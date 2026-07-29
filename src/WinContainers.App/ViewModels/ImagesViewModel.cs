@@ -101,6 +101,79 @@ public partial class ImagesViewModel : ViewModelBase
         StatusText = $"{image.FullTag} — {Layers.Count} layer(s)";
     }
 
+    public async Task UpdateImageAsync(ImageEntryData image)
+    {
+        IsLoading = true;
+        StatusText = $"Pulling latest version of {image.FullTag}...";
+
+        try
+        {
+            var output = await _serviceClient.PullImageAsync(image.FullTag);
+            if (!string.IsNullOrWhiteSpace(output) && output.StartsWith("wslc error", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(output);
+
+            _output.Write($"Updated image {image.FullTag}");
+            await LoadImagesAsync();
+        }
+        catch (Exception ex)
+        {
+            _output.Write($"Update image failed: {ex.Message}", Services.LogLevel.Error);
+            throw;
+        }
+    }
+
+    public async Task RecreateContainersForImageAsync(ImageEntryData image)
+    {
+        var containerOutput = await _serviceClient.GetContainersAsync();
+        var containers = WslcContainerParser.ParseContainers(containerOutput ?? "");
+        var matching = containers.Where(c =>
+        {
+            var ci = c.Image ?? "";
+            if (!ci.Contains(':'))
+                ci += ":latest";
+            return ci.Equals(image.FullTag, StringComparison.OrdinalIgnoreCase);
+        }).ToList();
+
+        if (matching.Count == 0)
+        {
+            _output.Write($"No containers found using image {image.FullTag}");
+            return;
+        }
+
+        IsLoading = true;
+        StatusText = $"Recreating {matching.Count} container(s) using {image.FullTag}...";
+
+        foreach (var c in matching)
+        {
+            try
+            {
+                _output.Write($"Recreating container '{c.Name}' ({c.Id})...");
+
+                if (WslcContainerParser.IsRunningStatus(c.Status))
+                    await _serviceClient.StopContainerAsync(c.Id);
+
+                await _serviceClient.RemoveContainerAsync(c.Id);
+
+                var ports = c.Ports is not null && c.Ports != "No ports"
+                    ? c.Ports.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList()
+                    : null;
+
+                var volumes = c.MountInfos?.Count > 0
+                    ? c.MountInfos.Select(m => $"{m.Source}:{m.Target}").ToList()
+                    : null;
+
+                await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes);
+                _output.Write($"Recreated container '{c.Name}' with updated image {image.FullTag}");
+            }
+            catch (Exception ex)
+            {
+                _output.Write($"Failed to recreate container '{c.Name}': {ex.Message}", Services.LogLevel.Error);
+            }
+        }
+
+        await LoadImagesAsync();
+    }
+
     public async Task DeleteImageAsync(ImageEntryData image)
     {
         try
