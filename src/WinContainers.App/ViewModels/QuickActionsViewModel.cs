@@ -705,6 +705,13 @@ public partial class QuickActionsViewModel : ViewModelBase
 
             _output.Write($"Running container '{svc.ContainerName}' from '{svc.Image}' (ports={ports.Count}, volumes={volumes.Count}, env={env.Count})...");
             var runOutput = await _serviceClient.RunContainerAsync(svc.Image, svc.ContainerName, ports, volumes, env);
+            ContainerConfigStore.SaveConfig(svc.ContainerName, new ContainerRunConfig
+            {
+                Image = svc.Image,
+                Ports = ports,
+                Volumes = volumes,
+                Env = env
+            });
             _output.Write($"Run '{svc.ContainerName}': {runOutput}");
         }
 
@@ -1280,6 +1287,13 @@ public partial class QuickActionsViewModel : ViewModelBase
 
         _output.Write($"Creating and starting container '{name}' from image '{image}'...");
         var runOutput = await _serviceClient.RunContainerAsync(image, name, ports, volumes, env);
+        ContainerConfigStore.SaveConfig(name, new ContainerRunConfig
+        {
+            Image = image,
+            Ports = ports,
+            Volumes = volumes,
+            Env = env
+        });
         _output.Write($"Run: {runOutput}");
     }
 

@@ -155,6 +155,26 @@ public partial class ImagesViewModel : ViewModelBase
                 var inspectMounts = WslcContainerParser.ParseMountsFromInspect(inspectRaw ?? "");
                 var inspectEnv = WslcContainerParser.ParseEnvFromInspect(inspectRaw ?? "");
                 var jsonKeys = WslcContainerParser.GetTopLevelJsonKeys(inspectRaw ?? "");
+
+                // Fall back to locally stored config when WSLC inspect doesn't return mounts/env
+                var savedConfig = ContainerConfigStore.LoadConfig(c.Name);
+                if ((inspectMounts == null || inspectMounts.Count == 0) && savedConfig?.Volumes.Count > 0)
+                {
+                    _output.Write($"Using saved config for volumes ({savedConfig.Volumes.Count} entries)");
+                    inspectMounts = savedConfig.Volumes
+                        .Select(v =>
+                        {
+                            var parts = v.Split(':', 2);
+                            return new MountInfo(parts[0], parts.Length > 1 ? parts[1] : "");
+                        })
+                        .ToList();
+                }
+                if ((inspectEnv == null || inspectEnv.Count == 0) && savedConfig?.Env.Count > 0)
+                {
+                    _output.Write($"Using saved config for env vars ({savedConfig.Env.Count} entries)");
+                    inspectEnv = savedConfig.Env;
+                }
+
                 _output.Write($"Inspect: {inspectMounts?.Count ?? 0} mounts, {inspectEnv?.Count ?? 0} env vars — top-level keys: [{jsonKeys}]");
 
                 if (WslcContainerParser.IsRunningStatus(c.Status))
