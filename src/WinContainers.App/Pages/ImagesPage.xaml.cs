@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -9,6 +10,7 @@ namespace WinContainers_App.Pages;
 public sealed partial class ImagesPage : Page
 {
     private readonly ImagesViewModel _viewModel;
+    private static readonly SemaphoreSlim _dialogSemaphore = new(1, 1);
 
     public ImagesViewModel ViewModel => _viewModel;
 
@@ -17,6 +19,19 @@ public sealed partial class ImagesPage : Page
         InitializeComponent();
         _viewModel = ViewModelLocator.ImagesViewModel;
         Loaded += async (_, _) => await _viewModel.LoadImagesAsync();
+    }
+
+    private async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
+    {
+        await _dialogSemaphore.WaitAsync();
+        try
+        {
+            return await dialog.ShowAsync();
+        }
+        finally
+        {
+            _dialogSemaphore.Release();
+        }
     }
 
     private async void ImageListView_ItemClick(object sender, ItemClickEventArgs e)
@@ -41,7 +56,7 @@ public sealed partial class ImagesPage : Page
                 CloseButtonText = "OK",
                 XamlRoot = XamlRoot
             };
-            await warnDlg.ShowAsync();
+            await ShowDialogAsync(warnDlg);
             return;
         }
 
@@ -55,7 +70,7 @@ public sealed partial class ImagesPage : Page
             XamlRoot = XamlRoot
         };
 
-        var result = await dlg.ShowAsync();
+        var result = await ShowDialogAsync(dlg);
         if (result == ContentDialogResult.Primary)
             await _viewModel.DeleteImageAsync(image);
     }
@@ -74,7 +89,7 @@ public sealed partial class ImagesPage : Page
                 XamlRoot = XamlRoot
             };
 
-            var result = await dlg.ShowAsync();
+            var result = await ShowDialogAsync(dlg);
             if (result == ContentDialogResult.Primary)
                 await _viewModel.DeleteImageAsync(_viewModel.SelectedImage);
         }
@@ -94,7 +109,7 @@ public sealed partial class ImagesPage : Page
             XamlRoot = XamlRoot
         };
 
-        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await ShowDialogAsync(dlg) != ContentDialogResult.Primary) return;
 
         try
         {
@@ -112,7 +127,7 @@ public sealed partial class ImagesPage : Page
                     XamlRoot = XamlRoot
                 };
 
-                if (await recreateDlg.ShowAsync() == ContentDialogResult.Primary)
+                if (await ShowDialogAsync(recreateDlg) == ContentDialogResult.Primary)
                     await _viewModel.RecreateContainersForImageAsync(image);
             }
         }
@@ -125,7 +140,7 @@ public sealed partial class ImagesPage : Page
                 CloseButtonText = "OK",
                 XamlRoot = XamlRoot
             };
-            await errDlg.ShowAsync();
+            await ShowDialogAsync(errDlg);
         }
     }
 
@@ -143,7 +158,7 @@ public sealed partial class ImagesPage : Page
             XamlRoot = XamlRoot
         };
 
-        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await ShowDialogAsync(dlg) != ContentDialogResult.Primary) return;
 
         try
         {
@@ -161,7 +176,7 @@ public sealed partial class ImagesPage : Page
                     XamlRoot = XamlRoot
                 };
 
-                if (await recreateDlg.ShowAsync() == ContentDialogResult.Primary)
+                if (await ShowDialogAsync(recreateDlg) == ContentDialogResult.Primary)
                     await _viewModel.RecreateContainersForImageAsync(_viewModel.SelectedImage);
             }
         }
@@ -174,7 +189,7 @@ public sealed partial class ImagesPage : Page
                 CloseButtonText = "OK",
                 XamlRoot = XamlRoot
             };
-            await errDlg.ShowAsync();
+            await ShowDialogAsync(errDlg);
         }
     }
 
