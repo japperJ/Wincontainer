@@ -18,7 +18,7 @@ public static class WslcCommands
 
     public static string ContainerKill(string id) => $"container kill {Quote(id)}";
 
-    public static string ContainerInspect(string id) => $"container inspect {Quote(id)}";
+    public static string ContainerInspect(string id) => $"container inspect --format json {Quote(id)}";
 
     public static string ContainerLogs(string id, int tail = 500) => $"logs --tail {tail} {Quote(id)}";
 
