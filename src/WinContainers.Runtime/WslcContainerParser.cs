@@ -201,29 +201,57 @@ public static class WslcContainerParser
     private static List<MountInfo> GetMounts(JsonElement element)
     {
         var mounts = new List<MountInfo>();
-        if (!element.TryGetProperty("Mounts", out var mountsElement) || mountsElement.ValueKind != JsonValueKind.Array)
-            return mounts;
-
-        foreach (var mount in mountsElement.EnumerateArray())
+        if (element.TryGetProperty("Mounts", out var mountsElement) && mountsElement.ValueKind == JsonValueKind.Array)
         {
-            if (mount.ValueKind != JsonValueKind.Object)
-                continue;
+            foreach (var mount in mountsElement.EnumerateArray())
+            {
+                if (mount.ValueKind != JsonValueKind.Object)
+                    continue;
 
-            var source = GetField(mount, "Source");
-            if (string.IsNullOrWhiteSpace(source))
-                source = GetField(mount, "SourcePath");
+                var source = GetField(mount, "Source");
+                if (string.IsNullOrWhiteSpace(source))
+                    source = GetField(mount, "SourcePath");
 
-            var name = GetField(mount, "Name");
-            var target = GetField(mount, "Destination");
-            if (string.IsNullOrWhiteSpace(target))
-                target = GetField(mount, "Target");
+                var name = GetField(mount, "Name");
+                var target = GetField(mount, "Destination");
+                if (string.IsNullOrWhiteSpace(target))
+                    target = GetField(mount, "Target");
 
-            var effectiveSource = !string.IsNullOrWhiteSpace(name) && GetField(mount, "Type").Equals("volume", StringComparison.OrdinalIgnoreCase)
-                ? name
-                : source;
+                var effectiveSource = !string.IsNullOrWhiteSpace(name) && GetField(mount, "Type").Equals("volume", StringComparison.OrdinalIgnoreCase)
+                    ? name
+                    : source;
 
-            if (!string.IsNullOrWhiteSpace(effectiveSource) || !string.IsNullOrWhiteSpace(target))
-                mounts.Add(new MountInfo(effectiveSource ?? "", target ?? ""));
+                if (!string.IsNullOrWhiteSpace(effectiveSource) || !string.IsNullOrWhiteSpace(target))
+                    mounts.Add(new MountInfo(effectiveSource ?? "", target ?? ""));
+            }
+
+            // Return early — if Mounts array exists (even empty), it's authoritative
+            return mounts;
+        }
+
+        // Fallback: HostConfig.Binds (some WSLC versions and Docker containerd exports this instead of Mounts)
+        // Format is array of "source:target" strings, e.g. "n8n_data:/home/node/.n8n"
+        if (element.TryGetProperty("HostConfig", out var hostConfig) && hostConfig.ValueKind == JsonValueKind.Object)
+        {
+            if (hostConfig.TryGetProperty("Binds", out var binds) && binds.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var bind in binds.EnumerateArray())
+                {
+                    if (bind.ValueKind != JsonValueKind.String)
+                        continue;
+                    var bindStr = bind.GetString();
+                    if (string.IsNullOrWhiteSpace(bindStr))
+                        continue;
+
+                    var colonIdx = bindStr.IndexOf(':');
+                    if (colonIdx > 0)
+                    {
+                        var source = bindStr[..colonIdx];
+                        var target = bindStr[(colonIdx + 1)..];
+                        mounts.Add(new MountInfo(source, target));
+                    }
+                }
+            }
         }
 
         return mounts;
@@ -318,6 +346,36 @@ public static class WslcContainerParser
         }
 
         return mounts;
+    }
+
+    /// <summary>
+    /// Returns a comma-separated list of top-level JSON key names from the inspect output.
+    /// Used for debugging to understand what fields WSLC's inspect actually exposes.
+    /// </summary>
+    public static string GetTopLevelJsonKeys(string rawOutput)
+    {
+        if (string.IsNullOrWhiteSpace(rawOutput))
+            return "empty";
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawOutput.Trim());
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+                root = root[0];
+
+            if (root.ValueKind != JsonValueKind.Object)
+                return $"kind={root.ValueKind}";
+
+            var keys = new List<string>();
+            foreach (var prop in root.EnumerateObject())
+                keys.Add(prop.Name);
+            return string.Join(", ", keys);
+        }
+        catch (JsonException)
+        {
+            return "parse-error";
+        }
     }
 
     private static string GetPorts(JsonElement element)
