@@ -155,7 +155,9 @@ public partial class ImagesViewModel : ViewModelBase
                 await _serviceClient.RemoveContainerAsync(c.Id);
 
                 var ports = c.Ports is not null && c.Ports != "No ports"
-                    ? c.Ports.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList()
+                    ? c.Ports.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                        .Select(p => p.Replace("->", ":"))
+                        .ToList()
                     : null;
 
                 var volumes = c.MountInfos?.Count > 0
