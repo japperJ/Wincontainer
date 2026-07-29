@@ -64,6 +64,7 @@ public sealed partial class ContainerCardData : ObservableObject
         && !Status.StartsWith("Running", StringComparison.OrdinalIgnoreCase);
 
     public Dictionary<string, string>? Labels { get; set; }
+    public List<string>? Env { get; set; }
     public List<MountInfo> MountInfos { get; set; } = [];
 
     public string? ProjectName
