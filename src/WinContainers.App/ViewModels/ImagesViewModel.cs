@@ -203,6 +203,19 @@ public partial class ImagesViewModel : ViewModelBase
 
                 await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes, env);
                 _output.Write($"Recreated container '{c.Name}' with updated image {image.FullTag}");
+
+                // Save config for future updates — WSLC inspect is unreliable for mounts/env,
+                // so persisting the actual config used ensures we can recover it next time.
+                var recreateConfig = new ContainerRunConfig
+                {
+                    Image = image.FullTag,
+                    Ports = ports ?? [],
+                    Volumes = volumes ?? [],
+                    Env = env ?? []
+                };
+                ContainerConfigStore.SaveConfig(c.Name, recreateConfig);
+                _output.Write($"Saved recreated config for '{c.Name}' ({recreateConfig.Volumes.Count} volumes, {recreateConfig.Env.Count} env vars)");
+
             }
             catch (Exception ex)
             {
