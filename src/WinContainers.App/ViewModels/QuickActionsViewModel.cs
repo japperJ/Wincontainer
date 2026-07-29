@@ -705,13 +705,15 @@ public partial class QuickActionsViewModel : ViewModelBase
 
             _output.Write($"Running container '{svc.ContainerName}' from '{svc.Image}' (ports={ports.Count}, volumes={volumes.Count}, env={env.Count})...");
             var runOutput = await _serviceClient.RunContainerAsync(svc.Image, svc.ContainerName, ports, volumes, env);
-            ContainerConfigStore.SaveConfig(svc.ContainerName, new ContainerRunConfig
+            var config = new ContainerRunConfig
             {
                 Image = svc.Image,
                 Ports = ports,
                 Volumes = volumes,
                 Env = env
-            });
+            };
+            ContainerConfigStore.SaveConfig(svc.ContainerName, config);
+            _output.Write($"Saved container config for '{svc.ContainerName}' ({config.Volumes.Count} volumes, {config.Env.Count} env vars)");
             _output.Write($"Run '{svc.ContainerName}': {runOutput}");
         }
 
@@ -1285,15 +1287,17 @@ public partial class QuickActionsViewModel : ViewModelBase
             .Select(e => string.IsNullOrWhiteSpace(e.Value) ? e.Name : $"{e.Name}={e.Value}")
             .ToList();
 
-        _output.Write($"Creating and starting container '{name}' from image '{image}'...");
+        _output.Write($"Creating and starting container '{name}' from image '{image}' (ports={ports.Count}, volumes={volumes.Count}, env={env.Count})...");
         var runOutput = await _serviceClient.RunContainerAsync(image, name, ports, volumes, env);
-        ContainerConfigStore.SaveConfig(name, new ContainerRunConfig
+        var config = new ContainerRunConfig
         {
             Image = image,
             Ports = ports,
             Volumes = volumes,
             Env = env
-        });
+        };
+        ContainerConfigStore.SaveConfig(name, config);
+        _output.Write($"Saved container config for '{name}' ({config.Volumes.Count} volumes, {config.Env.Count} env vars)");
         _output.Write($"Run: {runOutput}");
     }
 
