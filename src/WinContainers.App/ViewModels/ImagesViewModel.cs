@@ -151,6 +151,7 @@ public partial class ImagesViewModel : ViewModelBase
 
                 // Inspect the container first to capture mounts and env (not available in ps output)
                 var inspectRaw = await _serviceClient.InspectContainerAsync(c.Id);
+                _output.Write($"Raw inspect output (first 500): {(inspectRaw?.Length > 500 ? inspectRaw[..500] : inspectRaw) ?? "null"}");
                 var inspectMounts = WslcContainerParser.ParseMountsFromInspect(inspectRaw ?? "");
                 var inspectEnv = WslcContainerParser.ParseEnvFromInspect(inspectRaw ?? "");
                 _output.Write($"Inspect mounts: {inspectMounts?.Count ?? 0}, env vars: {inspectEnv?.Count ?? 0}");
