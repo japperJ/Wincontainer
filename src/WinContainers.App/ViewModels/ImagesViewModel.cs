@@ -158,6 +158,7 @@ public partial class ImagesViewModel : ViewModelBase
 
                 // Fall back to locally stored config when WSLC inspect doesn't return mounts/env
                 var savedConfig = ContainerConfigStore.LoadConfig(c.Name);
+                _output.Write($"Config store for '{c.Name}': found={(savedConfig != null)}, volumes={savedConfig?.Volumes.Count ?? 0}, env={savedConfig?.Env.Count ?? 0}");
                 if ((inspectMounts == null || inspectMounts.Count == 0) && savedConfig?.Volumes.Count > 0)
                 {
                     _output.Write($"Using saved config for volumes ({savedConfig.Volumes.Count} entries)");
