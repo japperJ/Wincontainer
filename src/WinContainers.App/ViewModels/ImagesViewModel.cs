@@ -153,6 +153,7 @@ public partial class ImagesViewModel : ViewModelBase
                 var inspectRaw = await _serviceClient.InspectContainerAsync(c.Id);
                 var inspectMounts = WslcContainerParser.ParseMountsFromInspect(inspectRaw ?? "");
                 var inspectEnv = WslcContainerParser.ParseEnvFromInspect(inspectRaw ?? "");
+                _output.Write($"Inspect mounts: {inspectMounts?.Count ?? 0}, env vars: {inspectEnv?.Count ?? 0}");
 
                 if (WslcContainerParser.IsRunningStatus(c.Status))
                     await _serviceClient.StopContainerAsync(c.Id);
@@ -174,6 +175,8 @@ public partial class ImagesViewModel : ViewModelBase
 
                 // Prefer inspect env (not available in ps output at all) over whatever the parser found
                 var env = inspectEnv?.Count > 0 ? inspectEnv : c.Env;
+
+                _output.Write($"Forwarding: {ports?.Count ?? 0} ports, {volumes?.Count ?? 0} volumes, {env?.Count ?? 0} env vars");
 
                 await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes, env);
                 _output.Write($"Recreated container '{c.Name}' with updated image {image.FullTag}");
