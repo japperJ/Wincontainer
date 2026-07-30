@@ -21,12 +21,6 @@ public sealed partial class TemplateCatalogControl : UserControl
         DataContext = _viewModel;
     }
 
-    private void CategoryChip_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button button && button.Content is string category)
-            _viewModel.SelectedCategory = category;
-    }
-
     private void TemplateCatalogList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (TemplateCatalogList.SelectedItem is not TemplateCatalogItem template)
