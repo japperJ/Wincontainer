@@ -9,8 +9,11 @@ namespace WinContainers_App.ViewModels;
 
 public partial class ImagesViewModel : ViewModelBase
 {
+    private const int BackgroundPollIntervalMs = 10000;
     private readonly IOutputService _output;
     private readonly IWslcServiceClient _serviceClient;
+
+    private CancellationTokenSource? _pollCts;
 
     private string? _statusText;
     public string? StatusText
@@ -257,5 +260,60 @@ public partial class ImagesViewModel : ViewModelBase
         LayersCountText = "";
         InspectJson = null;
         StatusText = $"{Images.Count} image(s)";
+    }
+
+    public void StartPolling()
+    {
+        if (_pollCts is not null) return;
+        _pollCts = new CancellationTokenSource();
+        _ = PollLoopAsync(_pollCts.Token);
+    }
+
+    public void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts = null;
+    }
+
+    private async Task PollLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            await QuietRefreshAsync();
+            await Task.Delay(BackgroundPollIntervalMs, ct);
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the image list silently for background polling — no IsLoading/StatusText changes.
+    /// </summary>
+    private async Task QuietRefreshAsync()
+    {
+        try
+        {
+            var imageOutput = await _serviceClient.GetImagesAsync();
+            var images = WslcContainerParser.ParseImages(imageOutput ?? "");
+
+            var containerOutput = await _serviceClient.GetContainersAsync();
+            var containers = WslcContainerParser.ParseContainers(containerOutput ?? "");
+            var inUseNames = WslcContainerParser.GetInUseImageNames(containers);
+
+            foreach (var img in images)
+            {
+                var nameTag = $"{img.Repository}:{img.Tag}";
+                img.InUse = inUseNames.Contains(nameTag, StringComparer.OrdinalIgnoreCase);
+            }
+
+            App.DispatcherQueue.TryEnqueue(() =>
+            {
+                Images.Clear();
+                foreach (var img in images)
+                    Images.Add(img);
+            });
+        }
+        catch (Exception ex)
+        {
+            _output.Write($"Image refresh failed: {ex.Message}", Services.LogLevel.Warning);
+        }
     }
 }

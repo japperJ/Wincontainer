@@ -18,7 +18,19 @@ public sealed partial class ImagesPage : Page
     {
         InitializeComponent();
         _viewModel = ViewModelLocator.ImagesViewModel;
-        Loaded += async (_, _) => await _viewModel.LoadImagesAsync();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.LoadImagesAsync();
+        _viewModel.StartPolling();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _viewModel.StopPolling();
     }
 
     private async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
