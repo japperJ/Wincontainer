@@ -450,6 +450,9 @@ public static class WslcContainerParser
         var names = new List<string>();
         foreach (var c in containers)
         {
+            if (!IsRunningStatus(c.Status) && !IsPausedStatus(c.Status))
+                continue;
+
             var image = c.Image ?? "";
             var idx = image.IndexOf('/');
             if (idx >= 0 && (image.IndexOf('.') >= 0 && image.IndexOf('.') < idx || image.IndexOf(':') >= 0 && image.IndexOf(':') < idx))
