@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <ProjectReference Include="..\WinContainers.Core\WinContainers.Core.csproj" />
     <ProjectReference Include="..\WinContainers.Runtime\WinContainers.Runtime.csproj" />
   </ItemGroup>
