@@ -181,6 +181,7 @@ public class WincontainerTools
         var available = await driver.IsAvailableAsync(ct);
         var version = await driver.GetVersionAsync(ct);
         return System.Text.Json.JsonSerializer.Serialize(new { ok = available, wslcVersion = version });
+    }
 
     [McpServerTool, Description("Get the wslc runtime version string.")]
     public static async Task<string> GetVersion(IWslcDriver driver, CancellationToken ct)
