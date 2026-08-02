@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Features;
 using WinContainers.Core;
@@ -51,6 +52,20 @@ public static class ServiceHost
         {
             o.MultipartBodyLengthLimit = 524288000;
         });
+
+        // Configure JSON options with non-nullable reference types for clean MCP schema generation
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        };
+        jsonOptions.MakeReadOnly(populateMissingResolver: true);
+
+        builder.Services.AddMcpServer()
+            .WithHttpTransport(options =>
+            {
+                options.Stateless = true;
+            })
+.WithTools<global::WinContainers.Service.Mcp.WincontainerTools>(jsonOptions);
 
         var app = builder.Build();
 
@@ -186,6 +201,85 @@ public static class ServiceHost
 
         app.MapGet("/api/runtime/version", async (CancellationToken ct) =>
             Results.Ok(new { version = await driver.GetVersionAsync(ct) }));
+
+        // MCP authorization middleware — enforce the same bearer token rules as /api
+        app.Use(async (context, next) =>
+        {
+            if (!context.Request.Path.StartsWithSegments("/mcp"))
+            {
+                await next();
+                return;
+            }
+
+            var expectedToken = ServiceEndpointResolver.ResolveToken();
+            var remoteIp = context.Connection.RemoteIpAddress;
+            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIp?.ToString() ?? string.Empty));
+
+            if (BearerTokenValidator.RequiresAuthorization(isRemote, expectedToken)
+                && !BearerTokenValidator.IsAuthorized(context.Request.Headers.Authorization.ToString(), expectedToken))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
+                return;
+            }
+
+            await next();
+        });
+
+        // MCP request logging middleware — logs every MCP tool invocation to the output window
+        app.Use(async (context, next) =>
+        {
+            if (!context.Request.Path.StartsWithSegments("/mcp") || !HttpMethods.IsPost(context.Request.Method))
+            {
+                await next();
+                return;
+            }
+
+            context.Request.EnableBuffering();
+
+            string methodInfo;
+            var contentLength = context.Request.ContentLength;
+            if (contentLength is null || contentLength > 64 * 1024)
+            {
+                methodInfo = "mcp (body too large)";
+            }
+            else
+            {
+                try
+                {
+                    using var reader = new StreamReader(context.Request.Body, leaveOpen: true);
+                    var body = await reader.ReadToEndAsync();
+                    context.Request.Body.Position = 0;
+
+                    using var doc = JsonDocument.Parse(body);
+                    var method = doc.RootElement.GetProperty("method").GetString() ?? "unknown";
+
+                    if (method == "tools/call"
+                        && doc.RootElement.TryGetProperty("params", out var paramsEl)
+                        && paramsEl.TryGetProperty("name", out var nameEl))
+                    {
+                        methodInfo = $"{method} {nameEl.GetString()}";
+                    }
+                    else
+                    {
+                        methodInfo = method;
+                    }
+                }
+                catch
+                {
+                    methodInfo = "mcp (parse error)";
+                }
+            }
+
+            var remoteIp = context.Connection.RemoteIpAddress;
+            var remoteIpText = remoteIp?.ToString() ?? "unknown";
+            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIpText));
+            requestLogger?.LogRequest("MCP", $"/mcp [{methodInfo}]", remoteIpText, isRemote);
+
+            await next();
+        });
+
+        app.MapMcp("/mcp");
 
         return app;
     }

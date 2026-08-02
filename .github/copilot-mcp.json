@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "wincontainer": {
+      "description": "Wincontainer container management — run, stop, inspect containers, images, volumes, and networks via wslc.",
+      "url": "http://localhost:5123/mcp",
+      "headers": {
+        "Authorization": "Bearer ${WINCONTAINERS_SERVICE_TOKEN}"
+      }
+    }
+  }
+}
