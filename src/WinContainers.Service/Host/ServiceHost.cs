@@ -202,6 +202,30 @@ public static class ServiceHost
         app.MapGet("/api/runtime/version", async (CancellationToken ct) =>
             Results.Ok(new { version = await driver.GetVersionAsync(ct) }));
 
+        // MCP authorization middleware — enforce the same bearer token rules as /api
+        app.Use(async (context, next) =>
+        {
+            if (!context.Request.Path.StartsWithSegments("/mcp"))
+            {
+                await next();
+                return;
+            }
+
+            var expectedToken = ServiceEndpointResolver.ResolveToken();
+            var remoteIp = context.Connection.RemoteIpAddress;
+            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIp?.ToString() ?? string.Empty));
+
+            if (BearerTokenValidator.RequiresAuthorization(isRemote, expectedToken)
+                && !BearerTokenValidator.IsAuthorized(context.Request.Headers.Authorization.ToString(), expectedToken))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
+                return;
+            }
+
+            await next();
+        });
+
         // MCP request logging middleware — logs every MCP tool invocation to the output window
         app.Use(async (context, next) =>
         {
