@@ -238,29 +238,37 @@ public static class ServiceHost
             context.Request.EnableBuffering();
 
             string methodInfo;
-            try
+            var contentLength = context.Request.ContentLength;
+            if (contentLength is null || contentLength > 64 * 1024)
             {
-                using var reader = new StreamReader(context.Request.Body, leaveOpen: true);
-                var body = await reader.ReadToEndAsync();
-                context.Request.Body.Position = 0;
-
-                using var doc = JsonDocument.Parse(body);
-                var method = doc.RootElement.GetProperty("method").GetString() ?? "unknown";
-
-                if (method == "tools/call"
-                    && doc.RootElement.TryGetProperty("params", out var paramsEl)
-                    && paramsEl.TryGetProperty("name", out var nameEl))
-                {
-                    methodInfo = $"{method} {nameEl.GetString()}";
-                }
-                else
-                {
-                    methodInfo = method;
-                }
+                methodInfo = "mcp (body too large)";
             }
-            catch
+            else
             {
-                methodInfo = "mcp (parse error)";
+                try
+                {
+                    using var reader = new StreamReader(context.Request.Body, leaveOpen: true);
+                    var body = await reader.ReadToEndAsync();
+                    context.Request.Body.Position = 0;
+
+                    using var doc = JsonDocument.Parse(body);
+                    var method = doc.RootElement.GetProperty("method").GetString() ?? "unknown";
+
+                    if (method == "tools/call"
+                        && doc.RootElement.TryGetProperty("params", out var paramsEl)
+                        && paramsEl.TryGetProperty("name", out var nameEl))
+                    {
+                        methodInfo = $"{method} {nameEl.GetString()}";
+                    }
+                    else
+                    {
+                        methodInfo = method;
+                    }
+                }
+                catch
+                {
+                    methodInfo = "mcp (parse error)";
+                }
             }
 
             var remoteIp = context.Connection.RemoteIpAddress;
