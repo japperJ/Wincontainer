@@ -65,7 +65,7 @@ public static class ServiceHost
             {
                 options.Stateless = true;
             })
-            .WithTools<Service.Mcp.WincontainerTools>(jsonOptions);
+.WithTools<global::WinContainers.Service.Mcp.WincontainerTools>(jsonOptions);
 
         var app = builder.Build();
 
