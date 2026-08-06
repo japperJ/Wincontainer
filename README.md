@@ -110,6 +110,39 @@ Omit the `headers` block when connecting from localhost without a token configur
 | `HealthCheck` | Check whether the wslc runtime is available |
 | `GetVersion` | Get the wslc runtime version |
 
+## AI Assistant
+
+WinContainers includes a built-in AI assistant that manages containers, images, volumes, and networks in natural language. It uses the same in-process runtime layer as the MCP tools, so no extra services are needed.
+
+### What It Does
+
+- Answer questions about your containers, images, volumes, and networks.
+- Start, stop, restart, rename, and remove containers on request.
+- Pull and remove images, create and remove volumes and networks.
+- Run commands inside a running container.
+- Generate `docker-compose` files for multi-service setups and save them under `Documents\WinContainers\compose`.
+- Show each tool action as a step card with the exact command it ran.
+- Ask for confirmation before destructive actions (removing containers, images, volumes, or networks).
+
+### Providers
+
+- **OpenAI-compatible endpoint** — works with OpenAI, Azure OpenAI, and any compatible gateway. Your API key is protected with DPAPI and stored locally.
+- **Local Ollama** — fully offline. The app detects a running Ollama server or installs it as a container (`ollama/ollama`, persistent volume, port `11434`) and pulls a default model (`qwen2.5:3b`) automatically.
+
+### First Run
+
+Open the **AI Assistant** page. On first use a setup dialog asks you to pick a provider. Choose OpenAI-compatible to enter an endpoint, model, and API key, or choose Local Ollama to detect or install it with one click. You can change these settings later on the **Settings** page.
+
+### Privacy
+
+- Conversations are stored only on your machine under `%LOCALAPPDATA%\WinContainers\chats`.
+- Your API key never leaves the machine except when sent to the provider endpoint you configured.
+- With Local Ollama, nothing leaves your machine.
+
+### Demo Script
+
+A ready-to-run demo is in `docs/demo-ai-assistant.md`.
+
 ## Runtime
 
 WinContainers uses `wslc.exe` as its container runtime. It does not bundle Docker Desktop or use Docker Desktop binaries. Container commands run through the local WSLC runtime and the app communicates with its in-process local service.

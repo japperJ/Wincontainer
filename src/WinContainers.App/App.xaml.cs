@@ -8,6 +8,7 @@ using WinContainers_App.ViewModels;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Service.Host;
+using WinContainers.AI;
 
 namespace WinContainers_App;
 
@@ -64,6 +65,13 @@ public partial class App : Application
             return new WslcUpdateService(httpClient);
         });
 
+        // AI assistant: the agent drives wslc.exe in-process through the same
+        // IWslcDriver interface the MCP tools wrap.
+        services.AddSingleton<IWslcDriver>(_ => new WslcDriver());
+        services.AddSingleton<IChatClientFactory, OpenAiCompatibleChatClientFactory>();
+        services.AddSingleton<ChatHistoryStore>();
+        services.AddSingleton<AiChatService>();
+
         services.AddTransient<ShellViewModel>();
         services.AddTransient<DashboardViewModel>();
         services.AddTransient<ContainersViewModel>();
@@ -71,6 +79,7 @@ public partial class App : Application
         services.AddTransient<ImagesViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<TerminalViewModel>();
+        services.AddTransient<AiViewModel>();
         services.AddSingleton<QuickActionsViewModel>();
         services.AddTransient<OverviewViewModel>();
         services.AddTransient<OnboardingViewModel>();

@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/WinContainers.AI/WinContainers.AI.csproj" />
     <Project Path="src/WinContainers.App/WinContainers.App.csproj" />
     <Project Path="src/WinContainers.Core/WinContainers.Core.csproj" />
     <Project Path="src/WinContainers.Runtime/WinContainers.Runtime.csproj" />

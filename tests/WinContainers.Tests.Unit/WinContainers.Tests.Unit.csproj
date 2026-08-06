@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\WinContainers.AI\WinContainers.AI.csproj" />
     <ProjectReference Include="..\..\src\WinContainers.Core\WinContainers.Core.csproj" />
     <ProjectReference Include="..\..\src\WinContainers.Runtime\WinContainers.Runtime.csproj" />
   </ItemGroup>

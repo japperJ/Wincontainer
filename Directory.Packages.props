@@ -23,6 +23,8 @@
     <PackageVersion Include="Velopack" Version="0.0.1049" />
     <PackageVersion Include="Appium.WebDriver" Version="8.2.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.8.3" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.8.3" />
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 </Project>
