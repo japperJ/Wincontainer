@@ -26,6 +26,9 @@ public static class ViewModelLocator
     public static TerminalViewModel TerminalViewModel =>
         App.Services.GetRequiredService<TerminalViewModel>();
 
+    public static AiViewModel AiViewModel =>
+        App.Services.GetRequiredService<AiViewModel>();
+
     public static INavigationService NavigationService =>
         App.Services.GetRequiredService<INavigationService>();
 

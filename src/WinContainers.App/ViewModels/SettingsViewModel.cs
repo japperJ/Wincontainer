@@ -145,6 +145,48 @@ public partial class SettingsViewModel : ViewModelBase
 
     private UpdateInfo? _availableAppUpdate;
 
+    private string _aiProviderKind = "OpenAiCompatible";
+    public string AiProviderKind
+    {
+        get => _aiProviderKind;
+        set => SetProperty(ref _aiProviderKind, value);
+    }
+
+    private string _aiEndpoint = "https://api.openai.com/v1";
+    public string AiEndpoint
+    {
+        get => _aiEndpoint;
+        set => SetProperty(ref _aiEndpoint, value);
+    }
+
+    private string _aiModel = "gpt-4o-mini";
+    public string AiModel
+    {
+        get => _aiModel;
+        set => SetProperty(ref _aiModel, value);
+    }
+
+    private string? _aiApiKey;
+    public string? AiApiKey
+    {
+        get => _aiApiKey;
+        set => SetProperty(ref _aiApiKey, value);
+    }
+
+    private bool _aiConfirmDestructiveActions = true;
+    public bool AiConfirmDestructiveActions
+    {
+        get => _aiConfirmDestructiveActions;
+        set => SetProperty(ref _aiConfirmDestructiveActions, value);
+    }
+
+    private string _aiStatusText = "AI assistant settings are stored locally and never leave this machine.";
+    public string AiStatusText
+    {
+        get => _aiStatusText;
+        set => SetProperty(ref _aiStatusText, value);
+    }
+
     public SettingsViewModel(IOutputService output, AppSettingsService settingsService, WslcUpdateService wslcUpdateService, IWslcServiceClient serviceClient)
     {
         _output = output;
@@ -164,6 +206,14 @@ public partial class SettingsViewModel : ViewModelBase
         PortText = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
         TokenText = ServiceEndpointResolver.ResolveToken();
         StatusText = $"Current endpoint: {ServiceEndpointResolver.Resolve()}";
+
+        AiProviderKind = string.Equals(settings.AiProviderKind, "Ollama", StringComparison.OrdinalIgnoreCase)
+            ? "Ollama"
+            : "OpenAiCompatible";
+        AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) ? "https://api.openai.com/v1" : settings.AiEndpoint;
+        AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? "gpt-4o-mini" : settings.AiModel;
+        AiApiKey = settings.AiApiKey;
+        AiConfirmDestructiveActions = settings.AiConfirmDestructiveActions;
 
         try
         {
@@ -205,6 +255,20 @@ public partial class SettingsViewModel : ViewModelBase
         settings.ApiLoggingEnabled = _output.ApiLoggingEnabled;
         settings.RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
         _settingsService.Save(settings);
+    }
+
+    public void SaveAiSettings()
+    {
+        var settings = _settingsService.Load();
+        settings.AiProviderKind = string.Equals(AiProviderKind, "Ollama", StringComparison.OrdinalIgnoreCase)
+            ? "Ollama"
+            : "OpenAiCompatible";
+        settings.AiEndpoint = string.IsNullOrWhiteSpace(AiEndpoint) ? "https://api.openai.com/v1" : AiEndpoint.Trim();
+        settings.AiModel = string.IsNullOrWhiteSpace(AiModel) ? "gpt-4o-mini" : AiModel.Trim();
+        settings.AiApiKey = AiApiKey;
+        settings.AiConfirmDestructiveActions = AiConfirmDestructiveActions;
+        _settingsService.Save(settings);
+        AiStatusText = "AI assistant settings saved.";
     }
 
     public async Task CheckAppUpdateAsync()

@@ -28,6 +28,12 @@ public sealed partial class SettingsPage : Page
         RemoteApiLoggingToggle.IsOn = _viewModel.RemoteApiLoggingEnabled;
         AppVersionText.Text = _viewModel.AppVersion;
         UpdateChannelBox.SelectedValue = _viewModel.UpdateChannel;
+        AiProviderBox.SelectedValue = _viewModel.AiProviderKind;
+        AiEndpointBox.Text = _viewModel.AiEndpoint;
+        AiModelBox.Text = _viewModel.AiModel;
+        AiKeyBox.Password = _viewModel.AiApiKey ?? string.Empty;
+        AiConfirmToggle.IsOn = _viewModel.AiConfirmDestructiveActions;
+        AiStatusText.Text = _viewModel.AiStatusText;
         UpdateStatusDisplay();
     }
 
@@ -113,5 +119,16 @@ public sealed partial class SettingsPage : Page
         UpdateWslcButton.IsEnabled = false;
         await _viewModel.UpdateWslcAsync();
         UpdateStatusDisplay();
+    }
+
+    private void SaveAiSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.AiProviderKind = (AiProviderBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "OpenAiCompatible";
+        _viewModel.AiEndpoint = AiEndpointBox.Text;
+        _viewModel.AiModel = AiModelBox.Text;
+        _viewModel.AiApiKey = string.IsNullOrWhiteSpace(AiKeyBox.Password) ? null : AiKeyBox.Password;
+        _viewModel.AiConfirmDestructiveActions = AiConfirmToggle.IsOn;
+        _viewModel.SaveAiSettings();
+        AiStatusText.Text = _viewModel.AiStatusText;
     }
 }

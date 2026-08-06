@@ -39,6 +39,16 @@
             SelectionChanged="RootNavigation_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Dashboard" Tag="Dashboard" Icon="Home" AutomationProperties.Name="Dashboard" />
+                <NavigationViewItem Tag="AI" Icon="Comment" AutomationProperties.Name="AI Assistant">
+                    <NavigationViewItem.Content>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="AI Assistant" VerticalAlignment="Center" />
+                            <Border Background="#FFC107" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                                <TextBlock Text="New alpha test" FontSize="10" FontWeight="SemiBold" Foreground="Black" />
+                            </Border>
+                        </StackPanel>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
                 <NavigationViewItem Content="Terminal" Tag="Terminal" Icon="Document" AutomationProperties.Name="Terminal" AutomationProperties.AutomationId="TerminalNavItem" />
                 <NavigationViewItem Content="Settings" Tag="Settings" Icon="Setting" AutomationProperties.Name="Settings" />
             </NavigationView.MenuItems>

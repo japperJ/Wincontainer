@@ -94,6 +94,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\WinContainers.AI\WinContainers.AI.csproj" />
     <ProjectReference Include="..\WinContainers.Core\WinContainers.Core.csproj" />
     <ProjectReference Include="..\WinContainers.Runtime\WinContainers.Runtime.csproj" />
     <ProjectReference Include="..\WinContainers.Service\WinContainers.Service.csproj" />

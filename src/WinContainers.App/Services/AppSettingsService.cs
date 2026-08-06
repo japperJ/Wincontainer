@@ -37,6 +37,7 @@ public sealed class AppSettingsService
                 var json = File.ReadAllText(_settingsPath);
                 var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
                 settings.ApiToken = UnprotectToken(settings.ApiToken);
+                settings.AiApiKey = UnprotectToken(settings.AiApiKey);
                 return settings;
             }
             catch (Exception ex)
@@ -55,6 +56,8 @@ public sealed class AppSettingsService
             {
                 var originalToken = settings.ApiToken;
                 settings.ApiToken = ProtectToken(originalToken);
+                var originalAiKey = settings.AiApiKey;
+                settings.AiApiKey = ProtectToken(originalAiKey);
                 try
                 {
                     var json = JsonSerializer.Serialize(settings, JsonOptions);
@@ -63,6 +66,7 @@ public sealed class AppSettingsService
                 finally
                 {
                     settings.ApiToken = originalToken;
+                    settings.AiApiKey = originalAiKey;
                 }
             }
             catch (Exception ex)

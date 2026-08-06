@@ -37,6 +37,28 @@
 
             <Border Padding="24" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                 <StackPanel Spacing="12">
+                    <TextBlock Text="AI Assistant" Style="{StaticResource SubtitleTextBlockStyle}" />
+
+                    <ComboBox x:Name="AiProviderBox" Header="Provider" SelectedValuePath="Tag" Width="240">
+                        <ComboBoxItem Content="OpenAI-compatible endpoint" Tag="OpenAiCompatible" />
+                        <ComboBoxItem Content="Local Ollama" Tag="Ollama" />
+                    </ComboBox>
+                    <TextBox x:Name="AiEndpointBox" Header="Endpoint" PlaceholderText="https://api.openai.com/v1" Width="380" />
+                    <TextBox x:Name="AiModelBox" Header="Model" PlaceholderText="gpt-4o-mini" Width="240" />
+                    <PasswordBox x:Name="AiKeyBox" Header="API key" PlaceholderText="sk-... (leave empty for Ollama)" Width="380" />
+
+                    <ToggleSwitch x:Name="AiConfirmToggle"
+                                  Header="Require confirmation for destructive actions"
+                                  OffContent="Off"
+                                  OnContent="On" />
+
+                    <Button Content="Save AI settings" Click="SaveAiSettingsButton_Click" />
+                    <TextBlock x:Name="AiStatusText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+
+            <Border Padding="24" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="12">
                     <TextBlock Text="Runtime Status" Style="{StaticResource SubtitleTextBlockStyle}" />
 
                      <Grid ColumnSpacing="12" RowSpacing="8">
