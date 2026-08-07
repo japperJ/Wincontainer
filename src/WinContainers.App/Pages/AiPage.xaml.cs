@@ -48,9 +48,10 @@ public sealed partial class AiPage : Page
 
     private async void SendButton_Click(object sender, RoutedEventArgs e)
     {
-        _viewModel.Input = InputBox.Text;
-        await _viewModel.SendAsync();
+        var text = InputBox.Text;
         InputBox.Text = string.Empty;
+        _viewModel.Input = text;
+        await _viewModel.SendAsync();
         UpdateUiState();
         RefreshMarkdown();
     }
@@ -74,8 +75,10 @@ public sealed partial class AiPage : Page
 
     private async Task SendAsyncCore()
     {
-        await _viewModel.SendAsync();
+        var text = InputBox.Text;
         InputBox.Text = string.Empty;
+        _viewModel.Input = text;
+        await _viewModel.SendAsync();
         UpdateUiState();
         RefreshMarkdown();
     }
