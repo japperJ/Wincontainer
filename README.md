@@ -114,6 +114,8 @@ Omit the `headers` block when connecting from localhost without a token configur
 
 WinContainers includes a built-in AI assistant that manages containers, images, volumes, and networks in natural language. It uses the same in-process runtime layer as the MCP tools, so no extra services are needed.
 
+> **Alpha:** The AI Assistant is an early-access feature. Review each proposed action before allowing it, especially actions that remove containers, images, volumes, or networks.
+
 ### What It Does
 
 - Answer questions about your containers, images, volumes, and networks.
@@ -123,6 +125,7 @@ WinContainers includes a built-in AI assistant that manages containers, images, 
 - Generate `docker-compose` files for multi-service setups and save them under `Documents\WinContainers\compose`.
 - Show each tool action as a step card with the exact command it ran.
 - Ask for confirmation before destructive actions (removing containers, images, volumes, or networks).
+- Use the same WSLC runtime as the main application and MCP server.
 
 ### Providers
 
@@ -131,7 +134,7 @@ WinContainers includes a built-in AI assistant that manages containers, images, 
 
 ### First Run
 
-Open the **AI Assistant** page. On first use a setup dialog asks you to pick a provider. Choose OpenAI-compatible to enter an endpoint, model, and API key, or choose Local Ollama to detect or install it with one click. You can change these settings later on the **Settings** page.
+Open the **AI Assistant** page from the left navigation. On first use, a setup dialog asks you to pick a provider. Choose OpenAI-compatible to enter an endpoint, model, and API key, or choose Local Ollama to detect or install it with one click. You can change these settings later on the **Settings** page.
 
 ### Privacy
 
