@@ -57,6 +57,7 @@ public sealed class AiViewModel : ViewModelBase
                 OnPropertyChanged(nameof(CanSend));
                 OnPropertyChanged(nameof(IsCancellable));
                 OnPropertyChanged(nameof(CanClear));
+                OnPropertyChanged(nameof(IsThinking));
             }
         }
     }
@@ -76,6 +77,12 @@ public sealed class AiViewModel : ViewModelBase
     public bool CanSend => !IsBusy && !string.IsNullOrWhiteSpace(Input);
     public bool IsCancellable => IsBusy;
     public bool CanClear => Messages.Count > 0 && !IsBusy;
+
+    /// <summary>
+    /// True while a turn runs but no answer text is streaming yet and no tool
+    /// step is running. The page shows a "thinking" indicator during this gap.
+    /// </summary>
+    public bool IsThinking => IsBusy && _assistantBubble is null && !_stepCards.Values.Any(c => c.IsRunning);
 
     public string ProviderStatus
     {
@@ -235,6 +242,7 @@ public sealed class AiViewModel : ViewModelBase
         {
             Messages.Add(_assistantBubble);
             OnPropertyChanged(nameof(CanClear));
+            OnPropertyChanged(nameof(IsThinking));
         }
 
         _assistantBubble.Text += delta;
@@ -246,6 +254,7 @@ public sealed class AiViewModel : ViewModelBase
         _stepCards[step.Id] = card;
         Messages.Add(card);
         OnPropertyChanged(nameof(CanClear));
+        OnPropertyChanged(nameof(IsThinking));
     }
 
     internal void StepFinished(AgentStep step)
@@ -259,6 +268,7 @@ public sealed class AiViewModel : ViewModelBase
         card.IsSuccess = step.Success;
         card.IsDeclined = step.Declined;
         card.Output = step.Output;
+        OnPropertyChanged(nameof(IsThinking));
     }
 
     internal async Task<bool> ConfirmDestructiveAsync(AgentStep step)
