@@ -246,6 +246,7 @@ public sealed class AiViewModel : ViewModelBase
 
     internal void StepStarting(AgentStep step)
     {
+        FinalizeStreamingBubble();
         var card = new StepCardMessage(step) { IsRunning = true };
         _stepCards[step.Id] = card;
         Messages.Add(card);
@@ -264,6 +265,21 @@ public sealed class AiViewModel : ViewModelBase
         card.IsSuccess = step.Success;
         card.IsDeclined = step.Declined;
         card.Output = step.Output;
+    }
+
+    /// <summary>
+    /// Closes the current streaming bubble so any later text (for example the
+    /// final answer after tool steps) starts a new bubble below the step cards.
+    /// </summary>
+    private void FinalizeStreamingBubble()
+    {
+        if (_assistantBubble is null)
+        {
+            return;
+        }
+
+        _assistantBubble.IsComplete = true;
+        _assistantBubble = null;
     }
 
     /// <summary>
