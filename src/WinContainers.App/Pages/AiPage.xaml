@@ -53,11 +53,26 @@
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
         </DataTemplate>
 
+        <DataTemplate x:Key="ThinkingTemplate" x:DataType="models:ThinkingChatMessage">
+            <Border MaxWidth="200" HorizontalAlignment="Left" Margin="0,2,0,8"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="12" Padding="12,8"
+                    AutomationProperties.Name="AI is thinking">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ProgressRing IsActive="True" Width="16" Height="16" />
+                    <TextBlock Text="AI is thinking..." VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
         <local:MessageTemplateSelector x:Key="MessageTemplateSelector"
                                        UserTemplate="{StaticResource UserMessageTemplate}"
                                        AssistantTemplate="{StaticResource AssistantMessageTemplate}"
                                        StepTemplate="{StaticResource StepCardTemplate}"
-                                       SystemTemplate="{StaticResource SystemMessageTemplate}" />
+                                       SystemTemplate="{StaticResource SystemMessageTemplate}"
+                                       ThinkingTemplate="{StaticResource ThinkingTemplate}" />
     </Page.Resources>
 
     <Grid Padding="20" RowSpacing="12">
@@ -84,26 +99,10 @@
             <Button Grid.Column="4" x:Name="SettingsButton" Content="Configure" Click="SettingsButton_Click" />
         </Grid>
 
-        <Grid Grid.Row="1">
-            <ListView x:Name="MessageList"
-                      ItemTemplateSelector="{StaticResource MessageTemplateSelector}"
-                      SelectionMode="None"
-                      HorizontalContentAlignment="Stretch" />
-
-            <Border x:Name="ThinkingIndicator" Visibility="Collapsed"
-                    HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                    Margin="0,0,0,4" MaxWidth="200"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1" CornerRadius="12" Padding="12,8"
-                    AutomationProperties.Name="AI is thinking">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <ProgressRing IsActive="True" Width="16" Height="16" />
-                    <TextBlock Text="AI is thinking..." VerticalAlignment="Center"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </StackPanel>
-            </Border>
-        </Grid>
+        <ListView Grid.Row="1" x:Name="MessageList"
+                  ItemTemplateSelector="{StaticResource MessageTemplateSelector}"
+                  SelectionMode="None"
+                  HorizontalContentAlignment="Stretch" />
 
         <Grid Grid.Row="2" ColumnSpacing="8">
             <Grid.ColumnDefinitions>

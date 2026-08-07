@@ -44,7 +44,6 @@ public sealed partial class AiPage : Page
         ClearButton.IsEnabled = _viewModel.CanClear;
         CopyButton.IsEnabled = _viewModel.Messages.Count > 0;
         ProviderStatusText.Text = _viewModel.ProviderStatus;
-        ThinkingIndicator.Visibility = _viewModel.IsThinking ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async void SendButton_Click(object sender, RoutedEventArgs e)

@@ -11,6 +11,7 @@ public sealed class MessageTemplateSelector : DataTemplateSelector
     public DataTemplate? AssistantTemplate { get; set; }
     public DataTemplate? StepTemplate { get; set; }
     public DataTemplate? SystemTemplate { get; set; }
+    public DataTemplate? ThinkingTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item) => item switch
     {
@@ -18,6 +19,7 @@ public sealed class MessageTemplateSelector : DataTemplateSelector
         AssistantChatMessage => AssistantTemplate,
         StepCardMessage => StepTemplate,
         SystemChatMessage => SystemTemplate,
+        ThinkingChatMessage => ThinkingTemplate,
         _ => null,
     };
 }

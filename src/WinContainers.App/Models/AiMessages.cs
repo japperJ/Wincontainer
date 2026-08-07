@@ -129,3 +129,12 @@ public sealed class SystemChatMessage : ObservableObject
 
     public string Text { get; }
 }
+
+/// <summary>
+/// A chat indicator shown while the assistant is working. It is added to the
+/// message list when a turn starts and removed when the turn finishes, so it
+/// always sits below the streaming answer and step cards.
+/// </summary>
+public sealed class ThinkingChatMessage
+{
+}

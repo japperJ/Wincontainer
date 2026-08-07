@@ -30,6 +30,7 @@ public sealed class AiViewModel : ViewModelBase
     private CancellationTokenSource? _cts;
     private AssistantChatMessage? _assistantBubble;
     private readonly Dictionary<string, StepCardMessage> _stepCards = new();
+    private ThinkingChatMessage? _thinkingItem;
 
     private bool _isBusy;
     private string? _input;
@@ -57,7 +58,7 @@ public sealed class AiViewModel : ViewModelBase
                 OnPropertyChanged(nameof(CanSend));
                 OnPropertyChanged(nameof(IsCancellable));
                 OnPropertyChanged(nameof(CanClear));
-                OnPropertyChanged(nameof(IsThinking));
+                UpdateThinkingIndicator();
             }
         }
     }
@@ -77,12 +78,6 @@ public sealed class AiViewModel : ViewModelBase
     public bool CanSend => !IsBusy && !string.IsNullOrWhiteSpace(Input);
     public bool IsCancellable => IsBusy;
     public bool CanClear => Messages.Count > 0 && !IsBusy;
-
-    /// <summary>
-    /// True while a turn runs but no answer text is streaming yet and no tool
-    /// step is running. The page shows a "thinking" indicator during this gap.
-    /// </summary>
-    public bool IsThinking => IsBusy && _assistantBubble is null && !_stepCards.Values.Any(c => c.IsRunning);
 
     public string ProviderStatus
     {
@@ -201,6 +196,7 @@ public sealed class AiViewModel : ViewModelBase
         Messages.Clear();
         _stepCards.Clear();
         _assistantBubble = null;
+        _thinkingItem = null;
         _history.Save([]);
         OnPropertyChanged(nameof(CanClear));
     }
@@ -241,8 +237,8 @@ public sealed class AiViewModel : ViewModelBase
         if (_assistantBubble.Text.Length == 0)
         {
             Messages.Add(_assistantBubble);
+            EnsureThinkingLast();
             OnPropertyChanged(nameof(CanClear));
-            OnPropertyChanged(nameof(IsThinking));
         }
 
         _assistantBubble.Text += delta;
@@ -253,8 +249,8 @@ public sealed class AiViewModel : ViewModelBase
         var card = new StepCardMessage(step) { IsRunning = true };
         _stepCards[step.Id] = card;
         Messages.Add(card);
+        EnsureThinkingLast();
         OnPropertyChanged(nameof(CanClear));
-        OnPropertyChanged(nameof(IsThinking));
     }
 
     internal void StepFinished(AgentStep step)
@@ -268,7 +264,40 @@ public sealed class AiViewModel : ViewModelBase
         card.IsSuccess = step.Success;
         card.IsDeclined = step.Declined;
         card.Output = step.Output;
-        OnPropertyChanged(nameof(IsThinking));
+    }
+
+    /// <summary>
+    /// Adds or removes the thinking indicator so it is present exactly while a
+    /// turn runs. It is always the last item in the message list.
+    /// </summary>
+    private void UpdateThinkingIndicator()
+    {
+        if (IsBusy)
+        {
+            if (_thinkingItem is null)
+            {
+                _thinkingItem = new ThinkingChatMessage();
+                Messages.Add(_thinkingItem);
+            }
+
+            return;
+        }
+
+        if (_thinkingItem is not null)
+        {
+            Messages.Remove(_thinkingItem);
+            _thinkingItem = null;
+        }
+    }
+
+    /// <summary>Moves the thinking indicator below any new streaming or step content.</summary>
+    private void EnsureThinkingLast()
+    {
+        if (_thinkingItem is not null && !ReferenceEquals(Messages[^1], _thinkingItem))
+        {
+            Messages.Remove(_thinkingItem);
+            Messages.Add(_thinkingItem);
+        }
     }
 
     internal async Task<bool> ConfirmDestructiveAsync(AgentStep step)
