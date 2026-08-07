@@ -102,8 +102,7 @@ public sealed partial class AiPage : Page
     {
         if (sender is TextBlock textBlock
             && textBlock.DataContext is AssistantChatMessage message
-            && message.IsComplete
-            && !message.MarkdownRendered)
+            && message.IsComplete)
         {
             RenderMarkdown(textBlock, message);
         }
@@ -131,13 +130,15 @@ public sealed partial class AiPage : Page
 
     private void RenderMarkdown(TextBlock textBlock, AssistantChatMessage message)
     {
+        // Setting Text clears the Inlines collection in WinUI, so clear Text
+        // first and then populate Inlines for the formatted markdown.
+        textBlock.Text = string.Empty;
         textBlock.Inlines.Clear();
         foreach (var inline in _markdown.Format(message.Text))
         {
             textBlock.Inlines.Add(inline);
         }
 
-        textBlock.Text = string.Empty;
         message.MarkdownRendered = true;
     }
 
