@@ -129,3 +129,27 @@ public sealed class SystemChatMessage : ObservableObject
 
     public string Text { get; }
 }
+
+/// <summary>
+/// A centered status line shown while the agent waits before retrying a turn
+/// after a transient provider error. Text updates with a live countdown.
+/// </summary>
+public sealed class RetryWaitChatMessage : ObservableObject
+{
+    private string _text = string.Empty;
+
+    public string Text
+    {
+        get => _text;
+        set => SetProperty(ref _text, value);
+    }
+}
+
+/// <summary>
+/// A chat indicator shown while the assistant is working. It is added to the
+/// message list when a turn starts and removed when the turn finishes, so it
+/// always sits below the streaming answer and step cards.
+/// </summary>
+public sealed class ThinkingChatMessage
+{
+}

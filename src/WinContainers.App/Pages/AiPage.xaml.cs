@@ -48,9 +48,10 @@ public sealed partial class AiPage : Page
 
     private async void SendButton_Click(object sender, RoutedEventArgs e)
     {
-        _viewModel.Input = InputBox.Text;
-        await _viewModel.SendAsync();
+        var text = InputBox.Text;
         InputBox.Text = string.Empty;
+        _viewModel.Input = text;
+        await _viewModel.SendAsync();
         UpdateUiState();
         RefreshMarkdown();
     }
@@ -74,8 +75,10 @@ public sealed partial class AiPage : Page
 
     private async Task SendAsyncCore()
     {
-        await _viewModel.SendAsync();
+        var text = InputBox.Text;
         InputBox.Text = string.Empty;
+        _viewModel.Input = text;
+        await _viewModel.SendAsync();
         UpdateUiState();
         RefreshMarkdown();
     }
@@ -102,8 +105,7 @@ public sealed partial class AiPage : Page
     {
         if (sender is TextBlock textBlock
             && textBlock.DataContext is AssistantChatMessage message
-            && message.IsComplete
-            && !message.MarkdownRendered)
+            && message.IsComplete)
         {
             RenderMarkdown(textBlock, message);
         }
@@ -131,13 +133,24 @@ public sealed partial class AiPage : Page
 
     private void RenderMarkdown(TextBlock textBlock, AssistantChatMessage message)
     {
+        // Setting Text clears the Inlines collection in WinUI, so clear Text
+        // first and then populate Inlines for the formatted markdown.
+        textBlock.Text = string.Empty;
         textBlock.Inlines.Clear();
-        foreach (var inline in _markdown.Format(message.Text))
+        try
         {
-            textBlock.Inlines.Add(inline);
+            foreach (var inline in _markdown.Format(message.Text))
+            {
+                textBlock.Inlines.Add(inline);
+            }
+        }
+        catch
+        {
+            // Never let a formatting failure hide the reply. Show plain text.
+            textBlock.Inlines.Clear();
+            textBlock.Text = message.Text;
         }
 
-        textBlock.Text = string.Empty;
         message.MarkdownRendered = true;
     }
 

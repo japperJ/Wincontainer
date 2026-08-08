@@ -20,4 +20,12 @@ public interface IAgentObserver
     /// false to decline. The exact action is shown in <paramref name="step"/>.
     /// </summary>
     Task<bool> OnConfirmDestructiveAsync(AgentStep step, CancellationToken ct);
+
+    /// <summary>
+    /// Called after a transient provider error (for example HTTP 503). The
+    /// agent will wait <paramref name="seconds"/> before retrying the turn.
+    /// <paramref name="attempt"/> is the attempt that will run after the wait,
+    /// out of <paramref name="maxAttempts"/>.
+    /// </summary>
+    Task OnRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct);
 }

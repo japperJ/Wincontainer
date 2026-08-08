@@ -10,7 +10,8 @@ public class ContainerAgentTests
     private static (ContainerAgent Agent, FakeChatClient Client, FakeDriver Driver, FakeObserver Observer) Create(
         bool confirmDestructive = true,
         Func<AgentStep, bool>? confirm = null,
-        string composeDir = "compose")
+        string composeDir = "compose",
+        int retryDelaySeconds = ContainerAgent.RetryDelaySecondsDefault)
     {
         var driver = new FakeDriver();
         var client = new FakeChatClient();
@@ -23,7 +24,8 @@ public class ContainerAgentTests
             registry,
             observer,
             _ => Task.FromResult("snapshot"),
-            confirmDestructive);
+            confirmDestructive,
+            retryDelaySeconds);
 
         return (agent, client, driver, observer);
     }
@@ -40,6 +42,144 @@ public class ContainerAgentTests
         result.Text.Should().Be("No containers need changes.");
         history.Should().NotContain(m => m.Role == ChatRole.System);
         history.Should().ContainSingle(m => m.Role == ChatRole.User);
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldRecoverDsmlToolCall_AndContinue()
+    {
+        var (agent, client, _, observer) = Create();
+
+        client.EnqueueText("<｜DSML｜tool_call_start｜>{\"name\":\"list_containers\",\"arguments\":{}}<｜DSML｜tool_call_end｜>");
+        client.EnqueueText("Found 2 containers.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "List my containers.", CancellationToken.None);
+
+        result.Text.Should().Be("Found 2 containers.");
+        observer.StartedSteps.Should().ContainSingle(s => s.Name == "list_containers");
+        observer.StartedSteps[0].Preview.Should().Be("List all containers");
+        observer.TextDeltas.Should().HaveCount(2); // raw DSML preamble, then the final answer
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenReplyEndsWithUnclosedToolCallMarker()
+    {
+        var (agent, client, _, observer) = Create();
+
+        // The model narrates, then starts a DSML tool call that is cut off.
+        client.EnqueueText("Still empty. Let me check the latest execution error:<｜DSML｜tool_call_start｜>{\"name\":\"list_containers\",\"arguments\":{}}");
+        // Nudged to continue, it emits the full tool call, then the answer.
+        client.EnqueueText("<｜DSML｜tool_call_start｜>{\"name\":\"list_containers\",\"arguments\":{}}<｜DSML｜tool_call_end｜>");
+        client.EnqueueText("Found 2 containers.");
+
+        var history = new List<ChatMessage>();
+        var result = await agent.RunTurnAsync(history, "List my containers.", CancellationToken.None);
+
+        result.Text.Should().Be("Found 2 containers.");
+        observer.StartedSteps.Should().ContainSingle(s => s.Name == "list_containers");
+        // The partial narration is kept as context for the continuation.
+        history.Should().Contain(m => m.Role == ChatRole.Assistant && m.Text!.Contains("Still empty"));
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenStreamIsTruncated()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.Enqueue(new ChatResponseUpdate(ChatRole.Assistant, "Still empty. Let me check the latest execution error:")
+        {
+            FinishReason = ChatFinishReason.Length,
+        });
+        client.EnqueueText("Found the answer.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Keep going.", CancellationToken.None);
+
+        result.Text.Should().Be("Found the answer.");
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenToolCallBlockIsMalformed()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.EnqueueText("Still empty.<｜DSML｜tool_call_start｜>not json<｜DSML｜tool_call_end｜>");
+        client.EnqueueText("Done.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Check status.", CancellationToken.None);
+
+        result.Text.Should().Be("Done.");
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenReplyNarratesActionWithoutToolCall()
+    {
+        var (agent, client, driver, observer) = Create();
+
+        // The model announces a test but does not emit the tool call.
+        client.EnqueueText("Let me test all the candidate addresses from inside the container to find which one actually works:");
+        // Nudged to take the action, it runs the exec command, then answers.
+        client.EnqueueToolCall("call-1", "exec_command", new Dictionary<string, object?> { ["id"] = "web", ["command"] = "echo test" });
+        client.EnqueueText("The working address is 10.0.0.5.");
+
+        var history = new List<ChatMessage>();
+        var result = await agent.RunTurnAsync(history, "Find the working address.", CancellationToken.None);
+
+        result.Text.Should().Be("The working address is 10.0.0.5.");
+        observer.StartedSteps.Should().ContainSingle(s => s.Name == "exec_command");
+        driver.ExecCommands.Should().ContainSingle(c => c.Id == "web" && c.Command == "echo test");
+        // The narration is kept as context for the continuation.
+        history.Should().Contain(m => m.Role == ChatRole.Assistant && m.Text!.Contains("Let me test"));
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenReplyOnlyNarratesShortPromise()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.EnqueueText("I'll check the logs first.");
+        client.EnqueueText("The logs show a restart loop.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Check the logs.", CancellationToken.None);
+
+        result.Text.Should().Be("The logs show a restart loop.");
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldReturnCompleteAnswer_WithoutNudging()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.EnqueueText("You can find the address by running curl inside the container.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "How do I find the address?", CancellationToken.None);
+
+        result.Text.Should().Be("You can find the address by running curl inside the container.");
+        client.CallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldAnswerInPlainText_WhenReplyIsOnlyUnsupportedMarkers()
+    {
+        var (agent, client, _, observer) = Create();
+
+        client.EnqueueText("<｜DSML｜ etc");
+        client.EnqueueText("I cannot use tools right now.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Check status.", CancellationToken.None);
+
+        result.Text.Should().Be("I cannot use tools right now.");
+        observer.StartedSteps.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldReturnUsableReplyFallback_WhenFinalNoToolCallAlsoFails()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.EnqueueText("<｜DSML｜tool_call_start｜>{\"name\":\"not_a_real_tool\"}<｜DSML｜tool_call_end｜>");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Do something.", CancellationToken.None);
+
+        result.Text.Should().Contain("usable reply");
     }
 
     [Fact]
@@ -159,7 +299,9 @@ public class ContainerAgentTests
     {
         var (agent, client, _, _) = Create();
 
-        // Every iteration ends in a tool call, forcing the iteration cap.
+        // Every iteration ends in a tool call, forcing the iteration cap. The
+        // final retry call also receives a tool call, so it produces no text
+        // and the fallback hint is returned.
         for (var i = 0; i < 20; i++)
         {
             client.EnqueueToolCall($"call-{i}", "list_containers");
@@ -169,6 +311,70 @@ public class ContainerAgentTests
 
         result.Text.Should().Contain("maximum number of steps");
         client.CallCount.Should().BeLessThanOrEqualTo(12);
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldUseFinalAnswer_WhenRetryAfterMaxIterationsProducesText()
+    {
+        var (agent, client, _, _) = Create();
+
+        // The loop consumes exactly one response per iteration. Ten tool calls
+        // exhaust the cap; the next response is the final retry answer.
+        for (var i = 0; i < 10; i++)
+        {
+            client.EnqueueToolCall($"call-{i}", "list_containers");
+        }
+        client.EnqueueText("I collected the information you asked for.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Do it forever.", CancellationToken.None);
+
+        result.Text.Should().Be("I collected the information you asked for.");
+        client.CallCount.Should().Be(11);
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldRetry_WhenFirstCallReturnsTransientError()
+    {
+        var (agent, client, _, observer) = Create(retryDelaySeconds: 0);
+        client.EnqueueError(new InvalidOperationException("HTTP 503 (server_error: chat_admission_busy)"));
+        client.EnqueueText("All good now.");
+
+        var history = new List<ChatMessage>();
+        var result = await agent.RunTurnAsync(history, "Check health.", CancellationToken.None);
+
+        result.Text.Should().Be("All good now.");
+        client.CallCount.Should().Be(2);
+        observer.RetryWaits.Should().ContainSingle(w => w.Seconds == 0 && w.Attempt == 2 && w.MaxAttempts == 3);
+        history.Should().ContainSingle(m => m.Role == ChatRole.User);
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldNotRetry_WhenErrorIsNotTransient()
+    {
+        var (agent, client, _, observer) = Create(retryDelaySeconds: 0);
+        client.EnqueueError(new InvalidOperationException("HTTP 400 (invalid_api_key)"));
+
+        var act = async () => await agent.RunTurnAsync(new List<ChatMessage>(), "Hi.", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        client.CallCount.Should().Be(1);
+        observer.RetryWaits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldStopRetrying_AfterMaxAttempts()
+    {
+        var (agent, client, _, observer) = Create(retryDelaySeconds: 0);
+        for (var i = 0; i < ContainerAgent.MaxAttemptsDefault; i++)
+        {
+            client.EnqueueError(new InvalidOperationException("HTTP 503 (server_error: chat_admission_busy)"));
+        }
+
+        var act = async () => await agent.RunTurnAsync(new List<ChatMessage>(), "Hi.", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        client.CallCount.Should().Be(ContainerAgent.MaxAttemptsDefault);
+        observer.RetryWaits.Should().HaveCount(ContainerAgent.MaxAttemptsDefault - 1);
     }
 
     [Fact]

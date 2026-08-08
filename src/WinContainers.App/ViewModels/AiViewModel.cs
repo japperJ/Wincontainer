@@ -30,6 +30,7 @@ public sealed class AiViewModel : ViewModelBase
     private CancellationTokenSource? _cts;
     private AssistantChatMessage? _assistantBubble;
     private readonly Dictionary<string, StepCardMessage> _stepCards = new();
+    private ThinkingChatMessage? _thinkingItem;
 
     private bool _isBusy;
     private string? _input;
@@ -57,6 +58,7 @@ public sealed class AiViewModel : ViewModelBase
                 OnPropertyChanged(nameof(CanSend));
                 OnPropertyChanged(nameof(IsCancellable));
                 OnPropertyChanged(nameof(CanClear));
+                UpdateThinkingIndicator();
             }
         }
     }
@@ -194,6 +196,7 @@ public sealed class AiViewModel : ViewModelBase
         Messages.Clear();
         _stepCards.Clear();
         _assistantBubble = null;
+        _thinkingItem = null;
         _history.Save([]);
         OnPropertyChanged(nameof(CanClear));
     }
@@ -234,17 +237,22 @@ public sealed class AiViewModel : ViewModelBase
         if (_assistantBubble.Text.Length == 0)
         {
             Messages.Add(_assistantBubble);
+            EnsureThinkingLast();
             OnPropertyChanged(nameof(CanClear));
         }
 
-        _assistantBubble.Text += delta;
+        // Sanitize the accumulated text so complete DSML blocks disappear as
+        // soon as their closing tag arrives, even if they spanned deltas.
+        _assistantBubble.Text = AgentTextCleaner.SanitizeStreaming(_assistantBubble.Text + delta);
     }
 
     internal void StepStarting(AgentStep step)
     {
+        FinalizeStreamingBubble();
         var card = new StepCardMessage(step) { IsRunning = true };
         _stepCards[step.Id] = card;
         Messages.Add(card);
+        EnsureThinkingLast();
         OnPropertyChanged(nameof(CanClear));
     }
 
@@ -261,6 +269,56 @@ public sealed class AiViewModel : ViewModelBase
         card.Output = step.Output;
     }
 
+    /// <summary>
+    /// Closes the current streaming bubble so any later text (for example the
+    /// final answer after tool steps) starts a new bubble below the step cards.
+    /// </summary>
+    private void FinalizeStreamingBubble()
+    {
+        if (_assistantBubble is null)
+        {
+            return;
+        }
+
+        _assistantBubble.Text = AgentTextCleaner.StripSpecialTokens(_assistantBubble.Text);
+        _assistantBubble.IsComplete = true;
+        _assistantBubble = null;
+    }
+
+    /// <summary>
+    /// Adds or removes the thinking indicator so it is present exactly while a
+    /// turn runs. It is always the last item in the message list.
+    /// </summary>
+    private void UpdateThinkingIndicator()
+    {
+        if (IsBusy)
+        {
+            if (_thinkingItem is null)
+            {
+                _thinkingItem = new ThinkingChatMessage();
+                Messages.Add(_thinkingItem);
+            }
+
+            return;
+        }
+
+        if (_thinkingItem is not null)
+        {
+            Messages.Remove(_thinkingItem);
+            _thinkingItem = null;
+        }
+    }
+
+    /// <summary>Moves the thinking indicator below any new streaming or step content.</summary>
+    private void EnsureThinkingLast()
+    {
+        if (_thinkingItem is not null && !ReferenceEquals(Messages[^1], _thinkingItem))
+        {
+            Messages.Remove(_thinkingItem);
+            Messages.Add(_thinkingItem);
+        }
+    }
+
     internal async Task<bool> ConfirmDestructiveAsync(AgentStep step)
     {
         var result = await _dialogs.ShowConfirmAsync(
@@ -273,19 +331,28 @@ public sealed class AiViewModel : ViewModelBase
 
     private void FinishTurn(AgentTurnResult result)
     {
-        if (_assistantBubble is not null)
+        var rawText = result.Text ?? _assistantBubble?.Text ?? string.Empty;
+        var cleaned = AgentTextCleaner.StripSpecialTokens(rawText);
+
+        if (!string.IsNullOrEmpty(cleaned))
         {
-            if (!string.IsNullOrEmpty(result.Text))
+            if (_assistantBubble is not null)
             {
-                _assistantBubble.Text = result.Text;
+                _assistantBubble.Text = cleaned;
+                _assistantBubble.IsComplete = true;
+                _assistantBubble = null;
+            }
+            else
+            {
+                Messages.Add(new AssistantChatMessage { Text = cleaned, IsComplete = true });
             }
 
-            _assistantBubble.IsComplete = true;
-            _assistantBubble = null;
+            OnPropertyChanged(nameof(CanClear));
         }
-        else if (!string.IsNullOrEmpty(result.Text))
+        else if (_assistantBubble is not null)
         {
-            Messages.Add(new AssistantChatMessage { Text = result.Text, IsComplete = true });
+            Messages.Remove(_assistantBubble);
+            _assistantBubble = null;
             OnPropertyChanged(nameof(CanClear));
         }
 
@@ -293,9 +360,66 @@ public sealed class AiViewModel : ViewModelBase
         {
             AddSystemMessage("Turn cancelled.");
         }
+        else if (string.IsNullOrEmpty(cleaned) && !string.IsNullOrEmpty(rawText))
+        {
+            AddSystemMessage("The model reply contained only unsupported special tokens. Check the model or provider configuration.");
+        }
     }
 
     private void AddSystemMessage(string text) => Messages.Add(new SystemChatMessage(text));
+
+    /// <summary>
+    /// Removes the streaming bubble and step cards of a failed turn attempt so
+    /// a retry starts with a clean message list.
+    /// </summary>
+    private void RemoveTransientTurnArtifacts()
+    {
+        if (_assistantBubble is not null)
+        {
+            Messages.Remove(_assistantBubble);
+            _assistantBubble = null;
+        }
+
+        foreach (var card in _stepCards.Values.ToList())
+        {
+            Messages.Remove(card);
+        }
+
+        _stepCards.Clear();
+    }
+
+    /// <summary>
+    /// Shows a live countdown in the chat while the agent waits before retrying
+    /// a turn after a transient provider error. The status line stays in the
+    /// chat as a record of the retry.
+    /// </summary>
+    internal async Task ShowRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct)
+    {
+        RemoveTransientTurnArtifacts();
+
+        var wait = new RetryWaitChatMessage();
+        Messages.Add(wait);
+        EnsureThinkingLast();
+        OnPropertyChanged(nameof(CanClear));
+
+        try
+        {
+            for (var i = seconds; i > 0; i--)
+            {
+                wait.Text = i == 1
+                    ? $"The provider is busy. Waiting 1 second before retry (attempt {attempt} of {maxAttempts})..."
+                    : $"The provider is busy. Waiting {i} seconds before retry (attempt {attempt} of {maxAttempts})...";
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            }
+
+            wait.Text = $"Retrying now (attempt {attempt} of {maxAttempts})...";
+        }
+        catch
+        {
+            Messages.Remove(wait);
+            throw;
+        }
+    }
 
     private List<ChatMessage> BuildHistory()
     {
@@ -373,6 +497,29 @@ public sealed class AiViewModel : ViewModelBase
             }
 
             return tcs.Task;
+        }
+
+        public Task OnRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct)
+        {
+            if (_dispatcher.HasThreadAccess)
+            {
+                _ = RunRetryWaitAsync(seconds, attempt, maxAttempts, ct);
+                return Task.CompletedTask;
+            }
+
+            _dispatcher.TryEnqueue(() => _ = RunRetryWaitAsync(seconds, attempt, maxAttempts, ct));
+            return Task.CompletedTask;
+        }
+
+        private async Task RunRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct)
+        {
+            try
+            {
+                await _vm.ShowRetryWaitAsync(seconds, attempt, maxAttempts, ct);
+            }
+            catch
+            {
+            }
         }
 
         private async Task ConfirmAsync(AgentStep step, TaskCompletionSource<bool> tcs)

@@ -12,12 +12,19 @@ namespace WinContainers.Tests.Unit.Ai;
 public sealed class FakeChatClient : IChatClient
 {
     private readonly Queue<IReadOnlyList<ChatResponseUpdate>> _responses = new();
+    private readonly Queue<Exception> _errors = new();
 
     /// <summary>Number of streaming calls made so far.</summary>
     public int CallCount { get; private set; }
 
     /// <summary>All options received per streaming call.</summary>
     public List<ChatOptions> ReceivedOptions { get; } = [];
+
+    /// <summary>Queues an exception to be thrown by the next streaming call.</summary>
+    public void EnqueueError(Exception ex)
+    {
+        _errors.Enqueue(ex);
+    }
 
     /// <summary>Queues one streaming response to be returned on the next call.</summary>
     public void Enqueue(params ChatResponseUpdate[] updates)
@@ -52,6 +59,11 @@ public sealed class FakeChatClient : IChatClient
     {
         CallCount++;
         ReceivedOptions.Add(options ?? new ChatOptions());
+
+        if (_errors.Count > 0)
+        {
+            throw _errors.Dequeue();
+        }
 
         var updates = _responses.Count > 0
             ? _responses.Dequeue()
@@ -220,6 +232,9 @@ public sealed class FakeObserver : IAgentObserver
     /// <summary>Steps that asked for confirmation, in order.</summary>
     public List<AgentStep> ConfirmationRequests { get; } = [];
 
+    /// <summary>Retry waits reported, in order (seconds, next attempt, max attempts).</summary>
+    public List<(int Seconds, int Attempt, int MaxAttempts)> RetryWaits { get; } = [];
+
     public FakeObserver(Func<AgentStep, bool>? confirm = null)
     {
         _confirm = confirm ?? (_ => true);
@@ -247,5 +262,11 @@ public sealed class FakeObserver : IAgentObserver
     {
         ConfirmationRequests.Add(step);
         return Task.FromResult(_confirm(step));
+    }
+
+    public Task OnRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct)
+    {
+        RetryWaits.Add((seconds, attempt, maxAttempts));
+        return Task.CompletedTask;
     }
 }
