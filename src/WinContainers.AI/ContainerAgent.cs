@@ -13,6 +13,8 @@ public sealed class ContainerAgent
 {
     private const int MaxIterations = 10;
     private const int MaxStepOutputChars = 8000;
+    private const string MaxStepsMessage =
+        "I reached the maximum number of steps for this request. Try breaking the task into smaller parts.";
 
     private readonly IChatClient _client;
     private readonly AgentToolRegistry _registry;
@@ -110,9 +112,13 @@ public sealed class ContainerAgent
             }
         }
 
+        // The iteration cap was reached. Give the model one final chance to
+        // answer from the tool results it already has, without allowing any
+        // more tool calls. If it still produces no text, fall back to a hint.
+        var (finalText, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
         return new AgentTurnResult
         {
-            Text = "I reached the maximum number of steps for this request. Try breaking the task into smaller parts.",
+            Text = string.IsNullOrWhiteSpace(finalText) ? MaxStepsMessage : finalText,
         };
     }
 

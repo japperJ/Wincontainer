@@ -159,7 +159,9 @@ public class ContainerAgentTests
     {
         var (agent, client, _, _) = Create();
 
-        // Every iteration ends in a tool call, forcing the iteration cap.
+        // Every iteration ends in a tool call, forcing the iteration cap. The
+        // final retry call also receives a tool call, so it produces no text
+        // and the fallback hint is returned.
         for (var i = 0; i < 20; i++)
         {
             client.EnqueueToolCall($"call-{i}", "list_containers");
@@ -169,6 +171,25 @@ public class ContainerAgentTests
 
         result.Text.Should().Contain("maximum number of steps");
         client.CallCount.Should().BeLessThanOrEqualTo(12);
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldUseFinalAnswer_WhenRetryAfterMaxIterationsProducesText()
+    {
+        var (agent, client, _, _) = Create();
+
+        // The loop consumes exactly one response per iteration. Ten tool calls
+        // exhaust the cap; the next response is the final retry answer.
+        for (var i = 0; i < 10; i++)
+        {
+            client.EnqueueToolCall($"call-{i}", "list_containers");
+        }
+        client.EnqueueText("I collected the information you asked for.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Do it forever.", CancellationToken.None);
+
+        result.Text.Should().Be("I collected the information you asked for.");
+        client.CallCount.Should().Be(11);
     }
 
     [Fact]
