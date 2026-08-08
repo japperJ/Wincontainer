@@ -58,11 +58,14 @@ public static class AgentTextCleaner
     /// <summary>
     /// Extracts tool calls encoded as DSML blocks from assistant text and
     /// returns the text with those blocks removed. Blocks whose JSON cannot be
-    /// parsed are dropped (they are never shown to the user).
+    /// parsed are dropped (they are never shown to the user) and counted in
+    /// <paramref name="droppedBlocks"/> so callers can detect a model that
+    /// tried to call a tool but produced an unusable block.
     /// </summary>
-    public static List<FunctionCallContent> ExtractToolCalls(string? text, out string cleanedText)
+    public static List<FunctionCallContent> ExtractToolCalls(string? text, out string cleanedText, out int droppedBlocks)
     {
         var calls = new List<FunctionCallContent>();
+        droppedBlocks = 0;
         if (string.IsNullOrWhiteSpace(text))
         {
             cleanedText = string.Empty;
@@ -82,11 +85,36 @@ public static class AgentTextCleaner
             {
                 calls.Add(call);
             }
+            else
+            {
+                droppedBlocks++;
+            }
         }
 
         builder.Append(text, position, text.Length - position);
         cleanedText = builder.ToString();
         return calls;
+    }
+
+    /// <summary>
+    /// Returns true when the text contains a tool-call start marker that has no
+    /// matching end marker, which happens when a reply is cut off while the
+    /// model was emitting a DSML tool call.
+    /// </summary>
+    public static bool HasUnclosedToolCallMarker(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        var start = text.LastIndexOf("<｜DSML｜tool_call_start｜>", StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return false;
+        }
+
+        return text.IndexOf("<｜DSML｜tool_call_end｜>", start + 1, StringComparison.Ordinal) < 0;
     }
 
     private static FunctionCallContent? TryParseToolCall(string json)

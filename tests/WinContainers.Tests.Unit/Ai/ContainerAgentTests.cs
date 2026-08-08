@@ -61,6 +61,55 @@ public class ContainerAgentTests
     }
 
     [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenReplyEndsWithUnclosedToolCallMarker()
+    {
+        var (agent, client, _, observer) = Create();
+
+        // The model narrates, then starts a DSML tool call that is cut off.
+        client.EnqueueText("Still empty. Let me check the latest execution error:<｜DSML｜tool_call_start｜>{\"name\":\"list_containers\",\"arguments\":{}}");
+        // Nudged to continue, it emits the full tool call, then the answer.
+        client.EnqueueText("<｜DSML｜tool_call_start｜>{\"name\":\"list_containers\",\"arguments\":{}}<｜DSML｜tool_call_end｜>");
+        client.EnqueueText("Found 2 containers.");
+
+        var history = new List<ChatMessage>();
+        var result = await agent.RunTurnAsync(history, "List my containers.", CancellationToken.None);
+
+        result.Text.Should().Be("Found 2 containers.");
+        observer.StartedSteps.Should().ContainSingle(s => s.Name == "list_containers");
+        // The partial narration is kept as context for the continuation.
+        history.Should().Contain(m => m.Role == ChatRole.Assistant && m.Text!.Contains("Still empty"));
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenStreamIsTruncated()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.Enqueue(new ChatResponseUpdate(ChatRole.Assistant, "Still empty. Let me check the latest execution error:")
+        {
+            FinishReason = ChatFinishReason.Length,
+        });
+        client.EnqueueText("Found the answer.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Keep going.", CancellationToken.None);
+
+        result.Text.Should().Be("Found the answer.");
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenToolCallBlockIsMalformed()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.EnqueueText("Still empty.<｜DSML｜tool_call_start｜>not json<｜DSML｜tool_call_end｜>");
+        client.EnqueueText("Done.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Check status.", CancellationToken.None);
+
+        result.Text.Should().Be("Done.");
+    }
+
+    [Fact]
     public async Task RunTurnAsync_ShouldAnswerInPlainText_WhenReplyIsOnlyUnsupportedMarkers()
     {
         var (agent, client, _, observer) = Create();

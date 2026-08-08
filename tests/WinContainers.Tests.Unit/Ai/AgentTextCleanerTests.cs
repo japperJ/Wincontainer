@@ -31,9 +31,10 @@ public class AgentTextCleanerTests
     {
         var text = "Let me check.<｜DSML｜tool_call_start｜>{\"name\":\"start_container\",\"arguments\":{\"id\":\"web\"}}<｜DSML｜tool_call_end｜>Done.";
 
-        var calls = AgentTextCleaner.ExtractToolCalls(text, out var cleaned);
+        var calls = AgentTextCleaner.ExtractToolCalls(text, out var cleaned, out var dropped);
 
         cleaned.Should().Be("Let me check.Done.");
+        dropped.Should().Be(0);
         calls.Should().ContainSingle();
         calls[0].Name.Should().Be("start_container");
         calls[0].Arguments.Should().ContainKey("id").WhoseValue.Should().Be("web");
@@ -44,7 +45,7 @@ public class AgentTextCleanerTests
     {
         var text = "<｜DSML｜tool_call_start｜>{\"name\":\"start_container\",\"arguments\":\"{\\\"id\\\":\\\"web\\\"}\"}<｜DSML｜tool_call_end｜>";
 
-        var calls = AgentTextCleaner.ExtractToolCalls(text, out _);
+        var calls = AgentTextCleaner.ExtractToolCalls(text, out _, out _);
 
         calls.Should().ContainSingle();
         calls[0].Arguments.Should().ContainKey("id").WhoseValue.Should().Be("web");
@@ -55,9 +56,10 @@ public class AgentTextCleanerTests
     {
         var text = "<｜DSML｜tool_call_start｜>not json<｜DSML｜tool_call_end｜>Nothing here.";
 
-        var calls = AgentTextCleaner.ExtractToolCalls(text, out var cleaned);
+        var calls = AgentTextCleaner.ExtractToolCalls(text, out var cleaned, out var dropped);
 
         calls.Should().BeEmpty();
+        dropped.Should().Be(1);
         cleaned.Should().Be("Nothing here.");
     }
 
@@ -66,9 +68,19 @@ public class AgentTextCleanerTests
     {
         var text = "<｜DSML｜ etc";
 
-        var calls = AgentTextCleaner.ExtractToolCalls(text, out var cleaned);
+        var calls = AgentTextCleaner.ExtractToolCalls(text, out var cleaned, out var dropped);
 
         calls.Should().BeEmpty();
+        dropped.Should().Be(0);
         cleaned.Should().Be("<｜DSML｜ etc");
+    }
+
+    [Fact]
+    public void HasUnclosedToolCallMarker_ShouldDetectCutOffToolCall()
+    {
+        AgentTextCleaner.HasUnclosedToolCallMarker("Still empty.<｜DSML｜tool_call_start｜>{\"name\":\"list_containers\"").Should().BeTrue();
+        AgentTextCleaner.HasUnclosedToolCallMarker("Done.<｜DSML｜tool_call_start｜>{\"name\":\"list_containers\"}<｜DSML｜tool_call_end｜>").Should().BeFalse();
+        AgentTextCleaner.HasUnclosedToolCallMarker("Plain text.").Should().BeFalse();
+        AgentTextCleaner.HasUnclosedToolCallMarker("").Should().BeFalse();
     }
 }

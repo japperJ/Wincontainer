@@ -17,6 +17,9 @@ public sealed class ContainerAgent
         "I reached the maximum number of steps for this request. Try breaking the task into smaller parts.";
     private const string NoUsableReplyMessage =
         "The model did not return a usable reply. Try again or check the provider configuration.";
+    private const string ContinuationPrompt =
+        "Your previous reply was cut off before you finished. Continue now: " +
+        "make the tool call you intended, or give your final answer.";
 
     /// <summary>Default seconds to wait between retries after a transient error.</summary>
     public const int RetryDelaySecondsDefault = 10;
@@ -129,21 +132,35 @@ public sealed class ContainerAgent
         {
             ct.ThrowIfCancellationRequested();
 
-            var (assistantText, functionCalls) = await GetAssistantTurnAsync(messages, options, ct);
+            var reply = await GetAssistantTurnAsync(messages, options, ct);
 
-            if (functionCalls.Count == 0)
+            if (reply.Calls.Count == 0)
             {
-                var cleaned = AgentTextCleaner.StripSpecialTokens(assistantText);
-                if (cleaned.Length > 0)
+                var cleaned = AgentTextCleaner.StripSpecialTokens(reply.Text);
+                if (cleaned.Length > 0 && !reply.Interrupted)
                 {
                     return new AgentTurnResult { Text = cleaned };
+                }
+
+                if (cleaned.Length > 0)
+                {
+                    // The reply was cut off mid-thought: the stream was
+                    // truncated or the model left an unclosed/unparseable
+                    // tool-call marker. Keep the partial reply as context and
+                    // nudge the model to continue, so the intended tool call
+                    // or final answer completes instead of stopping the turn.
+                    var partial = new ChatMessage(ChatRole.Assistant, new List<AIContent> { new TextContent(cleaned) });
+                    messages.Add(partial);
+                    history.Add(partial);
+                    messages.Add(new ChatMessage(ChatRole.User, ContinuationPrompt));
+                    continue;
                 }
 
                 // The reply was empty or contained only unsupported markers
                 // (for example DSML that could not be parsed into a tool call).
                 // Give the model one final chance without tools so it can
                 // answer in plain text instead of stopping the turn.
-                var (noToolText, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
+                var (noToolText, _, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
                 var finalCleaned = AgentTextCleaner.StripSpecialTokens(noToolText);
                 return new AgentTurnResult
                 {
@@ -152,15 +169,15 @@ public sealed class ContainerAgent
             }
 
             var assistantMessage = new ChatMessage(ChatRole.Assistant, new List<AIContent>());
-            if (assistantText.Length > 0)
-                assistantMessage.Contents.Add(new TextContent(assistantText));
-            foreach (var call in functionCalls)
+            if (reply.Text.Length > 0)
+                assistantMessage.Contents.Add(new TextContent(reply.Text));
+            foreach (var call in reply.Calls)
                 assistantMessage.Contents.Add(call);
 
             messages.Add(assistantMessage);
             history.Add(assistantMessage);
 
-            foreach (var call in functionCalls)
+            foreach (var call in reply.Calls)
             {
                 var step = BuildStep(call);
                 var allowed = await RunToolAsync(call, step, ct);
@@ -176,20 +193,21 @@ public sealed class ContainerAgent
         // The iteration cap was reached. Give the model one final chance to
         // answer from the tool results it already has, without allowing any
         // more tool calls. If it still produces no text, fall back to a hint.
-        var (finalText, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
+        var (finalText, _, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
         return new AgentTurnResult
         {
             Text = string.IsNullOrWhiteSpace(finalText) ? MaxStepsMessage : finalText,
         };
     }
 
-    private async Task<(string Text, List<FunctionCallContent> Calls)> GetAssistantTurnAsync(
+    private async Task<AssistantReply> GetAssistantTurnAsync(
         IList<ChatMessage> messages,
         ChatOptions options,
         CancellationToken ct)
     {
         var text = new StringBuilder();
         var calls = new List<FunctionCallContent>();
+        ChatFinishReason? finishReason = null;
 
         await foreach (var update in _client.GetStreamingResponseAsync(messages, options, ct))
         {
@@ -197,6 +215,11 @@ public sealed class ContainerAgent
             {
                 text.Append(delta);
                 await _observer.OnTextDeltaAsync(delta, ct);
+            }
+
+            if (update.FinishReason is not null)
+            {
+                finishReason = update.FinishReason;
             }
 
             if (update.Contents is null)
@@ -212,14 +235,26 @@ public sealed class ContainerAgent
         // Some models emit tool calls as DSML markers inside the text instead
         // of standard function-calling content. Recover them so the turn can
         // continue instead of stopping on raw markup.
-        var dsmlCalls = AgentTextCleaner.ExtractToolCalls(text.ToString(), out var cleanedText);
+        var raw = text.ToString();
+        var dsmlCalls = AgentTextCleaner.ExtractToolCalls(raw, out var cleanedText, out var droppedBlocks);
         if (dsmlCalls.Count > 0)
         {
             calls.AddRange(dsmlCalls);
         }
 
-        return (cleanedText, calls);
+        // A reply is "interrupted" when the model was clearly cut off or
+        // started a tool call it could not finish: the stream reported a
+        // truncation finish reason, a tool-call marker is left unclosed, or
+        // every DSML block failed to parse. Such a reply is not a final
+        // answer; the agent must nudge the model to continue.
+        var interrupted = finishReason is { } r
+                && (r == ChatFinishReason.Length || r == ChatFinishReason.ContentFilter)
+            || (calls.Count == 0 && (droppedBlocks > 0 || AgentTextCleaner.HasUnclosedToolCallMarker(raw)));
+
+        return new AssistantReply(cleanedText, calls, interrupted);
     }
+
+    private sealed record AssistantReply(string Text, List<FunctionCallContent> Calls, bool Interrupted);
 
     private AgentStep BuildStep(FunctionCallContent call)
     {
