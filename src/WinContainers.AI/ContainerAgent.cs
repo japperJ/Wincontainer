@@ -16,18 +16,28 @@ public sealed class ContainerAgent
     private const string MaxStepsMessage =
         "I reached the maximum number of steps for this request. Try breaking the task into smaller parts.";
 
+    /// <summary>Default seconds to wait between retries after a transient error.</summary>
+    public const int RetryDelaySecondsDefault = 10;
+
+    /// <summary>Default number of attempts (initial call plus retries) for a turn.</summary>
+    public const int MaxAttemptsDefault = 3;
+
     private readonly IChatClient _client;
     private readonly AgentToolRegistry _registry;
     private readonly IAgentObserver _observer;
     private readonly Func<CancellationToken, Task<string>> _snapshotProvider;
     private readonly bool _confirmDestructiveActions;
+    private readonly int _retryDelaySeconds;
+    private readonly int _maxAttempts;
 
     public ContainerAgent(
         IChatClient client,
         AgentToolRegistry registry,
         IAgentObserver observer,
         Func<CancellationToken, Task<string>> snapshotProvider,
-        bool confirmDestructiveActions)
+        bool confirmDestructiveActions,
+        int retryDelaySeconds = RetryDelaySecondsDefault,
+        int maxAttempts = MaxAttemptsDefault)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(registry);
@@ -39,6 +49,8 @@ public sealed class ContainerAgent
         _observer = observer;
         _snapshotProvider = snapshotProvider;
         _confirmDestructiveActions = confirmDestructiveActions;
+        _retryDelaySeconds = Math.Max(0, retryDelaySeconds);
+        _maxAttempts = Math.Max(1, maxAttempts);
     }
 
     /// <summary>
@@ -51,6 +63,38 @@ public sealed class ContainerAgent
         ArgumentNullException.ThrowIfNull(history);
         ArgumentException.ThrowIfNullOrWhiteSpace(userMessage);
 
+        var baseHistory = history.ToList();
+
+        for (var attempt = 1; attempt <= _maxAttempts; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+            ResetHistory(history, baseHistory);
+
+            try
+            {
+                return await RunAttemptAsync(history, userMessage, ct);
+            }
+            catch (Exception ex) when (AgentErrorClassifier.IsRetryable(ex) && attempt < _maxAttempts)
+            {
+                await _observer.OnRetryWaitAsync(_retryDelaySeconds, attempt + 1, _maxAttempts, ct);
+                await Task.Delay(TimeSpan.FromSeconds(_retryDelaySeconds), ct);
+            }
+        }
+
+        throw new InvalidOperationException("RunTurnAsync always returns or throws within the attempt loop.");
+    }
+
+    private static void ResetHistory(IList<ChatMessage> history, IList<ChatMessage> baseHistory)
+    {
+        history.Clear();
+        foreach (var message in baseHistory)
+        {
+            history.Add(message);
+        }
+    }
+
+    private async Task<AgentTurnResult> RunAttemptAsync(IList<ChatMessage> history, string userMessage, CancellationToken ct)
+    {
         string snapshot;
         try
         {

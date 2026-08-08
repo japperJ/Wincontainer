@@ -56,6 +56,16 @@
                        IsTextSelectionEnabled="True" />
         </DataTemplate>
 
+        <DataTemplate x:Key="RetryWaitTemplate" x:DataType="models:RetryWaitChatMessage">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6" Margin="0,4">
+                <FontIcon Glyph="&#xE823;" FontSize="14"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="{x:Bind Text, Mode=OneWay}" TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           IsTextSelectionEnabled="True" />
+            </StackPanel>
+        </DataTemplate>
+
         <DataTemplate x:Key="ThinkingTemplate" x:DataType="models:ThinkingChatMessage">
             <Border MaxWidth="200" HorizontalAlignment="Left" Margin="0,2,0,8"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -75,6 +85,7 @@
                                        AssistantTemplate="{StaticResource AssistantMessageTemplate}"
                                        StepTemplate="{StaticResource StepCardTemplate}"
                                        SystemTemplate="{StaticResource SystemMessageTemplate}"
+                                       RetryWaitTemplate="{StaticResource RetryWaitTemplate}"
                                        ThinkingTemplate="{StaticResource ThinkingTemplate}" />
     </Page.Resources>
 

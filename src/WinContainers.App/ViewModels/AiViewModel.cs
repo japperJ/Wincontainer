@@ -365,6 +365,59 @@ public sealed class AiViewModel : ViewModelBase
 
     private void AddSystemMessage(string text) => Messages.Add(new SystemChatMessage(text));
 
+    /// <summary>
+    /// Removes the streaming bubble and step cards of a failed turn attempt so
+    /// a retry starts with a clean message list.
+    /// </summary>
+    private void RemoveTransientTurnArtifacts()
+    {
+        if (_assistantBubble is not null)
+        {
+            Messages.Remove(_assistantBubble);
+            _assistantBubble = null;
+        }
+
+        foreach (var card in _stepCards.Values.ToList())
+        {
+            Messages.Remove(card);
+        }
+
+        _stepCards.Clear();
+    }
+
+    /// <summary>
+    /// Shows a live countdown in the chat while the agent waits before retrying
+    /// a turn after a transient provider error. The status line stays in the
+    /// chat as a record of the retry.
+    /// </summary>
+    internal async Task ShowRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct)
+    {
+        RemoveTransientTurnArtifacts();
+
+        var wait = new RetryWaitChatMessage();
+        Messages.Add(wait);
+        EnsureThinkingLast();
+        OnPropertyChanged(nameof(CanClear));
+
+        try
+        {
+            for (var i = seconds; i > 0; i--)
+            {
+                wait.Text = i == 1
+                    ? $"The provider is busy. Waiting 1 second before retry (attempt {attempt} of {maxAttempts})..."
+                    : $"The provider is busy. Waiting {i} seconds before retry (attempt {attempt} of {maxAttempts})...";
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            }
+
+            wait.Text = $"Retrying now (attempt {attempt} of {maxAttempts})...";
+        }
+        catch
+        {
+            Messages.Remove(wait);
+            throw;
+        }
+    }
+
     private List<ChatMessage> BuildHistory()
     {
         var history = new List<ChatMessage>();
@@ -441,6 +494,37 @@ public sealed class AiViewModel : ViewModelBase
             }
 
             return tcs.Task;
+        }
+
+        public Task OnRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct)
+        {
+            if (_dispatcher.HasThreadAccess)
+            {
+                return _vm.ShowRetryWaitAsync(seconds, attempt, maxAttempts, ct);
+            }
+
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+
+            if (!_dispatcher.TryEnqueue(() => _ = RunRetryWaitAsync(seconds, attempt, maxAttempts, ct, tcs)))
+            {
+                tcs.TrySetCanceled();
+            }
+
+            return tcs.Task;
+        }
+
+        private async Task RunRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct, TaskCompletionSource tcs)
+        {
+            try
+            {
+                await _vm.ShowRetryWaitAsync(seconds, attempt, maxAttempts, ct);
+                tcs.TrySetResult();
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
         }
 
         private async Task ConfirmAsync(AgentStep step, TaskCompletionSource<bool> tcs)

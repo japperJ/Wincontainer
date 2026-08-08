@@ -10,7 +10,8 @@ public class ContainerAgentTests
     private static (ContainerAgent Agent, FakeChatClient Client, FakeDriver Driver, FakeObserver Observer) Create(
         bool confirmDestructive = true,
         Func<AgentStep, bool>? confirm = null,
-        string composeDir = "compose")
+        string composeDir = "compose",
+        int retryDelaySeconds = ContainerAgent.RetryDelaySecondsDefault)
     {
         var driver = new FakeDriver();
         var client = new FakeChatClient();
@@ -23,7 +24,8 @@ public class ContainerAgentTests
             registry,
             observer,
             _ => Task.FromResult("snapshot"),
-            confirmDestructive);
+            confirmDestructive,
+            retryDelaySeconds);
 
         return (agent, client, driver, observer);
     }
@@ -190,6 +192,51 @@ public class ContainerAgentTests
 
         result.Text.Should().Be("I collected the information you asked for.");
         client.CallCount.Should().Be(11);
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldRetry_WhenFirstCallReturnsTransientError()
+    {
+        var (agent, client, _, observer) = Create(retryDelaySeconds: 0);
+        client.EnqueueError(new InvalidOperationException("HTTP 503 (server_error: chat_admission_busy)"));
+        client.EnqueueText("All good now.");
+
+        var history = new List<ChatMessage>();
+        var result = await agent.RunTurnAsync(history, "Check health.", CancellationToken.None);
+
+        result.Text.Should().Be("All good now.");
+        client.CallCount.Should().Be(2);
+        observer.RetryWaits.Should().ContainSingle(w => w.Seconds == 0 && w.Attempt == 2 && w.MaxAttempts == 3);
+        history.Should().ContainSingle(m => m.Role == ChatRole.User);
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldNotRetry_WhenErrorIsNotTransient()
+    {
+        var (agent, client, _, observer) = Create(retryDelaySeconds: 0);
+        client.EnqueueError(new InvalidOperationException("HTTP 400 (invalid_api_key)"));
+
+        var act = async () => await agent.RunTurnAsync(new List<ChatMessage>(), "Hi.", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        client.CallCount.Should().Be(1);
+        observer.RetryWaits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldStopRetrying_AfterMaxAttempts()
+    {
+        var (agent, client, _, observer) = Create(retryDelaySeconds: 0);
+        for (var i = 0; i < ContainerAgent.MaxAttemptsDefault; i++)
+        {
+            client.EnqueueError(new InvalidOperationException("HTTP 503 (server_error: chat_admission_busy)"));
+        }
+
+        var act = async () => await agent.RunTurnAsync(new List<ChatMessage>(), "Hi.", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        client.CallCount.Should().Be(ContainerAgent.MaxAttemptsDefault);
+        observer.RetryWaits.Should().HaveCount(ContainerAgent.MaxAttemptsDefault - 1);
     }
 
     [Fact]
