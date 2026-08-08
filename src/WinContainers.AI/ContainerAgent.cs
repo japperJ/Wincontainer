@@ -15,6 +15,8 @@ public sealed class ContainerAgent
     private const int MaxStepOutputChars = 8000;
     private const string MaxStepsMessage =
         "I reached the maximum number of steps for this request. Try breaking the task into smaller parts.";
+    private const string NoUsableReplyMessage =
+        "The model did not return a usable reply. Try again or check the provider configuration.";
 
     /// <summary>Default seconds to wait between retries after a transient error.</summary>
     public const int RetryDelaySecondsDefault = 10;
@@ -131,7 +133,22 @@ public sealed class ContainerAgent
 
             if (functionCalls.Count == 0)
             {
-                return new AgentTurnResult { Text = assistantText };
+                var cleaned = AgentTextCleaner.StripSpecialTokens(assistantText);
+                if (cleaned.Length > 0)
+                {
+                    return new AgentTurnResult { Text = cleaned };
+                }
+
+                // The reply was empty or contained only unsupported markers
+                // (for example DSML that could not be parsed into a tool call).
+                // Give the model one final chance without tools so it can
+                // answer in plain text instead of stopping the turn.
+                var (noToolText, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
+                var finalCleaned = AgentTextCleaner.StripSpecialTokens(noToolText);
+                return new AgentTurnResult
+                {
+                    Text = string.IsNullOrWhiteSpace(finalCleaned) ? NoUsableReplyMessage : finalCleaned,
+                };
             }
 
             var assistantMessage = new ChatMessage(ChatRole.Assistant, new List<AIContent>());
@@ -192,7 +209,16 @@ public sealed class ContainerAgent
             }
         }
 
-        return (text.ToString(), calls);
+        // Some models emit tool calls as DSML markers inside the text instead
+        // of standard function-calling content. Recover them so the turn can
+        // continue instead of stopping on raw markup.
+        var dsmlCalls = AgentTextCleaner.ExtractToolCalls(text.ToString(), out var cleanedText);
+        if (dsmlCalls.Count > 0)
+        {
+            calls.AddRange(dsmlCalls);
+        }
+
+        return (cleanedText, calls);
     }
 
     private AgentStep BuildStep(FunctionCallContent call)

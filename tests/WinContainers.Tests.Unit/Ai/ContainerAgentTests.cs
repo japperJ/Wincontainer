@@ -45,6 +45,48 @@ public class ContainerAgentTests
     }
 
     [Fact]
+    public async Task RunTurnAsync_ShouldRecoverDsmlToolCall_AndContinue()
+    {
+        var (agent, client, _, observer) = Create();
+
+        client.EnqueueText("<｜DSML｜tool_call_start｜>{\"name\":\"list_containers\",\"arguments\":{}}<｜DSML｜tool_call_end｜>");
+        client.EnqueueText("Found 2 containers.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "List my containers.", CancellationToken.None);
+
+        result.Text.Should().Be("Found 2 containers.");
+        observer.StartedSteps.Should().ContainSingle(s => s.Name == "list_containers");
+        observer.StartedSteps[0].Preview.Should().Be("List all containers");
+        observer.TextDeltas.Should().HaveCount(2); // raw DSML preamble, then the final answer
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldAnswerInPlainText_WhenReplyIsOnlyUnsupportedMarkers()
+    {
+        var (agent, client, _, observer) = Create();
+
+        client.EnqueueText("<｜DSML｜ etc");
+        client.EnqueueText("I cannot use tools right now.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Check status.", CancellationToken.None);
+
+        result.Text.Should().Be("I cannot use tools right now.");
+        observer.StartedSteps.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldReturnUsableReplyFallback_WhenFinalNoToolCallAlsoFails()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.EnqueueText("<｜DSML｜tool_call_start｜>{\"name\":\"not_a_real_tool\"}<｜DSML｜tool_call_end｜>");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Do something.", CancellationToken.None);
+
+        result.Text.Should().Contain("usable reply");
+    }
+
+    [Fact]
     public async Task RunTurnAsync_ShouldDispatchTool_AndReturnFollowingText()
     {
         var (agent, client, driver, observer) = Create();

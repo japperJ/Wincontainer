@@ -241,7 +241,9 @@ public sealed class AiViewModel : ViewModelBase
             OnPropertyChanged(nameof(CanClear));
         }
 
-        _assistantBubble.Text += delta;
+        // Sanitize the accumulated text so complete DSML blocks disappear as
+        // soon as their closing tag arrives, even if they spanned deltas.
+        _assistantBubble.Text = AgentTextCleaner.SanitizeStreaming(_assistantBubble.Text + delta);
     }
 
     internal void StepStarting(AgentStep step)
@@ -278,6 +280,7 @@ public sealed class AiViewModel : ViewModelBase
             return;
         }
 
+        _assistantBubble.Text = AgentTextCleaner.StripSpecialTokens(_assistantBubble.Text);
         _assistantBubble.IsComplete = true;
         _assistantBubble = null;
     }
