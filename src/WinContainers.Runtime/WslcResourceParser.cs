@@ -7,55 +7,74 @@ public static class WslcResourceParser
 {
     public static IReadOnlyList<ResourceEntryData> ParseVolumes(string? output)
     {
-        var jsonEntries = ParseJsonLines(output, element =>
+        if (OutputLooksLikeJson(output))
         {
-            var name = GetString(element, "Name");
-            return string.IsNullOrWhiteSpace(name) ? null : new ResourceEntryData
+            return ParseJsonLines(output, element =>
             {
-                Name = name,
-                Details = string.Join(" · ", new[]
+                var name = GetString(element, "Name");
+                return string.IsNullOrWhiteSpace(name) ? null : new ResourceEntryData
                 {
-                    GetString(element, "Driver"),
-                    GetString(element, "Scope"),
-                    GetString(element, "Mountpoint")
-                }.Where(value => !string.IsNullOrWhiteSpace(value)))
-            };
-        });
+                    Name = name,
+                    Details = string.Join(" · ", new[]
+                    {
+                        GetString(element, "Driver"),
+                        GetString(element, "Scope"),
+                        GetString(element, "Mountpoint")
+                    }.Where(value => !string.IsNullOrWhiteSpace(value)))
+                };
+            });
+        }
 
-        return jsonEntries.Count > 0
-            ? jsonEntries
-            : ParseLines(output, tokens => new ResourceEntryData
-            {
-                Name = tokens[^1],
-                Details = string.Join(" ", tokens[..^1])
-            }, line => line.Contains("DRIVER", StringComparison.OrdinalIgnoreCase));
+        return ParseLines(output, tokens => new ResourceEntryData
+        {
+            Name = tokens[^1],
+            Details = string.Join(" ", tokens[..^1])
+        }, line => line.Contains("DRIVER", StringComparison.OrdinalIgnoreCase));
     }
 
     public static IReadOnlyList<ResourceEntryData> ParseNetworks(string? output)
     {
-        var jsonEntries = ParseJsonLines(output, element =>
+        if (OutputLooksLikeJson(output))
         {
-            var name = GetString(element, "Name");
-            return string.IsNullOrWhiteSpace(name) ? null : new ResourceEntryData
+            return ParseJsonLines(output, element =>
             {
-                Name = name,
-                CanDelete = !IsBuiltInNetwork(name),
-                Details = string.Join(" · ", new[]
+                var name = GetString(element, "Name");
+                return string.IsNullOrWhiteSpace(name) ? null : new ResourceEntryData
                 {
-                    GetString(element, "ID"),
-                    GetString(element, "Driver"),
-                    GetString(element, "Scope")
-                }.Where(value => !string.IsNullOrWhiteSpace(value)))
-            };
-        });
+                    Name = name,
+                    CanDelete = !IsBuiltInNetwork(name),
+                    Details = string.Join(" · ", new[]
+                    {
+                        GetString(element, "ID"),
+                        GetString(element, "Driver"),
+                        GetString(element, "Scope")
+                    }.Where(value => !string.IsNullOrWhiteSpace(value)))
+                };
+            });
+        }
 
-        return jsonEntries.Count > 0
-            ? jsonEntries
-            : ParseLines(output, tokens => new ResourceEntryData
-            {
-                Name = tokens.Length >= 4 ? tokens[1] : tokens[^1],
-                Details = string.Join(" ", tokens)
-            }, line => line.Contains("NETWORK ID", StringComparison.OrdinalIgnoreCase));
+        return ParseLines(output, tokens => new ResourceEntryData
+        {
+            Name = tokens.Length >= 4 ? tokens[1] : tokens[^1],
+            Details = string.Join(" ", tokens)
+        }, line => line.Contains("NETWORK ID", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool OutputLooksLikeJson(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+            return false;
+
+        if (TryParseJson(output, out _))
+            return true;
+
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (TryParseJson(line, out _))
+                return true;
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<ResourceEntryData> ParseJsonLines(
@@ -65,34 +84,63 @@ public static class WslcResourceParser
         if (string.IsNullOrWhiteSpace(output))
             return [];
 
-        var entries = new List<ResourceEntryData>();
+        // Parse the whole output as a single JSON document first. wslc emits a
+        // pretty-printed, multi-line JSON array (or object) with --format json.
+        // A line-by-line parse would split each object across lines and lose it.
+        // When the output is valid JSON we trust it and never fall through to
+        // the text tokenizer, so raw brackets/commas are never shown to the user.
+        if (TryParseJson(output, out var whole))
+        {
+            using (whole)
+            {
+                return MapRoot(whole.RootElement, map);
+            }
+        }
+
+        // JSON Lines fallback: one value per line.
+        var lineEntries = new List<ResourceEntryData>();
         foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            try
+            if (TryParseJson(line, out var lineDoc))
             {
-                using var document = JsonDocument.Parse(line);
-                var root = document.RootElement;
-                if (root.ValueKind == JsonValueKind.Object)
+                using (lineDoc)
                 {
-                    if (map(root) is { } entry)
-                        entries.Add(entry);
-                }
-                else if (root.ValueKind == JsonValueKind.Array)
-                {
-                    // Some runtimes emit the whole list as a single JSON array
-                    // on one line. Expand it so brackets and commas from the
-                    // raw array are never shown to the user.
-                    foreach (var item in root.EnumerateArray())
-                    {
-                        if (item.ValueKind == JsonValueKind.Object && map(item) is { } entry)
-                            entries.Add(entry);
-                    }
+                    lineEntries.AddRange(MapRoot(lineDoc.RootElement, map));
                 }
             }
-            catch (JsonException)
+        }
+
+        return lineEntries;
+    }
+
+    private static bool TryParseJson(string text, out JsonDocument document)
+    {
+        try
+        {
+            document = JsonDocument.Parse(text);
+            return true;
+        }
+        catch (JsonException)
+        {
+            document = null!;
+            return false;
+        }
+    }
+
+    private static List<ResourceEntryData> MapRoot(JsonElement root, Func<JsonElement, ResourceEntryData?> map)
+    {
+        var entries = new List<ResourceEntryData>();
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in root.EnumerateArray())
             {
-                // This is table output; the fallback parser handles it below.
+                if (item.ValueKind == JsonValueKind.Object && map(item) is { } entry)
+                    entries.Add(entry);
             }
+        }
+        else if (root.ValueKind == JsonValueKind.Object && map(root) is { } entry)
+        {
+            entries.Add(entry);
         }
 
         return entries;

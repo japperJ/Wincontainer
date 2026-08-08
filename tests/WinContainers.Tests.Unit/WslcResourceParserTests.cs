@@ -87,4 +87,33 @@ public class WslcResourceParserTests
         volumes.Should().HaveCount(1);
         volumes[0].Name.Should().Be("n8n_data");
     }
+
+    [Fact]
+    public void ParseVolumes_ShouldHandlePrettyPrintedJsonArray_AcrossMultipleLines()
+    {
+        var output = @"[
+  {
+    ""Driver"": ""guest"",
+    ""Name"": ""297bbcf8cacaed278554e5ad7760f2f947274c8f2b450ba420cfd5ade9ccf12e""
+  },
+  {
+    ""Driver"": ""guest"",
+    ""Name"": ""heimdall_config""
+  }
+]";
+
+        var volumes = WslcResourceParser.ParseVolumes(output);
+
+        volumes.Should().HaveCount(2);
+        volumes[0].Name.Should().Be("297bbcf8cacaed278554e5ad7760f2f947274c8f2b450ba420cfd5ade9ccf12e");
+        volumes[1].Name.Should().Be("heimdall_config");
+    }
+
+    [Fact]
+    public void ParseNetworks_ShouldReturnEmpty_WhenJsonArrayIsEmpty()
+    {
+        var networks = WslcResourceParser.ParseNetworks("[]");
+
+        networks.Should().BeEmpty();
+    }
 }
