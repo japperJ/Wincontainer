@@ -14,7 +14,8 @@
             <Border MaxWidth="560" HorizontalAlignment="Right" Margin="0,2,0,8"
                     Background="{ThemeResource AccentFillColorDefaultBrush}"
                     CornerRadius="12" Padding="12,8">
-                <TextBlock Text="{x:Bind Text, Mode=OneWay}" TextWrapping="Wrap" Foreground="White" />
+                <TextBlock Text="{x:Bind Text, Mode=OneWay}" TextWrapping="Wrap" Foreground="White"
+                           IsTextSelectionEnabled="True" />
             </Border>
         </DataTemplate>
 
@@ -24,7 +25,8 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                     CornerRadius="12" Padding="12,8">
                 <TextBlock x:Name="AssistantText" Text="{x:Bind Text, Mode=OneWay}"
-                           TextWrapping="Wrap" Loaded="AssistantText_Loaded" />
+                           TextWrapping="Wrap" Loaded="AssistantText_Loaded"
+                           IsTextSelectionEnabled="True" />
             </Border>
         </DataTemplate>
 
@@ -37,11 +39,11 @@
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="{x:Bind Glyph, Mode=OneWay}" FontSize="14"
                                   Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock Text="{x:Bind Preview}" TextWrapping="Wrap" />
+                        <TextBlock Text="{x:Bind Preview}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                     </StackPanel>
                     <ScrollViewer MaxHeight="220" Visibility="{x:Bind OutputVisibility, Mode=OneWay}">
                         <TextBlock Text="{x:Bind Output, Mode=OneWay}" FontFamily="Consolas" FontSize="12"
-                                   TextWrapping="Wrap"
+                                   TextWrapping="Wrap" IsTextSelectionEnabled="True"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </ScrollViewer>
                 </StackPanel>
@@ -50,7 +52,8 @@
 
         <DataTemplate x:Key="SystemMessageTemplate" x:DataType="models:SystemChatMessage">
             <TextBlock Text="{x:Bind Text}" HorizontalAlignment="Center" Margin="0,4"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
+                       IsTextSelectionEnabled="True" />
         </DataTemplate>
 
         <DataTemplate x:Key="ThinkingTemplate" x:DataType="models:ThinkingChatMessage">
