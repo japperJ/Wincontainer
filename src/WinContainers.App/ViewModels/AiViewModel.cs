@@ -328,25 +328,38 @@ public sealed class AiViewModel : ViewModelBase
 
     private void FinishTurn(AgentTurnResult result)
     {
-        if (_assistantBubble is not null)
+        var rawText = result.Text ?? _assistantBubble?.Text ?? string.Empty;
+        var cleaned = AgentTextCleaner.StripSpecialTokens(rawText);
+
+        if (!string.IsNullOrEmpty(cleaned))
         {
-            if (!string.IsNullOrEmpty(result.Text))
+            if (_assistantBubble is not null)
             {
-                _assistantBubble.Text = result.Text;
+                _assistantBubble.Text = cleaned;
+                _assistantBubble.IsComplete = true;
+                _assistantBubble = null;
+            }
+            else
+            {
+                Messages.Add(new AssistantChatMessage { Text = cleaned, IsComplete = true });
             }
 
-            _assistantBubble.IsComplete = true;
-            _assistantBubble = null;
+            OnPropertyChanged(nameof(CanClear));
         }
-        else if (!string.IsNullOrEmpty(result.Text))
+        else if (_assistantBubble is not null)
         {
-            Messages.Add(new AssistantChatMessage { Text = result.Text, IsComplete = true });
+            Messages.Remove(_assistantBubble);
+            _assistantBubble = null;
             OnPropertyChanged(nameof(CanClear));
         }
 
         if (result.Cancelled)
         {
             AddSystemMessage("Turn cancelled.");
+        }
+        else if (string.IsNullOrEmpty(cleaned) && !string.IsNullOrEmpty(rawText))
+        {
+            AddSystemMessage("The model reply contained only unsupported special tokens. Check the model or provider configuration.");
         }
     }
 

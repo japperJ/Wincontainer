@@ -234,6 +234,7 @@ public sealed class ContainerAgent
             - After an action, briefly tell the user what you did and why.
             - If a tool returns an error, explain it in plain words and suggest a fix.
             - When the user wants a multi-service setup, write a docker-compose file with the save_compose_file tool and tell them the file path.
+            - Call tools only through standard function calling. Never output DSML or other special markup tokens such as <｜DSML｜...｜>; the app removes them.
             - Be concise. Do not use markdown headings. Use short paragraphs or bullet lists.
             """;
     }

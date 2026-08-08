@@ -137,9 +137,18 @@ public sealed partial class AiPage : Page
         // first and then populate Inlines for the formatted markdown.
         textBlock.Text = string.Empty;
         textBlock.Inlines.Clear();
-        foreach (var inline in _markdown.Format(message.Text))
+        try
         {
-            textBlock.Inlines.Add(inline);
+            foreach (var inline in _markdown.Format(message.Text))
+            {
+                textBlock.Inlines.Add(inline);
+            }
+        }
+        catch
+        {
+            // Never let a formatting failure hide the reply. Show plain text.
+            textBlock.Inlines.Clear();
+            textBlock.Text = message.Text;
         }
 
         message.MarkdownRendered = true;
