@@ -20,6 +20,10 @@ public sealed class ContainerAgent
     private const string ContinuationPrompt =
         "Your previous reply was cut off before you finished. Continue now: " +
         "make the tool call you intended, or give your final answer.";
+    private const string NarrationContinuationPrompt =
+        "Your previous reply described an action but made no tool call. " +
+        "Do not describe what you are about to do. Make the tool call you intended now, " +
+        "or give your final answer if you already have the information you need.";
 
     /// <summary>Default seconds to wait between retries after a transient error.</summary>
     public const int RetryDelaySecondsDefault = 10;
@@ -144,15 +148,17 @@ public sealed class ContainerAgent
 
                 if (cleaned.Length > 0)
                 {
-                    // The reply was cut off mid-thought: the stream was
-                    // truncated or the model left an unclosed/unparseable
-                    // tool-call marker. Keep the partial reply as context and
-                    // nudge the model to continue, so the intended tool call
-                    // or final answer completes instead of stopping the turn.
+                    // The reply was cut off mid-thought or only narrated an
+                    // action without taking it: the stream was truncated, the
+                    // model left an unclosed/unparseable tool-call marker, or
+                    // it announced "Let me test ..." and then stopped. Keep the
+                    // partial reply as context and nudge the model to continue,
+                    // so the intended tool call or final answer completes
+                    // instead of stopping the turn.
                     var partial = new ChatMessage(ChatRole.Assistant, new List<AIContent> { new TextContent(cleaned) });
                     messages.Add(partial);
                     history.Add(partial);
-                    messages.Add(new ChatMessage(ChatRole.User, ContinuationPrompt));
+                    messages.Add(new ChatMessage(ChatRole.User, reply.NarrationOnly ? NarrationContinuationPrompt : ContinuationPrompt));
                     continue;
                 }
 
@@ -160,7 +166,7 @@ public sealed class ContainerAgent
                 // (for example DSML that could not be parsed into a tool call).
                 // Give the model one final chance without tools so it can
                 // answer in plain text instead of stopping the turn.
-                var (noToolText, _, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
+                var (noToolText, _, _, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
                 var finalCleaned = AgentTextCleaner.StripSpecialTokens(noToolText);
                 return new AgentTurnResult
                 {
@@ -193,7 +199,7 @@ public sealed class ContainerAgent
         // The iteration cap was reached. Give the model one final chance to
         // answer from the tool results it already has, without allowing any
         // more tool calls. If it still produces no text, fall back to a hint.
-        var (finalText, _, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
+        var (finalText, _, _, _) = await GetAssistantTurnAsync(messages, new ChatOptions(), ct);
         return new AgentTurnResult
         {
             Text = string.IsNullOrWhiteSpace(finalText) ? MaxStepsMessage : finalText,
@@ -242,19 +248,24 @@ public sealed class ContainerAgent
             calls.AddRange(dsmlCalls);
         }
 
-        // A reply is "interrupted" when the model was clearly cut off or
-        // started a tool call it could not finish: the stream reported a
-        // truncation finish reason, a tool-call marker is left unclosed, or
-        // every DSML block failed to parse. Such a reply is not a final
-        // answer; the agent must nudge the model to continue.
-        var interrupted = finishReason is { } r
-                && (r == ChatFinishReason.Length || r == ChatFinishReason.ContentFilter)
-            || (calls.Count == 0 && (droppedBlocks > 0 || AgentTextCleaner.HasUnclosedToolCallMarker(raw)));
+        // A reply is "interrupted" when the model was clearly cut off, left a
+        // tool call it could not finish, or only narrated an action it never
+        // took: the stream reported a truncation finish reason, a tool-call
+        // marker is left unclosed, every DSML block failed to parse, or the
+        // reply ends with narration such as "Let me test ...". Such a reply is
+        // not a final answer; the agent must nudge the model to continue.
+        var truncated = finishReason is { } r
+            && (r == ChatFinishReason.Length || r == ChatFinishReason.ContentFilter);
+        var dsmlInterrupted = calls.Count == 0
+            && (droppedBlocks > 0 || AgentTextCleaner.HasUnclosedToolCallMarker(raw));
+        var narrationOnly = calls.Count == 0 && AgentTextCleaner.IsNarrationOnlyIncomplete(cleanedText);
 
-        return new AssistantReply(cleanedText, calls, interrupted);
+        var interrupted = truncated || dsmlInterrupted || narrationOnly;
+
+        return new AssistantReply(cleanedText, calls, interrupted, narrationOnly);
     }
 
-    private sealed record AssistantReply(string Text, List<FunctionCallContent> Calls, bool Interrupted);
+    private sealed record AssistantReply(string Text, List<FunctionCallContent> Calls, bool Interrupted, bool NarrationOnly);
 
     private AgentStep BuildStep(FunctionCallContent call)
     {
@@ -336,6 +347,9 @@ public sealed class ContainerAgent
 
             Rules:
             - Use a tool when an action or a lookup is needed. Do not guess container state.
+            - Never end a reply with a plan, a promise, or a colon. When you say you will do something, do it in the same reply by making the tool call.
+            - A reply that only announces an action (for example "Let me test ...", "I'll check ...") is a failure. End every reply either with the tool call you announced or with the final answer.
+            - Finish each reply with a complete sentence and a final answer. Do not leave a sentence unfinished.
             - After an action, briefly tell the user what you did and why.
             - If a tool returns an error, explain it in plain words and suggest a fix.
             - When the user wants a multi-service setup, write a docker-compose file with the save_compose_file tool and tell them the file path.

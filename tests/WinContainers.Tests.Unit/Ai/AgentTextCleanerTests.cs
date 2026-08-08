@@ -83,4 +83,19 @@ public class AgentTextCleanerTests
         AgentTextCleaner.HasUnclosedToolCallMarker("Plain text.").Should().BeFalse();
         AgentTextCleaner.HasUnclosedToolCallMarker("").Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData("Let me test all the candidate addresses from inside the container to find which one actually works:", true)]
+    [InlineData("Still empty. Let me check the latest execution error:", true)]
+    [InlineData("I'll check the logs first.", true)]
+    [InlineData("Let me explain what happened.", true)]
+    [InlineData("No containers need changes.", false)]
+    [InlineData("The working address is 10.0.0.5.", false)]
+    [InlineData("You can find the address by running curl inside the container.", false)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    public void IsNarrationOnlyIncomplete_ShouldDetectAnnouncementWithoutAction(string input, bool expected)
+    {
+        AgentTextCleaner.IsNarrationOnlyIncomplete(input).Should().Be(expected);
+    }
 }

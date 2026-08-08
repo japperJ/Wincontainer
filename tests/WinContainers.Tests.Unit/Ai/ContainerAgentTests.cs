@@ -110,6 +110,53 @@ public class ContainerAgentTests
     }
 
     [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenReplyNarratesActionWithoutToolCall()
+    {
+        var (agent, client, driver, observer) = Create();
+
+        // The model announces a test but does not emit the tool call.
+        client.EnqueueText("Let me test all the candidate addresses from inside the container to find which one actually works:");
+        // Nudged to take the action, it runs the exec command, then answers.
+        client.EnqueueToolCall("call-1", "exec_command", new Dictionary<string, object?> { ["id"] = "web", ["command"] = "echo test" });
+        client.EnqueueText("The working address is 10.0.0.5.");
+
+        var history = new List<ChatMessage>();
+        var result = await agent.RunTurnAsync(history, "Find the working address.", CancellationToken.None);
+
+        result.Text.Should().Be("The working address is 10.0.0.5.");
+        observer.StartedSteps.Should().ContainSingle(s => s.Name == "exec_command");
+        driver.ExecCommands.Should().ContainSingle(c => c.Id == "web" && c.Command == "echo test");
+        // The narration is kept as context for the continuation.
+        history.Should().Contain(m => m.Role == ChatRole.Assistant && m.Text!.Contains("Let me test"));
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldContinue_WhenReplyOnlyNarratesShortPromise()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.EnqueueText("I'll check the logs first.");
+        client.EnqueueText("The logs show a restart loop.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "Check the logs.", CancellationToken.None);
+
+        result.Text.Should().Be("The logs show a restart loop.");
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldReturnCompleteAnswer_WithoutNudging()
+    {
+        var (agent, client, _, _) = Create();
+
+        client.EnqueueText("You can find the address by running curl inside the container.");
+
+        var result = await agent.RunTurnAsync(new List<ChatMessage>(), "How do I find the address?", CancellationToken.None);
+
+        result.Text.Should().Be("You can find the address by running curl inside the container.");
+        client.CallCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task RunTurnAsync_ShouldAnswerInPlainText_WhenReplyIsOnlyUnsupportedMarkers()
     {
         var (agent, client, _, observer) = Create();

@@ -26,6 +26,10 @@ public static class AgentTextCleaner
         "<｜DSML｜.*?(?:｜>|$)",
         RegexOptions.Singleline | RegexOptions.Compiled);
 
+    private static readonly Regex ActionAnnouncementRegex = new(
+        @"\b(?:let me|let'?s|let us|i will|i'?ll|i am going to|i'm going to|now (?:i|let)|i need to|i should|i want to|let me try|i'll try)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     /// <summary>Removes DSML-style special tokens from assistant text.</summary>
     public static string StripSpecialTokens(string? text)
     {
@@ -115,6 +119,39 @@ public static class AgentTextCleaner
         }
 
         return text.IndexOf("<｜DSML｜tool_call_end｜>", start + 1, StringComparison.Ordinal) < 0;
+    }
+
+    /// <summary>
+    /// Returns true when a reply that contains no tool call is narration that
+    /// expresses intent to act but does not complete the action. Models often
+    /// announce "Let me test ...", "I'll check ..." and then stop without
+    /// emitting the tool call, leaving the user waiting. Such a reply is not a
+    /// final answer; the agent must nudge the model to actually take the action.
+    /// </summary>
+    public static bool IsNarrationOnlyIncomplete(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var trimmed = text.Trim();
+
+        // Ends with a colon or ellipsis: the model clearly intended to continue.
+        if (trimmed.EndsWith(":", StringComparison.Ordinal)
+            || trimmed.EndsWith('…')
+            || trimmed.EndsWith("...", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // A short reply that only announces an action but performs none.
+        if (trimmed.Length <= 200 && ActionAnnouncementRegex.IsMatch(trimmed))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static FunctionCallContent? TryParseToolCall(string json)
