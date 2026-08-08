@@ -503,30 +503,22 @@ public sealed class AiViewModel : ViewModelBase
         {
             if (_dispatcher.HasThreadAccess)
             {
-                return _vm.ShowRetryWaitAsync(seconds, attempt, maxAttempts, ct);
+                _ = RunRetryWaitAsync(seconds, attempt, maxAttempts, ct);
+                return Task.CompletedTask;
             }
 
-            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
-
-            if (!_dispatcher.TryEnqueue(() => _ = RunRetryWaitAsync(seconds, attempt, maxAttempts, ct, tcs)))
-            {
-                tcs.TrySetCanceled();
-            }
-
-            return tcs.Task;
+            _dispatcher.TryEnqueue(() => _ = RunRetryWaitAsync(seconds, attempt, maxAttempts, ct));
+            return Task.CompletedTask;
         }
 
-        private async Task RunRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct, TaskCompletionSource tcs)
+        private async Task RunRetryWaitAsync(int seconds, int attempt, int maxAttempts, CancellationToken ct)
         {
             try
             {
                 await _vm.ShowRetryWaitAsync(seconds, attempt, maxAttempts, ct);
-                tcs.TrySetResult();
             }
-            catch (Exception ex)
+            catch
             {
-                tcs.TrySetException(ex);
             }
         }
 
