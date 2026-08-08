@@ -71,8 +71,23 @@ public static class WslcResourceParser
             try
             {
                 using var document = JsonDocument.Parse(line);
-                if (document.RootElement.ValueKind == JsonValueKind.Object && map(document.RootElement) is { } entry)
-                    entries.Add(entry);
+                var root = document.RootElement;
+                if (root.ValueKind == JsonValueKind.Object)
+                {
+                    if (map(root) is { } entry)
+                        entries.Add(entry);
+                }
+                else if (root.ValueKind == JsonValueKind.Array)
+                {
+                    // Some runtimes emit the whole list as a single JSON array
+                    // on one line. Expand it so brackets and commas from the
+                    // raw array are never shown to the user.
+                    foreach (var item in root.EnumerateArray())
+                    {
+                        if (item.ValueKind == JsonValueKind.Object && map(item) is { } entry)
+                            entries.Add(entry);
+                    }
+                }
             }
             catch (JsonException)
             {
