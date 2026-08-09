@@ -147,6 +147,9 @@ public class FakeDriver : IWslcDriver
         return Task.FromResult($"pulled {image}");
     }
 
+    public Task<string> LoadImageAsync(string? tarPath, string? tarData, CancellationToken ct) =>
+        Task.FromResult(string.Empty);
+
     public Task<string> RemoveImageAsync(string id, CancellationToken ct)
     {
         RemovedImages.Add(id);
