@@ -253,6 +253,25 @@ public sealed class ImageUploadStore
         }
     }
 
+    internal bool TrySetBytesWrittenForTesting(string uploadId, long bytesWritten)
+    {
+        if (bytesWritten < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bytesWritten));
+        }
+
+        lock (_gate)
+        {
+            if (!_uploads.TryGetValue(uploadId, out var state))
+            {
+                return false;
+            }
+
+            state.BytesWritten = bytesWritten;
+            return true;
+        }
+    }
+
     private bool TryGetActiveUpload(string uploadId, out ActiveUploadHandle? activeUpload, out string message)
     {
         activeUpload = null;

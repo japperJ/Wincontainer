@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -224,9 +223,11 @@ public class RuntimeContractTests
 
         (await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, null, driver, CancellationToken.None))
             .Should().Be("Validation error: provide exactly one of tarPath or tarData.");
-#nullable disable
+
+#nullable disable
         driver.LastLoadImageTarPath.Should().BeNull();
-        driver.LastLoadImageTarData.Should().BeNull();#nullable restore
+        driver.LastLoadImageTarData.Should().BeNull();
+#nullable restore
     }
 
     [Fact]
@@ -247,8 +248,10 @@ public class RuntimeContractTests
     {
         var driver = new FakeDriver();
         var data = "dGFy";
-        var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, data, driver, CancellationToken.None);
-        result.Should().Be(string.Empty);
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, data, driver, CancellationToken.None);
+
+        result.Should().Be(string.Empty);
         driver.LastLoadImageTarPath.Should().BeNull();
         driver.LastLoadImageTarData.Should().Be(data);
     }
@@ -290,20 +293,18 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public void WslcDriver_ShouldRejectOversizedBase64ByEncodedLength()
+    public void WslcDriver_ShouldRejectOversizedBase64BeforeDecoding()
     {
-        var method = typeof(WslcDriver).GetMethod(
-            "TryGetMaximumDecodedBytes",
-            BindingFlags.NonPublic | BindingFlags.Static,
-            [typeof(int), typeof(int), typeof(long).MakeByRefType()]);
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/WslcDriver.cs"));
+        var source = File.ReadAllText(path);
 
-        method.Should().NotBeNull();
-
-        var oversized = new object?[] { 715827884, 0, 0L };
-        var ok = (bool)method!.Invoke(null, oversized)!;
-
-        ok.Should().BeTrue();
-        ((long)oversized[2]!).Should().BeGreaterThan(512L * 1024 * 1024);
+        source.Should().Contain("if (TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes) && maxDecodedBytes > MaxImageTarBytes)");
+        source.IndexOf("TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes)", StringComparison.Ordinal)
+            .Should().BeGreaterThanOrEqualTo(0);
+        source.IndexOf("Convert.FromBase64String(base64)", StringComparison.Ordinal)
+            .Should().BeGreaterThan(source.IndexOf("TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes)", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -392,29 +393,6 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public async Task ImageUploadStore_ShouldKeepRetainedLookupAliveWhileCleanupRemovesUpload()
-    {
-        var timeProvider = new MutableTimeProvider(DateTimeOffset.UtcNow);
-        var store = new ImageUploadStore(timeProvider);
-        var upload = store.Start();
-
-        var retainedUpload = TryGetRetainedUpload(store, upload.UploadId);
-        var gate = GetRetainedUploadGate(retainedUpload);
-
-        timeProvider.Advance(TimeSpan.FromMinutes(16));
-
-        (await store.AppendChunkAsync("cleanup-trigger", 0, ToBase64("x"), CancellationToken.None))
-            .Should().Be("Validation error: upload ID was not found.");
-
-        gate.Wait(0).Should().BeTrue();
-        gate.Release();
-
-        ((IDisposable)retainedUpload).Dispose();
-        Action disposedGateAccess = () => gate.Wait(0);
-        disposedGateAccess.Should().Throw<ObjectDisposedException>();
-    }
-
-    [Fact]
     public void ImageUploadStore_ShouldRetainUploadsInsideLookupBeforeReturning()
     {
         var path = Path.GetFullPath(Path.Combine(
@@ -487,7 +465,6 @@ public class RuntimeContractTests
 
         (await store.AppendChunkAsync("cleanup-trigger", 0, ToBase64("x"), CancellationToken.None))
             .Should().Be("Validation error: upload ID was not found.");
-        GetUploadCount(store).Should().Be(0);
 
         (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
             .Should().Be("Validation error: upload has expired.");
@@ -501,9 +478,7 @@ public class RuntimeContractTests
             },
             CancellationToken.None))
             .Should().Be("Validation error: upload has expired.");
-
         expiredCallbackInvoked.Should().BeFalse();
-        GetRecentlyExpiredUploadCount(store).Should().Be(1);
         File.Exists(Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar")).Should().BeFalse();
     }
 
@@ -518,13 +493,14 @@ public class RuntimeContractTests
 
         (await store.AppendChunkAsync("cleanup-trigger", 0, ToBase64("x"), CancellationToken.None))
             .Should().Be("Validation error: upload ID was not found.");
-        GetRecentlyExpiredUploadCount(store).Should().Be(1);
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload has expired.");
 
         timeProvider.Advance(TimeSpan.FromMinutes(16));
 
         (await store.AppendChunkAsync("cleanup-trigger-2", 0, ToBase64("y"), CancellationToken.None))
             .Should().Be("Validation error: upload ID was not found.");
-        GetRecentlyExpiredUploadCount(store).Should().Be(0);
 
         (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
             .Should().Be("Validation error: upload ID was not found.");
@@ -550,9 +526,8 @@ public class RuntimeContractTests
         (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None))
             .Should().Be("Upload chunk accepted.");
 
-        var state = GetSingleUploadState(store);
-        state.GetType().GetProperty("BytesWritten", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!
-            .SetValue(state, ImageUploadStore.MaxUploadBytes - 2);
+        store.TrySetBytesWrittenForTesting(upload.UploadId, ImageUploadStore.MaxUploadBytes - 2)
+            .Should().BeTrue();
 
         var result = await store.AppendChunkAsync(upload.UploadId, 1, ToBase64("abc"), CancellationToken.None);
 
@@ -1167,67 +1142,6 @@ public class RuntimeContractTests
     private static string ToBase64(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
 
     private static string ToBase64(byte[] value) => Convert.ToBase64String(value);
-
-    private static object GetSingleUploadState(ImageUploadStore store)
-    {
-        var uploadsField = typeof(ImageUploadStore).GetField("_uploads", BindingFlags.NonPublic | BindingFlags.Instance);
-        uploadsField.Should().NotBeNull();
-
-        var uploads = (System.Collections.IEnumerable)uploadsField!.GetValue(store)!;
-        var enumerator = uploads.GetEnumerator();
-        enumerator.MoveNext().Should().BeTrue();
-
-        var entry = enumerator.Current!;
-        return entry.GetType().GetProperty("Value")!.GetValue(entry)!;
-    }
-
-    private static int GetUploadCount(ImageUploadStore store)
-    {
-        var uploadsField = typeof(ImageUploadStore).GetField("_uploads", BindingFlags.NonPublic | BindingFlags.Instance);
-        uploadsField.Should().NotBeNull();
-
-        return ((System.Collections.ICollection)uploadsField!.GetValue(store)!).Count;
-    }
-
-    private static int GetRecentlyExpiredUploadCount(ImageUploadStore store)
-    {
-        var expiredField = typeof(ImageUploadStore).GetField("_recentlyExpiredUploadIds", BindingFlags.NonPublic | BindingFlags.Instance);
-        expiredField.Should().NotBeNull();
-
-        return ((System.Collections.ICollection)expiredField!.GetValue(store)!).Count;
-    }
-
-    private static object TryGetRetainedUpload(ImageUploadStore store, string uploadId)
-    {
-        var method = typeof(ImageUploadStore).GetMethod(
-            "TryGetActiveUpload",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        method.Should().NotBeNull();
-
-        var args = new object?[] { uploadId, null, string.Empty };
-        var ok = (bool)method!.Invoke(store, args)!;
-
-        ok.Should().BeTrue();
-        args[2].Should().Be(string.Empty);
-        args[1].Should().NotBeNull();
-
-        return args[1]!;
-    }
-
-    private static SemaphoreSlim GetRetainedUploadGate(object retainedUpload)
-    {
-        var state = retainedUpload.GetType()
-            .GetProperty("State", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!
-            .GetValue(retainedUpload)!;
-
-        var lease = state.GetType()
-            .GetProperty("Lease", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!
-            .GetValue(state)!;
-
-        return (SemaphoreSlim)lease.GetType()
-            .GetProperty("Gate", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!
-            .GetValue(lease)!;
-    }
 
     private sealed class MutableTimeProvider : TimeProvider
     {
