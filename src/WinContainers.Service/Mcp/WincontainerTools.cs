@@ -128,8 +128,11 @@ public class WincontainerTools
         => await driver.InspectImageAsync(id, ct);
 
     [McpServerTool, Description("Start a chunked image tar upload. Returns an upload ID.")]
-    public static string StartImageUpload(ImageUploadStore store) =>
-        JsonSerializer.Serialize(store.Start());
+    public static string StartImageUpload(ImageUploadStore store)
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        return JsonSerializer.Serialize(store.Start(), options);
+    }
 
     [McpServerTool, Description("Append the next base64 chunk to an image tar upload. Chunks must be ordered and no larger than 3 KB decoded.")]
     public static Task<string> UploadImageChunk(
