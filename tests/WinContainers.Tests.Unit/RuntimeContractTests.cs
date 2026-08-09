@@ -147,6 +147,22 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcDriver_ShouldKillAndDrainOnCallerCancellation()
+    {
+        // RunAsync creates Process directly, so this contract test asserts the
+        // cancellation branch in source instead of spinning up wslc.exe.
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/WslcDriver.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("catch (OperationCanceledException) when (ct.IsCancellationRequested && !timeoutCts.IsCancellationRequested)");
+        source.Should().Contain("TryKill(process);");
+        source.Should().Contain("await DrainOutputAsync(stdoutTask, stderrTask);");
+        source.Should().Contain("throw;");
+    }
+
+    [Fact]
     public void OnboardingViewModel_ShouldCleanupElevatedTempFilesOnEveryExitPath()
     {
         var path = Path.GetFullPath(Path.Combine(

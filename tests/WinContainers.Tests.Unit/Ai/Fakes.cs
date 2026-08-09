@@ -102,6 +102,8 @@ public class FakeDriver : IWslcDriver
     public List<string> PulledImages { get; } = [];
     public List<(string Image, string? Name, string? Ports, string? Volumes, string? Env)> RanContainers { get; } = [];
     public List<(string Id, string Command)> ExecCommands { get; } = [];
+    public string? LastLoadImageTarPath { get; private set; }
+    public string? LastLoadImageTarData { get; private set; }
 
     public string ContainersJson { get; set; } = "[]";
     public string ImagesJson { get; set; } = "[]";
@@ -147,8 +149,12 @@ public class FakeDriver : IWslcDriver
         return Task.FromResult($"pulled {image}");
     }
 
-    public Task<string> LoadImageAsync(string? tarPath, string? tarData, CancellationToken ct) =>
-        Task.FromResult(string.Empty);
+    public Task<string> LoadImageAsync(string? tarPath, string? tarData, CancellationToken ct)
+    {
+        LastLoadImageTarPath = tarPath;
+        LastLoadImageTarData = tarData;
+        return Task.FromResult(string.Empty);
+    }
 
     public Task<string> RemoveImageAsync(string id, CancellationToken ct)
     {

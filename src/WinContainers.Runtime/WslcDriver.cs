@@ -207,6 +207,12 @@ public sealed class WslcDriver : IWslcDriver
             await DrainOutputAsync(stdoutTask, stderrTask);
             return new RunResult(-1, string.Empty, $"Command timed out after {timeoutMs}ms.");
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested && !timeoutCts.IsCancellationRequested)
+        {
+            TryKill(process);
+            await DrainOutputAsync(stdoutTask, stderrTask);
+            throw;
+        }
     }
 
     private static bool IsValidTarPath(string tarPath) =>
