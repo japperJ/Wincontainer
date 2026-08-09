@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -224,9 +223,11 @@ public class RuntimeContractTests
 
         (await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, null, driver, CancellationToken.None))
             .Should().Be("Validation error: provide exactly one of tarPath or tarData.");
-#nullable disable
+
+#nullable disable
         driver.LastLoadImageTarPath.Should().BeNull();
-        driver.LastLoadImageTarData.Should().BeNull();#nullable restore
+        driver.LastLoadImageTarData.Should().BeNull();
+#nullable restore
     }
 
     [Fact]
@@ -247,8 +248,10 @@ public class RuntimeContractTests
     {
         var driver = new FakeDriver();
         var data = "dGFy";
-        var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, data, driver, CancellationToken.None);
-        result.Should().Be(string.Empty);
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, data, driver, CancellationToken.None);
+
+        result.Should().Be(string.Empty);
         driver.LastLoadImageTarPath.Should().BeNull();
         driver.LastLoadImageTarData.Should().Be(data);
     }
@@ -290,20 +293,18 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public void WslcDriver_ShouldRejectOversizedBase64ByEncodedLength()
+    public void WslcDriver_ShouldRejectOversizedBase64BeforeDecoding()
     {
-        var method = typeof(WslcDriver).GetMethod(
-            "TryGetMaximumDecodedBytes",
-            BindingFlags.NonPublic | BindingFlags.Static,
-            [typeof(int), typeof(int), typeof(long).MakeByRefType()]);
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/WslcDriver.cs"));
+        var source = File.ReadAllText(path);
 
-        method.Should().NotBeNull();
-
-        var oversized = new object?[] { 715827884, 0, 0L };
-        var ok = (bool)method!.Invoke(null, oversized)!;
-
-        ok.Should().BeTrue();
-        ((long)oversized[2]!).Should().BeGreaterThan(512L * 1024 * 1024);
+        source.Should().Contain("if (TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes) && maxDecodedBytes > MaxImageTarBytes)");
+        source.IndexOf("TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes)", StringComparison.Ordinal)
+            .Should().BeGreaterThanOrEqualTo(0);
+        source.IndexOf("Convert.FromBase64String(base64)", StringComparison.Ordinal)
+            .Should().BeGreaterThan(source.IndexOf("TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes)", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -326,6 +327,304 @@ public class RuntimeContractTests
         var created = after.Except(before).ToArray();
 
         created.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldAppendOrderedChunksAndReturnCompletedPath()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+        var observedPath = string.Empty;
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None))
+            .Should().Be("Upload chunk accepted.");
+
+        File.Exists(archivePath).Should().BeTrue();
+
+        var result = await store.CompleteAsync(
+            upload.UploadId,
+            (path, ct) =>
+            {
+                observedPath = path;
+                File.ReadAllText(path).Should().Be("abc");
+                return Task.FromResult(path);
+            },
+            CancellationToken.None);
+
+        result.Should().Be(observedPath);
+        observedPath.Should().Be(archivePath);
+        File.Exists(archivePath).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldLetAppendObserveRemovalWhileCompletionCallbackRuns()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+        await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None);
+
+        var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCallback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var completeTask = store.CompleteAsync(
+            upload.UploadId,
+            async (path, ct) =>
+            {
+                callbackEntered.TrySetResult();
+                await releaseCallback.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+                File.ReadAllText(path).Should().Be("abc");
+                return path;
+            },
+            CancellationToken.None);
+
+        await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var appendTask = store.AppendChunkAsync(upload.UploadId, 1, ToBase64("def"), CancellationToken.None);
+        var appendFinished = await Task.WhenAny(appendTask, Task.Delay(TimeSpan.FromSeconds(5)));
+
+        appendFinished.Should().Be(appendTask);
+        (await appendTask).Should().Be("Validation error: upload ID was not found.");
+
+        releaseCallback.TrySetResult();
+        (await completeTask).Should().Be(archivePath);
+        File.Exists(archivePath).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ImageUploadStore_ShouldRetainUploadsInsideLookupBeforeReturning()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/ImageUploadStore.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("state.Lease.RetainOperation();");
+        source.Should().Contain("activeUpload = new ActiveUploadHandle(state);");
+        source.Should().NotContain("state!.Lease.RetainOperation();");
+    }
+
+    [Fact]
+    public void ImageUploadStore_ShouldBoundChunkDecodingBeforeAllocating()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/ImageUploadStore.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("TryGetMaximumDecodedBytes(base64Chunk, out var maxDecodedBytes)");
+        source.Should().Contain("Convert.TryFromBase64String(base64Chunk, decodedBytes, out var decodedBytesWritten)");
+        source.Should().Contain("new byte[MaxChunkBytes]");
+        source.Should().NotContain("Convert.FromBase64String(base64Chunk)");
+    }
+
+    [Fact]
+    public void ImageUploadStore_ShouldAbortCanceledAppendsAndRethrow()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/ImageUploadStore.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("catch (OperationCanceledException) when (ct.IsCancellationRequested)");
+        source.Should().Contain("_uploads.Remove(uploadId);");
+        source.Should().Contain("state.Lease.MarkRemoved(expired: false);");
+        source.Should().Contain("TryDeleteFile(state.FilePath);");
+        source.Should().Contain("throw;");
+    }
+
+    [Fact]
+    public void ImageUploadStore_ShouldLogTempFileDeletionFailuresWithPath()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/ImageUploadStore.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("Temp file cleanup failed for");
+        source.Should().Contain("{path}");
+        source.Should().Contain("{ex}");
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldReturnExactValidationErrorsForMissingAndExpiredUploads()
+    {
+        var timeProvider = new MutableTimeProvider(DateTimeOffset.UtcNow);
+        var store = new ImageUploadStore(timeProvider);
+        var upload = store.Start();
+        var expiredCallbackInvoked = false;
+
+        (await store.AppendChunkAsync("missing", 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+
+        (await store.CompleteAsync("missing", (_, _) => Task.FromResult(string.Empty), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+
+        timeProvider.Advance(TimeSpan.FromMinutes(16));
+
+        (await store.AppendChunkAsync("cleanup-trigger", 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload has expired.");
+
+        (await store.CompleteAsync(
+            upload.UploadId,
+            (_, _) =>
+            {
+                expiredCallbackInvoked = true;
+                return Task.FromResult(string.Empty);
+            },
+            CancellationToken.None))
+            .Should().Be("Validation error: upload has expired.");
+        expiredCallbackInvoked.Should().BeFalse();
+        File.Exists(Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldPruneRecentlyExpiredIdsAfterLifetime()
+    {
+        var timeProvider = new MutableTimeProvider(DateTimeOffset.UtcNow);
+        var store = new ImageUploadStore(timeProvider);
+        var upload = store.Start();
+
+        timeProvider.Advance(TimeSpan.FromMinutes(16));
+
+        (await store.AppendChunkAsync("cleanup-trigger", 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload has expired.");
+
+        timeProvider.Advance(TimeSpan.FromMinutes(16));
+
+        (await store.AppendChunkAsync("cleanup-trigger-2", 0, ToBase64("y"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldRejectChunksOverThreeKilobytesDecoded()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var oversizedChunk = new byte[ImageUploadStore.MaxChunkBytes + 1];
+        var result = await store.AppendChunkAsync(upload.UploadId, 0, ToBase64(oversizedChunk), CancellationToken.None);
+
+        result.Should().Be("Validation error: chunk exceeds 3 KB after decoding.");
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldRejectTotalsOver512MB()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None))
+            .Should().Be("Upload chunk accepted.");
+
+        store.TrySetBytesWrittenForTesting(upload.UploadId, ImageUploadStore.MaxUploadBytes - 2)
+            .Should().BeTrue();
+
+        var result = await store.AppendChunkAsync(upload.UploadId, 1, ToBase64("abc"), CancellationToken.None);
+
+        result.Should().Be("Validation error: upload exceeds 512 MB after decoding.");
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldCleanupAfterLoadCallbackThrows()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+
+        await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None);
+
+        var invocation = async () => await store.CompleteAsync(
+            upload.UploadId,
+            (_, _) => throw new InvalidOperationException("load failed"),
+            CancellationToken.None);
+
+        await invocation.Should().ThrowAsync<InvalidOperationException>();
+        (await store.AppendChunkAsync(upload.UploadId, 1, ToBase64("def"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+        File.Exists(archivePath).Should().BeFalse();
+    }
+
+    [Fact]
+    public void McpTools_StartImageUpload_ShouldReturnUploadMetadata()
+    {
+        var store = new ImageUploadStore();
+
+        var json = WinContainers.Service.Mcp.WincontainerTools.StartImageUpload(store);
+
+        using var doc = JsonDocument.Parse(json);
+        doc.RootElement.TryGetProperty("uploadId", out var uploadIdProp).Should().BeTrue();
+        var uploadId = uploadIdProp.GetString();
+        uploadId.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task McpTools_UploadImageChunk_ShouldAppendDecodedChunk()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.UploadImageChunk(
+            upload.UploadId,
+            0,
+            ToBase64("abc"),
+            store,
+            CancellationToken.None);
+
+        result.Should().Be("Upload chunk accepted.");
+    }
+
+    [Fact]
+    public async Task McpTools_FinishImageUpload_ShouldDelegatePathToDriver()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None);
+
+        var driver = new FakeDriver();
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.FinishImageUpload(
+            upload.UploadId,
+            store,
+            driver,
+            CancellationToken.None);
+
+        result.Should().BeEmpty();
+        driver.LastLoadImageTarPath.Should().Be(archivePath);
+        driver.LastLoadImageTarData.Should().BeNull();
+        File.Exists(archivePath).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task McpTools_FinishImageUpload_ShouldCleanUpAndRethrowCancellation()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None);
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+        var canceled = new OperationCanceledException(CancellationToken.None);
+        var driver = new CancelingDriver(canceled);
+
+        var exception = await Record.ExceptionAsync(() => WinContainers.Service.Mcp.WincontainerTools.FinishImageUpload(
+            upload.UploadId,
+            store,
+            driver,
+            CancellationToken.None));
+
+        exception.Should().BeSameAs(canceled);
+        File.Exists(archivePath).Should().BeFalse();
+        (await store.AppendChunkAsync(upload.UploadId, 1, ToBase64("def"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
     }
 
     [Fact]
@@ -837,5 +1136,71 @@ public class RuntimeContractTests
         updateClient.Timeout.Should().Be(HttpClientTimeouts.UpdateTimeout);
         serviceClient.Timeout.Should().NotBe(Timeout.InfiniteTimeSpan);
         updateClient.Timeout.Should().NotBe(Timeout.InfiniteTimeSpan);
+    }
+
+    private static string ToBase64(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
+
+    private static string ToBase64(byte[] value) => Convert.ToBase64String(value);
+
+    private sealed class MutableTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow;
+
+        public MutableTimeProvider(DateTimeOffset utcNow) => _utcNow = utcNow;
+
+        public void Advance(TimeSpan delta) => _utcNow = _utcNow.Add(delta);
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+            => new NoopTimer();
+
+        private sealed class NoopTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+            public void Dispose()
+            {
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
+    private sealed class CancelingDriver : IWslcDriver
+    {
+        private readonly OperationCanceledException _cancellation;
+
+        public CancelingDriver(OperationCanceledException cancellation) => _cancellation = cancellation;
+
+        public Task<bool> IsAvailableAsync(CancellationToken ct) => Task.FromResult(true);
+        public Task<string> GetVersionAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetContainersAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> StartContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> StopContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RestartContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RemoveContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetContainerLogsAsync(string id, int tail, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetImagesAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> PullImageAsync(string image, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> LoadImageAsync(string? tarPath, string? tarData, CancellationToken ct) => throw _cancellation;
+        public Task<string> RemoveImageAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> InspectImageAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetVolumesAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> CreateVolumeAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RemoveVolumeAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> InspectVolumeAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetNetworksAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> CreateNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
+        public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default) => Task.FromResult(string.Empty);
+        public Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
     }
 }

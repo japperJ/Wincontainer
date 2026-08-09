@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using ModelContextProtocol.Server;
 using WinContainers.Runtime;
 
@@ -125,6 +126,30 @@ public class WincontainerTools
         IWslcDriver driver,
         CancellationToken ct)
         => await driver.InspectImageAsync(id, ct);
+
+    [McpServerTool, Description("Start a chunked image tar upload. Returns JSON metadata containing the uploadId property.")]
+    public static string StartImageUpload(ImageUploadStore store)
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        return JsonSerializer.Serialize(store.Start(), options);
+    }
+
+    [McpServerTool, Description("Append the next base64 chunk to an image tar upload. Chunks must be ordered and no larger than 3 KB decoded.")]
+    public static Task<string> UploadImageChunk(
+        [Description("The uploadId property from the JSON returned by start_image_upload")] string uploadId,
+        [Description("Zero-based chunk sequence number")] int sequence,
+        [Description("Base64 data for one tar chunk, maximum 3 KB decoded")] string base64Chunk,
+        ImageUploadStore store,
+        CancellationToken ct) =>
+        store.AppendChunkAsync(uploadId, sequence, base64Chunk, ct);
+
+    [McpServerTool, Description("Finish a chunked image tar upload and load it into WSLC.")]
+    public static Task<string> FinishImageUpload(
+        [Description("The uploadId property from the JSON returned by start_image_upload")] string uploadId,
+        ImageUploadStore store,
+        IWslcDriver driver,
+        CancellationToken ct) =>
+        store.CompleteAsync(uploadId, (path, token) => driver.LoadImageAsync(path, null, token), ct);
 
     [McpServerTool, Description("Load a local .tar container image archive into the WSLC image store.")]
     public static async Task<string> LoadImage(

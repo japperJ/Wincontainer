@@ -47,6 +47,7 @@ public static class ServiceHost
         });
 
         builder.Services.AddSingleton<IWslcDriver, WslcDriver>();
+        builder.Services.AddSingleton<ImageUploadStore>();
 
         builder.Services.Configure<FormOptions>(o =>
         {
