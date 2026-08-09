@@ -357,6 +357,41 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public async Task ImageUploadStore_ShouldLetAppendObserveRemovalWhileCompletionCallbackRuns()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+        await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None);
+
+        var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCallback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var completeTask = store.CompleteAsync(
+            upload.UploadId,
+            async (path, ct) =>
+            {
+                callbackEntered.TrySetResult();
+                await releaseCallback.Task.WaitAsync(TimeSpan.FromSeconds(1), ct);
+                File.ReadAllText(path).Should().Be("abc");
+                return path;
+            },
+            CancellationToken.None);
+
+        await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        var appendTask = store.AppendChunkAsync(upload.UploadId, 1, ToBase64("def"), CancellationToken.None);
+        var appendFinished = await Task.WhenAny(appendTask, Task.Delay(TimeSpan.FromSeconds(1)));
+
+        appendFinished.Should().Be(appendTask);
+        (await appendTask).Should().Be("Validation error: upload ID was not found.");
+
+        releaseCallback.TrySetResult();
+        (await completeTask).Should().Be(archivePath);
+        File.Exists(archivePath).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ImageUploadStore_ShouldReturnExactValidationErrorsForMissingAndExpiredUploads()
     {
         var timeProvider = new MutableTimeProvider(DateTimeOffset.UtcNow);
@@ -433,6 +468,8 @@ public class RuntimeContractTests
             CancellationToken.None);
 
         await invocation.Should().ThrowAsync<InvalidOperationException>();
+        (await store.AppendChunkAsync(upload.UploadId, 1, ToBase64("def"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
         File.Exists(archivePath).Should().BeFalse();
     }
 

@@ -17,7 +17,6 @@ public sealed class ImageUploadStore
     private readonly TimeProvider _timeProvider;
     private readonly object _gate = new();
     private readonly Dictionary<string, UploadState> _uploads = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _expiredUploadIds = new(StringComparer.Ordinal);
 
     public ImageUploadStore(TimeProvider? timeProvider = null)
         => _timeProvider = timeProvider ?? TimeProvider.System;
@@ -33,7 +32,7 @@ public sealed class ImageUploadStore
 
             lock (_gate)
             {
-                if (_uploads.ContainsKey(uploadId) || _expiredUploadIds.Contains(uploadId))
+                if (_uploads.ContainsKey(uploadId))
                 {
                     continue;
                 }
@@ -55,19 +54,40 @@ public sealed class ImageUploadStore
 
     public async Task<string> AppendChunkAsync(string uploadId, int sequence, string base64Chunk, CancellationToken ct)
     {
-        CleanupExpiredUploads();
+        CleanupExpiredUploads(uploadId);
 
         if (!TryGetActiveUpload(uploadId, out var state, out var currentStateMessage))
         {
             return currentStateMessage;
         }
 
+        state!.RetainOperation();
+        var deleteFile = false;
+        var gateHeld = false;
         await state!.Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            gateHeld = true;
+
             if (!TryConfirmActiveUpload(uploadId, state, out var activeMessage))
             {
+                deleteFile = state.IsExpired;
                 return activeMessage;
+            }
+
+            var now = _timeProvider.GetUtcNow();
+            if (IsExpired(state, now))
+            {
+                lock (_gate)
+                {
+                    if (_uploads.TryGetValue(uploadId, out var current) && ReferenceEquals(current, state))
+                    {
+                        state.MarkExpired();
+                    }
+                }
+
+                deleteFile = true;
+                return ExpiredUploadMessage;
             }
 
             if (sequence != state.NextSequence)
@@ -119,7 +139,17 @@ public sealed class ImageUploadStore
         }
         finally
         {
-            state.Gate.Release();
+            if (gateHeld)
+            {
+                state.Gate.Release();
+            }
+
+            if (deleteFile)
+            {
+                TryDeleteFile(state.FilePath);
+            }
+
+            state.ReleaseOperation();
         }
     }
 
@@ -130,46 +160,76 @@ public sealed class ImageUploadStore
     {
         ArgumentNullException.ThrowIfNull(loadAsync);
 
-        CleanupExpiredUploads();
+        CleanupExpiredUploads(uploadId);
 
         if (!TryGetActiveUpload(uploadId, out var state, out var currentStateMessage))
         {
             return currentStateMessage;
         }
 
+        state!.RetainOperation();
+        var deleteFile = false;
+        var gateHeld = false;
         await state!.Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            gateHeld = true;
+
             if (!TryConfirmActiveUpload(uploadId, state, out var activeMessage))
             {
+                deleteFile = state.IsExpired;
                 return activeMessage;
             }
 
             var now = _timeProvider.GetUtcNow();
             if (IsExpired(state, now))
             {
-                MarkExpiredLocked(uploadId, state);
-                TryDeleteFile(state.FilePath);
+                lock (_gate)
+                {
+                    if (_uploads.TryGetValue(uploadId, out var current) && ReferenceEquals(current, state))
+                    {
+                        _uploads.Remove(uploadId);
+                        state.MarkRemoved(expired: true);
+                    }
+                }
+
+                deleteFile = true;
                 return ExpiredUploadMessage;
             }
 
             lock (_gate)
             {
-                _uploads.Remove(uploadId);
+                if (_uploads.TryGetValue(uploadId, out var current) && ReferenceEquals(current, state))
+                {
+                    _uploads.Remove(uploadId);
+                    state.MarkRemoved(expired: false);
+                }
             }
 
             try
             {
+                gateHeld = false;
+                state.Gate.Release();
                 return await loadAsync(state.FilePath, ct).ConfigureAwait(false);
             }
             finally
             {
-                TryDeleteFile(state.FilePath);
+                deleteFile = true;
             }
         }
         finally
         {
-            state.Gate.Release();
+            if (gateHeld)
+            {
+                state.Gate.Release();
+            }
+
+            if (deleteFile)
+            {
+                TryDeleteFile(state.FilePath);
+            }
+
+            state.ReleaseOperation();
         }
     }
 
@@ -191,9 +251,7 @@ public sealed class ImageUploadStore
                 return true;
             }
 
-            message = _expiredUploadIds.Contains(uploadId)
-                ? ExpiredUploadMessage
-                : MissingUploadMessage;
+            message = MissingUploadMessage;
             return false;
         }
     }
@@ -215,6 +273,11 @@ public sealed class ImageUploadStore
 
     private void CleanupExpiredUploads()
     {
+        CleanupExpiredUploads(null);
+    }
+
+    private void CleanupExpiredUploads(string? skipUploadId)
+    {
         var now = _timeProvider.GetUtcNow();
         var expiredUploads = new List<(string UploadId, UploadState State)>();
 
@@ -222,6 +285,11 @@ public sealed class ImageUploadStore
         {
             foreach (var upload in _uploads.ToArray())
             {
+                if (skipUploadId is not null && string.Equals(upload.Key, skipUploadId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 if (!IsExpired(upload.Value, now))
                 {
                     continue;
@@ -232,27 +300,20 @@ public sealed class ImageUploadStore
                     continue;
                 }
 
-                MarkExpiredLocked(upload.Key, upload.Value);
+                upload.Value.MarkExpired();
                 expiredUploads.Add((upload.Key, upload.Value));
+                upload.Value.Gate.Release();
             }
         }
 
         foreach (var expired in expiredUploads)
         {
             TryDeleteFile(expired.State.FilePath);
-            expired.State.Gate.Release();
         }
     }
 
     private static bool IsExpired(UploadState state, DateTimeOffset now) =>
         now - state.LastActivity >= UploadLifetime;
-
-    private void MarkExpiredLocked(string uploadId, UploadState state)
-    {
-        state.IsExpired = true;
-        _uploads.Remove(uploadId);
-        _expiredUploadIds.Add(uploadId);
-    }
 
     private static string GetUploadPath(string uploadId) =>
         Path.Combine(Path.GetTempPath(), $"{uploadId}.tar");
@@ -289,8 +350,49 @@ public sealed class ImageUploadStore
         public int NextSequence { get; set; }
         public long BytesWritten { get; set; }
         public DateTimeOffset LastActivity { get; set; }
-        public bool IsExpired { get; set; }
         public SemaphoreSlim Gate { get; } = new(1, 1);
+
+        private int _retainedOperations;
+        private int _removed;
+        private int _expired;
+        private int _gateDisposed;
+
+        public bool IsExpired => Volatile.Read(ref _expired) == 1;
+
+        public void RetainOperation() => Interlocked.Increment(ref _retainedOperations);
+
+        public void MarkExpired() => Volatile.Write(ref _expired, 1);
+
+        public void ReleaseOperation()
+        {
+            if (Interlocked.Decrement(ref _retainedOperations) == 0 && Volatile.Read(ref _removed) == 1)
+            {
+                DisposeGate();
+            }
+        }
+
+        public void MarkRemoved(bool expired)
+        {
+            if (expired)
+            {
+                MarkExpired();
+            }
+
+            Volatile.Write(ref _removed, 1);
+
+            if (Volatile.Read(ref _retainedOperations) == 0)
+            {
+                DisposeGate();
+            }
+        }
+
+        private void DisposeGate()
+        {
+            if (Interlocked.Exchange(ref _gateDisposed, 1) == 0)
+            {
+                Gate.Dispose();
+            }
+        }
     }
 }
 
