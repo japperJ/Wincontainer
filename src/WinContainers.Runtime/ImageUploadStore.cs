@@ -13,6 +13,7 @@ public sealed class ImageUploadStore
     private const string InvalidChunkMessage = "Validation error: chunk is not valid base64.";
     private const string OversizedChunkMessage = "Validation error: chunk exceeds 3 KB after decoding.";
     private const string OversizedUploadMessage = "Validation error: upload exceeds 512 MB after decoding.";
+    private const string EmptyUploadMessage = "Validation error: upload is empty.";
     private const int MaxRecentlyExpiredUploadIds = 1024;
 
     private readonly TimeProvider _timeProvider;
@@ -221,6 +222,12 @@ public sealed class ImageUploadStore
                     _uploads.Remove(uploadId);
                     state.Lease.MarkRemoved(expired: false);
                 }
+            }
+
+            if (state.BytesWritten == 0)
+            {
+                deleteFile = true;
+                return EmptyUploadMessage;
             }
 
             try

@@ -358,6 +358,59 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public async Task ImageUploadStore_ShouldAssembleTarArchiveAcrossChunks()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var archive = CreateMinimalTarArchive();
+        var firstChunk = archive[..512];
+        var secondChunk = archive[512..1024];
+        var thirdChunk = archive[1024..1536];
+        var fourthChunk = archive[1536..];
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64(firstChunk), CancellationToken.None))
+            .Should().Be("Upload chunk accepted.");
+        (await store.AppendChunkAsync(upload.UploadId, 1, ToBase64(secondChunk), CancellationToken.None))
+            .Should().Be("Upload chunk accepted.");
+        (await store.AppendChunkAsync(upload.UploadId, 2, ToBase64(thirdChunk), CancellationToken.None))
+            .Should().Be("Upload chunk accepted.");
+        (await store.AppendChunkAsync(upload.UploadId, 3, ToBase64(fourthChunk), CancellationToken.None))
+            .Should().Be("Upload chunk accepted.");
+
+        var result = await store.CompleteAsync(
+            upload.UploadId,
+            (path, ct) =>
+            {
+                File.ReadAllBytes(path).Should().Equal(archive);
+                return Task.FromResult("tar loaded");
+            },
+            CancellationToken.None);
+
+        result.Should().Be("tar loaded");
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldRejectEmptyUploadsBeforeLoading()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var callbackInvoked = false;
+
+        var result = await store.CompleteAsync(
+            upload.UploadId,
+            (_, _) =>
+            {
+                callbackInvoked = true;
+                return Task.FromResult("loaded");
+            },
+            CancellationToken.None);
+
+        result.Should().Be("Validation error: upload is empty.");
+        callbackInvoked.Should().BeFalse();
+        File.Exists(Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar")).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ImageUploadStore_ShouldLetAppendObserveRemovalWhileCompletionCallbackRuns()
     {
         var store = new ImageUploadStore();
@@ -1141,6 +1194,35 @@ public class RuntimeContractTests
     private static string ToBase64(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
 
     private static string ToBase64(byte[] value) => Convert.ToBase64String(value);
+
+    private static byte[] CreateMinimalTarArchive()
+    {
+        var archive = new byte[2048];
+        var content = Encoding.ASCII.GetBytes("hello");
+
+        WriteAscii(archive, 0, 100, "file.txt");
+        WriteAscii(archive, 100, 8, "0000644\0");
+        WriteAscii(archive, 108, 8, "0000000\0");
+        WriteAscii(archive, 116, 8, "0000000\0");
+        WriteAscii(archive, 124, 12, "00000000005\0");
+        WriteAscii(archive, 136, 12, "00000000000\0");
+        WriteAscii(archive, 148, 8, "        ");
+        WriteAscii(archive, 156, 1, "0");
+        WriteAscii(archive, 257, 6, "ustar\0");
+        WriteAscii(archive, 263, 2, "00");
+
+        var checksum = archive.Sum(value => (int)value);
+        WriteAscii(archive, 148, 8, Convert.ToString(checksum, 8)!.PadLeft(6, '0') + "\0 ");
+        Buffer.BlockCopy(content, 0, archive, 512, content.Length);
+        return archive;
+
+        static void WriteAscii(byte[] target, int offset, int fieldLength, string value)
+        {
+            var bytes = Encoding.ASCII.GetBytes(value);
+            bytes.Length.Should().BeLessThanOrEqualTo(fieldLength);
+            Buffer.BlockCopy(bytes, 0, target, offset, bytes.Length);
+        }
+    }
 
     private sealed class MutableTimeProvider : TimeProvider
     {
