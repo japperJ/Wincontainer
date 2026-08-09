@@ -6,6 +6,7 @@ using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Runtime.Models;
+using WinContainers.Tests.Unit.Ai;
 
 namespace WinContainers.Tests.Unit;
 
@@ -214,6 +215,42 @@ public class RuntimeContractTests
 
         (await driver.LoadImageAsync("image.tar", "dGFy", CancellationToken.None))
             .Should().Be("Validation error: provide exactly one of tarPath or tarData.");
+    }
+
+    [Fact]
+    public async Task McpTools_LoadImage_ShouldRejectMissingOrDuplicateArguments()
+    {
+        var driver = new FakeDriver();
+
+        (await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, null, driver, CancellationToken.None))
+            .Should().Be("Validation error: provide exactly one of tarPath or tarData.");
+#nullable disable
+        driver.LastLoadImageTarPath.Should().BeNull();
+        driver.LastLoadImageTarData.Should().BeNull();#nullable restore
+    }
+
+    [Fact]
+    public async Task McpTools_LoadImage_ShouldDelegateTarPath()
+    {
+        var driver = new FakeDriver();
+        var path = "C:\\images\\app.tar";
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(path, null, driver, CancellationToken.None);
+
+        result.Should().Be(string.Empty);
+        driver.LastLoadImageTarPath.Should().Be(path);
+        driver.LastLoadImageTarData.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task McpTools_LoadImage_ShouldDelegateTarData()
+    {
+        var driver = new FakeDriver();
+        var data = "dGFy";
+        var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, data, driver, CancellationToken.None);
+        result.Should().Be(string.Empty);
+        driver.LastLoadImageTarPath.Should().BeNull();
+        driver.LastLoadImageTarData.Should().Be(data);
     }
 
     [Fact]
