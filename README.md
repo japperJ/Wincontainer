@@ -114,9 +114,9 @@ Omit the `headers` block when connecting from localhost without a token configur
 
 Chunked image upload workflow (new):
 
-1. start_image_upload() -> returns an uploadId (string)
-2. upload_image_chunk(uploadId, sequence, base64Chunk) — send ordered, zero-based sequence chunks; each chunk MUST decode to at most 3 KB
-3. finish_image_upload(uploadId) — finalize and assemble the uploaded chunks; the resulting decoded image data is subject to the same 512 MB total limit
+1. start_image_upload() -> returns JSON metadata containing the `uploadId` property
+2. upload_image_chunk(uploadId, sequence, base64Chunk) — pass the `uploadId` from that JSON response; send ordered, zero-based sequence chunks; each chunk MUST decode to at most 3 KB
+3. finish_image_upload(uploadId) — pass the same `uploadId` to finalize and assemble the uploaded chunks; the resulting decoded image data is subject to the same 512 MB total limit
 
 Notes:
 

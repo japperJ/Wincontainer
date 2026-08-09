@@ -165,6 +165,8 @@ public class UnitTest1
                 .Select(tool => tool.GetProperty("name").GetString())
                 .ToArray();
 
+            toolNames.Should().Contain("health_check");
+            toolNames.Should().Contain("load_image");
             toolNames.Should().Contain("start_image_upload");
             toolNames.Should().Contain("upload_image_chunk");
             toolNames.Should().Contain("finish_image_upload");
