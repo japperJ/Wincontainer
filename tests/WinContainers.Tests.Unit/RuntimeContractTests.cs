@@ -392,6 +392,42 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public async Task ImageUploadStore_ShouldKeepRetainedLookupAliveWhileCleanupRemovesUpload()
+    {
+        var timeProvider = new MutableTimeProvider(DateTimeOffset.UtcNow);
+        var store = new ImageUploadStore(timeProvider);
+        var upload = store.Start();
+
+        var retainedUpload = TryGetRetainedUpload(store, upload.UploadId);
+        var gate = GetRetainedUploadGate(retainedUpload);
+
+        timeProvider.Advance(TimeSpan.FromMinutes(16));
+
+        (await store.AppendChunkAsync("cleanup-trigger", 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+
+        gate.Wait(0).Should().BeTrue();
+        gate.Release();
+
+        ((IDisposable)retainedUpload).Dispose();
+        Action disposedGateAccess = () => gate.Wait(0);
+        disposedGateAccess.Should().Throw<ObjectDisposedException>();
+    }
+
+    [Fact]
+    public void ImageUploadStore_ShouldRetainUploadsInsideLookupBeforeReturning()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/ImageUploadStore.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("state.Lease.RetainOperation();");
+        source.Should().Contain("activeUpload = new ActiveUploadHandle(state);");
+        source.Should().NotContain("state!.Lease.RetainOperation();");
+    }
+
+    [Fact]
     public async Task ImageUploadStore_ShouldReturnExactValidationErrorsForMissingAndExpiredUploads()
     {
         var timeProvider = new MutableTimeProvider(DateTimeOffset.UtcNow);
@@ -1043,6 +1079,38 @@ public class RuntimeContractTests
         expiredField.Should().NotBeNull();
 
         return ((System.Collections.ICollection)expiredField!.GetValue(store)!).Count;
+    }
+
+    private static object TryGetRetainedUpload(ImageUploadStore store, string uploadId)
+    {
+        var method = typeof(ImageUploadStore).GetMethod(
+            "TryGetActiveUpload",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        method.Should().NotBeNull();
+
+        var args = new object?[] { uploadId, null, string.Empty };
+        var ok = (bool)method!.Invoke(store, args)!;
+
+        ok.Should().BeTrue();
+        args[2].Should().Be(string.Empty);
+        args[1].Should().NotBeNull();
+
+        return args[1]!;
+    }
+
+    private static SemaphoreSlim GetRetainedUploadGate(object retainedUpload)
+    {
+        var state = retainedUpload.GetType()
+            .GetProperty("State", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(retainedUpload)!;
+
+        var lease = state.GetType()
+            .GetProperty("Lease", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(state)!;
+
+        return (SemaphoreSlim)lease.GetType()
+            .GetProperty("Gate", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(lease)!;
     }
 
     private sealed class MutableTimeProvider : TimeProvider

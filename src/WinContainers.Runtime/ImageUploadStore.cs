@@ -59,15 +59,17 @@ public sealed class ImageUploadStore
     {
         CleanupExpiredUploads();
 
-        if (!TryGetActiveUpload(uploadId, out var state, out var currentStateMessage))
+        if (!TryGetActiveUpload(uploadId, out var activeUpload, out var currentStateMessage))
         {
             return currentStateMessage;
         }
 
-        state!.Lease.RetainOperation();
+        ArgumentNullException.ThrowIfNull(activeUpload);
+        using var retainedUpload = activeUpload;
+        var state = retainedUpload.State;
         var deleteFile = false;
         var gateHeld = false;
-        await state!.Lease.Gate.WaitAsync(ct).ConfigureAwait(false);
+        await state.Lease.Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             gateHeld = true;
@@ -148,8 +150,6 @@ public sealed class ImageUploadStore
             {
                 TryDeleteFile(state.FilePath);
             }
-
-            state.Lease.ReleaseOperation();
         }
     }
 
@@ -162,15 +162,17 @@ public sealed class ImageUploadStore
 
         CleanupExpiredUploads();
 
-        if (!TryGetActiveUpload(uploadId, out var state, out var currentStateMessage))
+        if (!TryGetActiveUpload(uploadId, out var activeUpload, out var currentStateMessage))
         {
             return currentStateMessage;
         }
 
-        state!.Lease.RetainOperation();
+        ArgumentNullException.ThrowIfNull(activeUpload);
+        using var retainedUpload = activeUpload;
+        var state = retainedUpload.State;
         var deleteFile = false;
         var gateHeld = false;
-        await state!.Lease.Gate.WaitAsync(ct).ConfigureAwait(false);
+        await state.Lease.Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             gateHeld = true;
@@ -224,14 +226,12 @@ public sealed class ImageUploadStore
             {
                 TryDeleteFile(state.FilePath);
             }
-
-            state.Lease.ReleaseOperation();
         }
     }
 
-    private bool TryGetActiveUpload(string uploadId, out UploadState? state, out string message)
+    private bool TryGetActiveUpload(string uploadId, out ActiveUploadHandle? activeUpload, out string message)
     {
-        state = null;
+        activeUpload = null;
 
         if (string.IsNullOrWhiteSpace(uploadId))
         {
@@ -241,8 +241,10 @@ public sealed class ImageUploadStore
 
         lock (_gate)
         {
-            if (_uploads.TryGetValue(uploadId, out state))
+            if (_uploads.TryGetValue(uploadId, out var state))
             {
+                state.Lease.RetainOperation();
+                activeUpload = new ActiveUploadHandle(state);
                 message = string.Empty;
                 return true;
             }
@@ -436,6 +438,26 @@ public sealed class ImageUploadStore
             {
                 Gate.Dispose();
             }
+        }
+    }
+
+    private sealed class ActiveUploadHandle : IDisposable
+    {
+        private UploadState? _state;
+
+        public ActiveUploadHandle(UploadState state) => _state = state;
+
+        public UploadState State => _state ?? throw new ObjectDisposedException(nameof(ActiveUploadHandle));
+
+        public void Dispose()
+        {
+            var state = Interlocked.Exchange(ref _state, null);
+            if (state is null)
+            {
+                return;
+            }
+
+            state.Lease.ReleaseOperation();
         }
     }
 }
