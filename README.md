@@ -95,7 +95,7 @@ skills can use it when working in a Wincontainer project.
 | Tool | Description |
 |---|---|
 | `ListContainers` | List all containers |
-| `RunContainer` | Run a new container from an image |
+| `RunContainer` | Run a new container from an image, optionally attached to a named network |
 | `StartContainer` | Start a stopped container |
 | `StopContainer` | Stop a running container |
 | `RestartContainer` | Restart a container |

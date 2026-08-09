@@ -100,7 +100,7 @@ public class FakeDriver : IWslcDriver
     public List<string> CreatedVolumes { get; } = [];
     public List<string> CreatedNetworks { get; } = [];
     public List<string> PulledImages { get; } = [];
-    public List<(string Image, string? Name, string? Ports, string? Volumes, string? Env)> RanContainers { get; } = [];
+    public List<(string Image, string? Name, string? Ports, string? Volumes, string? Env, string? Network)> RanContainers { get; } = [];
     public List<(string Id, string Command)> ExecCommands { get; } = [];
     public string? LastLoadImageTarPath { get; private set; }
     public string? LastLoadImageTarData { get; private set; }
@@ -200,11 +200,12 @@ public class FakeDriver : IWslcDriver
         IEnumerable<string>? ports = null,
         IEnumerable<string>? volumes = null,
         IEnumerable<string>? env = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? network = null)
     {
         RanContainers.Add((image, name, ports is null ? null : string.Join(",", ports),
             volumes is null ? null : string.Join(",", volumes),
-            env is null ? null : string.Join(",", env)));
+            env is null ? null : string.Join(",", env), network));
         return Task.FromResult($"ran {image}");
     }
 

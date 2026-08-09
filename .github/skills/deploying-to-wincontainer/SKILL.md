@@ -62,6 +62,8 @@ Start-Process powershell.exe -ArgumentList '-ExecutionPolicy','Bypass','-File',"
 ```
 
 After the image is loaded in the admin session, the MCP `run_container` tool can run it.
+Pass `network="my-network"` when the container must communicate with other containers
+on a named WSLC network. Create or list the network first with the network MCP tools.
 
 ## MCP image import
 

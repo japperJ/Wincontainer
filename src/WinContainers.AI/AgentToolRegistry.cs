@@ -135,20 +135,22 @@ public sealed class ToolImplementations
         CancellationToken ct)
         => await _driver.RenameContainerAsync(id, name, ct);
 
-    [Description("Run (create and start) a new container from an image.")]
+    [Description("Run (create and start) a new container from an image, optionally attached to a named network.")]
     public async Task<string> run_container(
         [Description("Image name, e.g. 'nginx:latest' or 'myapp:1.0'")] string image,
         [Description("Optional container name")] string? name = null,
         [Description("Comma-separated port mappings, e.g. '80:80,8080:80'")] string? ports = null,
         [Description("Comma-separated volume mounts, e.g. '/host:/container,/data:/data'")] string? volumes = null,
         [Description("Comma-separated environment variables, e.g. 'KEY1=value1,KEY2=value2'")] string? env = null,
+        [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network = null,
         CancellationToken ct = default)
         => await _driver.RunContainerAsync(
             image, name,
             ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             volumes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-            ct);
+            ct,
+            network);
 
     [Description("Execute a command inside a running container and return its output.")]
     public async Task<string> exec_command(

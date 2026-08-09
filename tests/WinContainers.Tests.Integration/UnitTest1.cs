@@ -170,6 +170,12 @@ public class UnitTest1
             toolNames.Should().Contain("start_image_upload");
             toolNames.Should().Contain("upload_image_chunk");
             toolNames.Should().Contain("finish_image_upload");
+
+            var runContainer = document.RootElement.GetProperty("result").GetProperty("tools")
+                .EnumerateArray()
+                .Single(tool => tool.GetProperty("name").GetString() == "run_container");
+            runContainer.GetProperty("inputSchema").GetProperty("properties")
+                .TryGetProperty("network", out _).Should().BeTrue();
         }
         finally
         {

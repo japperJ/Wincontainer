@@ -19,13 +19,14 @@ public class WincontainerTools
     public static async Task<string> ListContainers(IWslcDriver driver, CancellationToken ct)
         => await driver.GetContainersAsync(ct);
 
-    [McpServerTool, Description("Run (create + start) a new container from an image.")]
+    [McpServerTool, Description("Run (create + start) a new container from an image, optionally attached to a named network.")]
     public static async Task<string> RunContainer(
         [Description("Image name, e.g. 'ubuntu:latest' or 'myapp:1.0'")] string image,
         [Description("Optional container name")] string? name = null,
         [Description("Comma-separated port mappings, e.g. '80:80,8080:80/tcp'")] string? ports = null,
         [Description("Comma-separated volume mounts, e.g. '/host:/container,/data:/data'")] string? volumes = null,
         [Description("Comma-separated environment variables, e.g. 'KEY1=val1,KEY2=val2'")] string? env = null,
+        [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network = null,
         IWslcDriver driver = null!,
         CancellationToken ct = default)
         => await driver.RunContainerAsync(
@@ -33,7 +34,8 @@ public class WincontainerTools
             ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             volumes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-            ct);
+            ct,
+            network);
 
     [McpServerTool, Description("Start a stopped container by ID or name.")]
     public static async Task<string> StartContainer(
