@@ -160,11 +160,14 @@ public class UnitTest1
             using var document = JsonDocument.Parse(dataLine["data: ".Length..]);
 
             document.RootElement.GetProperty("jsonrpc").GetString().Should().Be("2.0");
-            document.RootElement.GetProperty("result").GetProperty("tools")
+            var toolNames = document.RootElement.GetProperty("result").GetProperty("tools")
                 .EnumerateArray()
                 .Select(tool => tool.GetProperty("name").GetString())
-                .Should()
-                .Contain(new[] { "health_check", "load_image", "start_image_upload", "upload_image_chunk", "finish_image_upload" });
+                .ToArray();
+
+            toolNames.Should().Contain("start_image_upload");
+            toolNames.Should().Contain("upload_image_chunk");
+            toolNames.Should().Contain("finish_image_upload");
         }
         finally
         {

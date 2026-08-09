@@ -111,6 +111,23 @@ Omit the `headers` block when connecting from localhost without a token configur
 | `GetVersion` | Get the wslc runtime version |
 | `load_image` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |
 
+
+Chunked image upload workflow (new):
+
+1. start_image_upload() -> returns an uploadId (string)
+2. upload_image_chunk(uploadId, sequence, base64Chunk) — send ordered, zero-based sequence chunks; each chunk MUST decode to at most 3 KB
+3. finish_image_upload(uploadId) — finalize and assemble the uploaded chunks; the resulting decoded image data is subject to the same 512 MB total limit
+
+Notes:
+
+- Chunk size limit: each decoded chunk must be 3 KB or smaller.
+- Total upload limit: the sum of decoded chunks must not exceed 512 MB.
+- Sequence numbering: sequences are zero-based and must be uploaded in increasing order; the server will assemble chunks by sequence.
+- Expiry: an upload that is inactive for more than 15 minutes is expired and its state is discarded.
+- Process-local state: upload state is kept only in the service process and is not persisted across restarts; do not rely on uploads surviving a process restart.
+
+MCP tool names are snake_case: `start_image_upload`, `upload_image_chunk`, `finish_image_upload`. Keep upload payloads as base64-encoded chunk strings when calling the MCP tools.
+
 ## AI Assistant
 
 WinContainers includes a built-in AI assistant that manages containers, images, volumes, and networks in natural language. It uses the same in-process runtime layer as the MCP tools, so no extra services are needed.
