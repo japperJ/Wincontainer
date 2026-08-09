@@ -82,6 +82,14 @@ Add the server to your AI client's MCP configuration. A ready-made `.github/copi
 
 Omit the `headers` block when connecting from localhost without a token configured.
 
+### Deployment skill
+
+This repository includes a reusable Copilot skill for Wincontainer deployment:
+[`deploying-to-wincontainer`](.github/skills/deploying-to-wincontainer/SKILL.md).
+It covers the elevated WSLC session, image build and export, MCP tar loading, the
+chunked upload workflow, limits, and verification. AI clients that support repository
+skills can use it when working in a Wincontainer project.
+
 ### Available Tools
 
 | Tool | Description |
