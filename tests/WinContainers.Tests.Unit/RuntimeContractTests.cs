@@ -538,6 +538,80 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void McpTools_StartImageUpload_ShouldReturnUploadMetadata()
+    {
+        var store = new ImageUploadStore();
+
+        var json = WinContainers.Service.Mcp.WincontainerTools.StartImageUpload(store);
+        var upload = JsonSerializer.Deserialize<ImageUploadInfo>(json);
+
+        upload.Should().NotBeNull();
+        upload!.UploadId.Should().NotBeNullOrWhiteSpace();
+        upload.MaxChunkBytes.Should().Be(ImageUploadStore.MaxChunkBytes);
+        upload.MaxUploadBytes.Should().Be(ImageUploadStore.MaxUploadBytes);
+    }
+
+    [Fact]
+    public async Task McpTools_UploadImageChunk_ShouldAppendDecodedChunk()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.UploadImageChunk(
+            upload.UploadId,
+            0,
+            ToBase64("abc"),
+            store,
+            CancellationToken.None);
+
+        result.Should().Be("Upload chunk accepted.");
+    }
+
+    [Fact]
+    public async Task McpTools_FinishImageUpload_ShouldDelegatePathToDriver()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None);
+
+        var driver = new FakeDriver();
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.FinishImageUpload(
+            upload.UploadId,
+            store,
+            driver,
+            CancellationToken.None);
+
+        result.Should().BeEmpty();
+        driver.LastLoadImageTarPath.Should().Be(archivePath);
+        driver.LastLoadImageTarData.Should().BeNull();
+        File.Exists(archivePath).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task McpTools_FinishImageUpload_ShouldCleanUpAndRethrowCancellation()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None);
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+        var canceled = new OperationCanceledException(CancellationToken.None);
+        var driver = new CancelingDriver(canceled);
+
+        var exception = await Record.ExceptionAsync(() => WinContainers.Service.Mcp.WincontainerTools.FinishImageUpload(
+            upload.UploadId,
+            store,
+            driver,
+            CancellationToken.None));
+
+        exception.Should().BeSameAs(canceled);
+        File.Exists(archivePath).Should().BeFalse();
+        (await store.AppendChunkAsync(upload.UploadId, 1, ToBase64("def"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+    }
+
+    [Fact]
     public void WslcContainerParser_ShouldParseContainerJson()
     {
         var json = """
@@ -1140,5 +1214,38 @@ public class RuntimeContractTests
                 return ValueTask.CompletedTask;
             }
         }
+    }
+
+    private sealed class CancelingDriver : IWslcDriver
+    {
+        private readonly OperationCanceledException _cancellation;
+
+        public CancelingDriver(OperationCanceledException cancellation) => _cancellation = cancellation;
+
+        public Task<bool> IsAvailableAsync(CancellationToken ct) => Task.FromResult(true);
+        public Task<string> GetVersionAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetContainersAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> StartContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> StopContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RestartContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RemoveContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetContainerLogsAsync(string id, int tail, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetImagesAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> PullImageAsync(string image, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> LoadImageAsync(string? tarPath, string? tarData, CancellationToken ct) => throw _cancellation;
+        public Task<string> RemoveImageAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> InspectImageAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetVolumesAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> CreateVolumeAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RemoveVolumeAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> InspectVolumeAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> GetNetworksAsync(CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> CreateNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
+        public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default) => Task.FromResult(string.Empty);
+        public Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
     }
 }

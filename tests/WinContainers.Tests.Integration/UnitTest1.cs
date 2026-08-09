@@ -164,7 +164,7 @@ public class UnitTest1
                 .EnumerateArray()
                 .Select(tool => tool.GetProperty("name").GetString())
                 .Should()
-                .Contain(new[] { "health_check", "load_image" });
+                .Contain(new[] { "health_check", "load_image", "start_image_upload", "upload_image_chunk", "finish_image_upload" });
         }
         finally
         {

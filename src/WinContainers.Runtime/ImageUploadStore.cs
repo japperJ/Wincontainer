@@ -210,6 +210,11 @@ public sealed class ImageUploadStore
                 state.Lease.Gate.Release();
                 return await loadAsync(state.FilePath, ct).ConfigureAwait(false);
             }
+            catch (OperationCanceledException)
+            {
+                deleteFile = true;
+                throw;
+            }
             finally
             {
                 deleteFile = true;
