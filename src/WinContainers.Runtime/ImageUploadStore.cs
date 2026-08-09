@@ -102,42 +102,61 @@ public sealed class ImageUploadStore
                 return InvalidChunkMessage;
             }
 
-            byte[] decodedBytes;
-            try
-            {
-                decodedBytes = Convert.FromBase64String(base64Chunk);
-            }
-            catch (FormatException)
+            if (!TryGetMaximumDecodedBytes(base64Chunk, out var maxDecodedBytes))
             {
                 return InvalidChunkMessage;
             }
 
-            if (decodedBytes.Length > MaxChunkBytes)
+            if (maxDecodedBytes > MaxChunkBytes)
             {
                 return OversizedChunkMessage;
             }
 
-            if (state.BytesWritten + decodedBytes.LongLength > MaxUploadBytes)
+            var decodedBytes = new byte[MaxChunkBytes];
+            try
             {
-                return OversizedUploadMessage;
-            }
+                if (!Convert.TryFromBase64String(base64Chunk, decodedBytes, out var decodedBytesWritten))
+                {
+                    return InvalidChunkMessage;
+                }
 
-            await using (var stream = new FileStream(
-                state.FilePath,
-                FileMode.Append,
-                FileAccess.Write,
-                FileShare.None,
-                4096,
-                useAsync: true))
+                if (decodedBytesWritten > MaxChunkBytes)
+                {
+                    return OversizedChunkMessage;
+                }
+
+                if (state.BytesWritten + decodedBytesWritten > MaxUploadBytes)
+                {
+                    return OversizedUploadMessage;
+                }
+
+                await using (var stream = new FileStream(
+                    state.FilePath,
+                    FileMode.Append,
+                    FileAccess.Write,
+                    FileShare.None,
+                    4096,
+                    useAsync: true))
+                {
+                    await stream.WriteAsync(decodedBytes.AsMemory(0, decodedBytesWritten), ct).ConfigureAwait(false);
+                    await stream.FlushAsync(ct).ConfigureAwait(false);
+                }
+
+                state.BytesWritten += decodedBytesWritten;
+                state.NextSequence++;
+                state.LastActivity = _timeProvider.GetUtcNow();
+                return "Upload chunk accepted.";
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                await stream.WriteAsync(decodedBytes, ct).ConfigureAwait(false);
-                await stream.FlushAsync(ct).ConfigureAwait(false);
-            }
+                lock (_gate)
+                {
+                    TryRemoveActiveUploadLocked(uploadId, state);
+                }
 
-            state.BytesWritten += decodedBytes.LongLength;
-            state.NextSequence++;
-            state.LastActivity = _timeProvider.GetUtcNow();
-            return "Upload chunk accepted.";
+                TryDeleteFile(state.FilePath);
+                throw;
+            }
         }
         finally
         {
@@ -358,6 +377,73 @@ public sealed class ImageUploadStore
         return false;
     }
 
+    private bool TryRemoveActiveUploadLocked(string uploadId, UploadState state)
+    {
+        if (_uploads.TryGetValue(uploadId, out var current) && ReferenceEquals(current, state))
+        {
+            _uploads.Remove(uploadId);
+            state.Lease.MarkRemoved(expired: false);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetMaximumDecodedBytes(string base64, out long maxDecodedBytes)
+    {
+        var contentLength = 0;
+        for (var i = 0; i < base64.Length; i++)
+        {
+            if (!char.IsWhiteSpace(base64[i]))
+            {
+                contentLength++;
+            }
+        }
+
+        return TryGetMaximumDecodedBytes(contentLength, CountBase64PaddingChars(base64), out maxDecodedBytes);
+    }
+
+    private static int CountBase64PaddingChars(string base64)
+    {
+        var padding = 0;
+        for (var i = base64.Length - 1; i >= 0; i--)
+        {
+            var c = base64[i];
+            if (char.IsWhiteSpace(c))
+            {
+                continue;
+            }
+
+            if (c != '=')
+            {
+                break;
+            }
+
+            padding++;
+            if (padding == 2)
+            {
+                break;
+            }
+        }
+
+        return padding;
+    }
+
+    private static bool TryGetMaximumDecodedBytes(int base64ContentLength, int paddingChars, out long maxDecodedBytes)
+    {
+        var fullGroups = base64ContentLength / 4;
+        var remainder = base64ContentLength % 4;
+        maxDecodedBytes = remainder switch
+        {
+            0 => fullGroups * 3L - Math.Min(paddingChars, 2),
+            2 => fullGroups * 3L + 1,
+            3 => fullGroups * 3L + 2,
+            _ => 0
+        };
+
+        return remainder is 0 or 2 or 3;
+    }
+
     private static bool IsExpired(UploadState state, DateTimeOffset now) =>
         now - state.LastActivity >= UploadLifetime;
 
@@ -380,7 +466,7 @@ public sealed class ImageUploadStore
         }
         catch (Exception ex)
         {
-            Trace.WriteLine($"[ImageUploadStore] Temp file cleanup failed: {ex}");
+            Trace.WriteLine($"[ImageUploadStore] Temp file cleanup failed for '{path}': {ex}");
         }
     }
 

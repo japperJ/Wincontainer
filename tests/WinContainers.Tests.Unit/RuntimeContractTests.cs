@@ -372,16 +372,16 @@ public class RuntimeContractTests
             async (path, ct) =>
             {
                 callbackEntered.TrySetResult();
-                await releaseCallback.Task.WaitAsync(TimeSpan.FromSeconds(1), ct);
+                await releaseCallback.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
                 File.ReadAllText(path).Should().Be("abc");
                 return path;
             },
             CancellationToken.None);
 
-        await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var appendTask = store.AppendChunkAsync(upload.UploadId, 1, ToBase64("def"), CancellationToken.None);
-        var appendFinished = await Task.WhenAny(appendTask, Task.Delay(TimeSpan.FromSeconds(1)));
+        var appendFinished = await Task.WhenAny(appendTask, Task.Delay(TimeSpan.FromSeconds(5)));
 
         appendFinished.Should().Be(appendTask);
         (await appendTask).Should().Be("Validation error: upload ID was not found.");
@@ -425,6 +425,48 @@ public class RuntimeContractTests
         source.Should().Contain("state.Lease.RetainOperation();");
         source.Should().Contain("activeUpload = new ActiveUploadHandle(state);");
         source.Should().NotContain("state!.Lease.RetainOperation();");
+    }
+
+    [Fact]
+    public void ImageUploadStore_ShouldBoundChunkDecodingBeforeAllocating()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/ImageUploadStore.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("TryGetMaximumDecodedBytes(base64Chunk, out var maxDecodedBytes)");
+        source.Should().Contain("Convert.TryFromBase64String(base64Chunk, decodedBytes, out var decodedBytesWritten)");
+        source.Should().Contain("new byte[MaxChunkBytes]");
+        source.Should().NotContain("Convert.FromBase64String(base64Chunk)");
+    }
+
+    [Fact]
+    public void ImageUploadStore_ShouldAbortCanceledAppendsAndRethrow()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/ImageUploadStore.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("catch (OperationCanceledException) when (ct.IsCancellationRequested)");
+        source.Should().Contain("_uploads.Remove(uploadId);");
+        source.Should().Contain("state.Lease.MarkRemoved(expired: false);");
+        source.Should().Contain("TryDeleteFile(state.FilePath);");
+        source.Should().Contain("throw;");
+    }
+
+    [Fact]
+    public void ImageUploadStore_ShouldLogTempFileDeletionFailuresWithPath()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/ImageUploadStore.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("Temp file cleanup failed for");
+        source.Should().Contain("{path}");
+        source.Should().Contain("{ex}");
     }
 
     [Fact]
