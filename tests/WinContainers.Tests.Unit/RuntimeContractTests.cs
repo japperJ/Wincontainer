@@ -329,6 +329,114 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public async Task ImageUploadStore_ShouldAppendOrderedChunksAndReturnCompletedPath()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+        var observedPath = string.Empty;
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None))
+            .Should().Be("Upload chunk accepted.");
+
+        File.Exists(archivePath).Should().BeTrue();
+
+        var result = await store.CompleteAsync(
+            upload.UploadId,
+            (path, ct) =>
+            {
+                observedPath = path;
+                File.ReadAllText(path).Should().Be("abc");
+                return Task.FromResult(path);
+            },
+            CancellationToken.None);
+
+        result.Should().Be(observedPath);
+        observedPath.Should().Be(archivePath);
+        File.Exists(archivePath).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldReturnExactValidationErrorsForMissingAndExpiredUploads()
+    {
+        var timeProvider = new MutableTimeProvider(DateTimeOffset.UtcNow);
+        var store = new ImageUploadStore(timeProvider);
+        var upload = store.Start();
+        var expiredCallbackInvoked = false;
+
+        (await store.AppendChunkAsync("missing", 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+
+        (await store.CompleteAsync("missing", (_, _) => Task.FromResult(string.Empty), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+
+        timeProvider.Advance(TimeSpan.FromMinutes(16));
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload has expired.");
+
+        (await store.CompleteAsync(
+            upload.UploadId,
+            (_, _) =>
+            {
+                expiredCallbackInvoked = true;
+                return Task.FromResult(string.Empty);
+            },
+            CancellationToken.None))
+            .Should().Be("Validation error: upload has expired.");
+
+        expiredCallbackInvoked.Should().BeFalse();
+        File.Exists(Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldRejectChunksOverThreeKilobytesDecoded()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var oversizedChunk = new byte[ImageUploadStore.MaxChunkBytes + 1];
+        var result = await store.AppendChunkAsync(upload.UploadId, 0, ToBase64(oversizedChunk), CancellationToken.None);
+
+        result.Should().Be("Validation error: chunk exceeds 3 KB after decoding.");
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldRejectTotalsOver512MB()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None))
+            .Should().Be("Upload chunk accepted.");
+
+        var state = GetSingleUploadState(store);
+        state.GetType().GetProperty("BytesWritten", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(state, ImageUploadStore.MaxUploadBytes - 2);
+
+        var result = await store.AppendChunkAsync(upload.UploadId, 1, ToBase64("abc"), CancellationToken.None);
+
+        result.Should().Be("Validation error: upload exceeds 512 MB after decoding.");
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldCleanupAfterLoadCallbackThrows()
+    {
+        var store = new ImageUploadStore();
+        var upload = store.Start();
+        var archivePath = Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar");
+
+        await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("abc"), CancellationToken.None);
+
+        var invocation = async () => await store.CompleteAsync(
+            upload.UploadId,
+            (_, _) => throw new InvalidOperationException("load failed"),
+            CancellationToken.None);
+
+        await invocation.Should().ThrowAsync<InvalidOperationException>();
+        File.Exists(archivePath).Should().BeFalse();
+    }
+
+    [Fact]
     public void WslcContainerParser_ShouldParseContainerJson()
     {
         var json = """
@@ -837,5 +945,51 @@ public class RuntimeContractTests
         updateClient.Timeout.Should().Be(HttpClientTimeouts.UpdateTimeout);
         serviceClient.Timeout.Should().NotBe(Timeout.InfiniteTimeSpan);
         updateClient.Timeout.Should().NotBe(Timeout.InfiniteTimeSpan);
+    }
+
+    private static string ToBase64(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
+
+    private static string ToBase64(byte[] value) => Convert.ToBase64String(value);
+
+    private static object GetSingleUploadState(ImageUploadStore store)
+    {
+        var uploadsField = typeof(ImageUploadStore).GetField("_uploads", BindingFlags.NonPublic | BindingFlags.Instance);
+        uploadsField.Should().NotBeNull();
+
+        var uploads = (System.Collections.IEnumerable)uploadsField!.GetValue(store)!;
+        var enumerator = uploads.GetEnumerator();
+        enumerator.MoveNext().Should().BeTrue();
+
+        var entry = enumerator.Current!;
+        return entry.GetType().GetProperty("Value")!.GetValue(entry)!;
+    }
+
+    private sealed class MutableTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow;
+
+        public MutableTimeProvider(DateTimeOffset utcNow) => _utcNow = utcNow;
+
+        public void Advance(TimeSpan delta) => _utcNow = _utcNow.Add(delta);
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+            => new NoopTimer();
+
+        private sealed class NoopTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+            public void Dispose()
+            {
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 }
