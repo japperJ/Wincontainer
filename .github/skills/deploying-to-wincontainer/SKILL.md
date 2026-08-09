@@ -16,16 +16,22 @@ Wincontainer UI.
 
 ## Sessions
 
-| Invocation | Session | Visible in Wincontainer |
+Session names are generated from the local Windows user and runtime state. Do not
+hard-code a name from another installation.
+
+| Invocation | Session name | Visible in Wincontainer |
 |---|---|---|
-| Elevated admin shell or MCP | `wslc-cli-admin-jptrs` | Yes |
-| Non-elevated shell | `wslc-cli-jptrs` | No |
+| Elevated admin shell or MCP | The admin session name shown by WSLC | Yes |
+| Non-elevated shell | The non-elevated session name shown by WSLC | No |
 
 Check sessions:
 
 ```powershell
 & 'C:\Program Files\WSL\wslc.exe' system session list
 ```
+
+Use the session list from the current installation. The session used by the elevated
+admin shell or Wincontainer MCP is the one whose containers appear in the UI.
 
 ## Deployment workflow
 
