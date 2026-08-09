@@ -13,10 +13,13 @@ public sealed class ImageUploadStore
     private const string InvalidChunkMessage = "Validation error: chunk is not valid base64.";
     private const string OversizedChunkMessage = "Validation error: chunk exceeds 3 KB after decoding.";
     private const string OversizedUploadMessage = "Validation error: upload exceeds 512 MB after decoding.";
+    private const int MaxRecentlyExpiredUploadIds = 1024;
 
     private readonly TimeProvider _timeProvider;
     private readonly object _gate = new();
     private readonly Dictionary<string, UploadState> _uploads = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _recentlyExpiredUploadIds = new(StringComparer.Ordinal);
+    private readonly Queue<(string UploadId, DateTimeOffset ExpiredAt)> _recentlyExpiredUploadOrder = new();
 
     public ImageUploadStore(TimeProvider? timeProvider = null)
         => _timeProvider = timeProvider ?? TimeProvider.System;
@@ -54,24 +57,24 @@ public sealed class ImageUploadStore
 
     public async Task<string> AppendChunkAsync(string uploadId, int sequence, string base64Chunk, CancellationToken ct)
     {
-        CleanupExpiredUploads(uploadId);
+        CleanupExpiredUploads();
 
         if (!TryGetActiveUpload(uploadId, out var state, out var currentStateMessage))
         {
             return currentStateMessage;
         }
 
-        state!.RetainOperation();
+        state!.Lease.RetainOperation();
         var deleteFile = false;
         var gateHeld = false;
-        await state!.Gate.WaitAsync(ct).ConfigureAwait(false);
+        await state!.Lease.Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             gateHeld = true;
 
             if (!TryConfirmActiveUpload(uploadId, state, out var activeMessage))
             {
-                deleteFile = state.IsExpired;
+                deleteFile = state.Lease.IsExpired;
                 return activeMessage;
             }
 
@@ -80,10 +83,7 @@ public sealed class ImageUploadStore
             {
                 lock (_gate)
                 {
-                    if (_uploads.TryGetValue(uploadId, out var current) && ReferenceEquals(current, state))
-                    {
-                        state.MarkExpired();
-                    }
+                    TryRemoveExpiredUploadLocked(uploadId, state, now);
                 }
 
                 deleteFile = true;
@@ -141,7 +141,7 @@ public sealed class ImageUploadStore
         {
             if (gateHeld)
             {
-                state.Gate.Release();
+                state.Lease.Gate.Release();
             }
 
             if (deleteFile)
@@ -149,7 +149,7 @@ public sealed class ImageUploadStore
                 TryDeleteFile(state.FilePath);
             }
 
-            state.ReleaseOperation();
+            state.Lease.ReleaseOperation();
         }
     }
 
@@ -160,24 +160,24 @@ public sealed class ImageUploadStore
     {
         ArgumentNullException.ThrowIfNull(loadAsync);
 
-        CleanupExpiredUploads(uploadId);
+        CleanupExpiredUploads();
 
         if (!TryGetActiveUpload(uploadId, out var state, out var currentStateMessage))
         {
             return currentStateMessage;
         }
 
-        state!.RetainOperation();
+        state!.Lease.RetainOperation();
         var deleteFile = false;
         var gateHeld = false;
-        await state!.Gate.WaitAsync(ct).ConfigureAwait(false);
+        await state!.Lease.Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             gateHeld = true;
 
             if (!TryConfirmActiveUpload(uploadId, state, out var activeMessage))
             {
-                deleteFile = state.IsExpired;
+                deleteFile = state.Lease.IsExpired;
                 return activeMessage;
             }
 
@@ -186,11 +186,7 @@ public sealed class ImageUploadStore
             {
                 lock (_gate)
                 {
-                    if (_uploads.TryGetValue(uploadId, out var current) && ReferenceEquals(current, state))
-                    {
-                        _uploads.Remove(uploadId);
-                        state.MarkRemoved(expired: true);
-                    }
+                    TryRemoveExpiredUploadLocked(uploadId, state, now);
                 }
 
                 deleteFile = true;
@@ -202,14 +198,14 @@ public sealed class ImageUploadStore
                 if (_uploads.TryGetValue(uploadId, out var current) && ReferenceEquals(current, state))
                 {
                     _uploads.Remove(uploadId);
-                    state.MarkRemoved(expired: false);
+                    state.Lease.MarkRemoved(expired: false);
                 }
             }
 
             try
             {
                 gateHeld = false;
-                state.Gate.Release();
+                state.Lease.Gate.Release();
                 return await loadAsync(state.FilePath, ct).ConfigureAwait(false);
             }
             finally
@@ -221,7 +217,7 @@ public sealed class ImageUploadStore
         {
             if (gateHeld)
             {
-                state.Gate.Release();
+                state.Lease.Gate.Release();
             }
 
             if (deleteFile)
@@ -229,7 +225,7 @@ public sealed class ImageUploadStore
                 TryDeleteFile(state.FilePath);
             }
 
-            state.ReleaseOperation();
+            state.Lease.ReleaseOperation();
         }
     }
 
@@ -251,6 +247,12 @@ public sealed class ImageUploadStore
                 return true;
             }
 
+            if (_recentlyExpiredUploadIds.ContainsKey(uploadId))
+            {
+                message = ExpiredUploadMessage;
+                return false;
+            }
+
             message = MissingUploadMessage;
             return false;
         }
@@ -267,49 +269,86 @@ public sealed class ImageUploadStore
             }
         }
 
-        message = state.IsExpired ? ExpiredUploadMessage : MissingUploadMessage;
+        message = state.Lease.IsExpired ? ExpiredUploadMessage : MissingUploadMessage;
         return false;
     }
 
     private void CleanupExpiredUploads()
-    {
-        CleanupExpiredUploads(null);
-    }
-
-    private void CleanupExpiredUploads(string? skipUploadId)
     {
         var now = _timeProvider.GetUtcNow();
         var expiredUploads = new List<(string UploadId, UploadState State)>();
 
         lock (_gate)
         {
+            PruneRecentlyExpiredUploadsLocked(now);
+
             foreach (var upload in _uploads.ToArray())
             {
-                if (skipUploadId is not null && string.Equals(upload.Key, skipUploadId, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
                 if (!IsExpired(upload.Value, now))
                 {
                     continue;
                 }
 
-                if (!upload.Value.Gate.Wait(0))
+                if (!upload.Value.Lease.Gate.Wait(0))
                 {
                     continue;
                 }
 
-                upload.Value.MarkExpired();
-                expiredUploads.Add((upload.Key, upload.Value));
-                upload.Value.Gate.Release();
+                upload.Value.Lease.RetainOperation();
+
+                if (TryRemoveExpiredUploadLocked(upload.Key, upload.Value, now))
+                {
+                    expiredUploads.Add((upload.Key, upload.Value));
+                }
+
+                upload.Value.Lease.Gate.Release();
             }
         }
 
         foreach (var expired in expiredUploads)
         {
             TryDeleteFile(expired.State.FilePath);
+            expired.State.Lease.ReleaseOperation();
         }
+    }
+
+    private void RecordRecentlyExpiredUploadLocked(string uploadId, DateTimeOffset expiredAt)
+    {
+        _recentlyExpiredUploadIds[uploadId] = expiredAt;
+        _recentlyExpiredUploadOrder.Enqueue((uploadId, expiredAt));
+        PruneRecentlyExpiredUploadsLocked(expiredAt);
+    }
+
+    private void PruneRecentlyExpiredUploadsLocked(DateTimeOffset now)
+    {
+        while (_recentlyExpiredUploadOrder.Count > 0)
+        {
+            var (uploadId, expiredAt) = _recentlyExpiredUploadOrder.Peek();
+            if (now - expiredAt < UploadLifetime && _recentlyExpiredUploadOrder.Count <= MaxRecentlyExpiredUploadIds)
+            {
+                break;
+            }
+
+            _recentlyExpiredUploadOrder.Dequeue();
+
+            if (_recentlyExpiredUploadIds.TryGetValue(uploadId, out var recordedAt) && recordedAt == expiredAt)
+            {
+                _recentlyExpiredUploadIds.Remove(uploadId);
+            }
+        }
+    }
+
+    private bool TryRemoveExpiredUploadLocked(string uploadId, UploadState state, DateTimeOffset expiredAt)
+    {
+        if (_uploads.TryGetValue(uploadId, out var current) && ReferenceEquals(current, state))
+        {
+            _uploads.Remove(uploadId);
+            state.Lease.MarkRemoved(expired: true);
+            RecordRecentlyExpiredUploadLocked(uploadId, expiredAt);
+            return true;
+        }
+
+        return false;
     }
 
     private static bool IsExpired(UploadState state, DateTimeOffset now) =>
@@ -350,6 +389,11 @@ public sealed class ImageUploadStore
         public int NextSequence { get; set; }
         public long BytesWritten { get; set; }
         public DateTimeOffset LastActivity { get; set; }
+        public UploadLease Lease { get; } = new();
+    }
+
+    private sealed class UploadLease
+    {
         public SemaphoreSlim Gate { get; } = new(1, 1);
 
         private int _retainedOperations;

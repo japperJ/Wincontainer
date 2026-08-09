@@ -407,6 +407,10 @@ public class RuntimeContractTests
 
         timeProvider.Advance(TimeSpan.FromMinutes(16));
 
+        (await store.AppendChunkAsync("cleanup-trigger", 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+        GetUploadCount(store).Should().Be(0);
+
         (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
             .Should().Be("Validation error: upload has expired.");
 
@@ -421,7 +425,31 @@ public class RuntimeContractTests
             .Should().Be("Validation error: upload has expired.");
 
         expiredCallbackInvoked.Should().BeFalse();
+        GetRecentlyExpiredUploadCount(store).Should().Be(1);
         File.Exists(Path.Combine(Path.GetTempPath(), $"{upload.UploadId}.tar")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ImageUploadStore_ShouldPruneRecentlyExpiredIdsAfterLifetime()
+    {
+        var timeProvider = new MutableTimeProvider(DateTimeOffset.UtcNow);
+        var store = new ImageUploadStore(timeProvider);
+        var upload = store.Start();
+
+        timeProvider.Advance(TimeSpan.FromMinutes(16));
+
+        (await store.AppendChunkAsync("cleanup-trigger", 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+        GetRecentlyExpiredUploadCount(store).Should().Be(1);
+
+        timeProvider.Advance(TimeSpan.FromMinutes(16));
+
+        (await store.AppendChunkAsync("cleanup-trigger-2", 0, ToBase64("y"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
+        GetRecentlyExpiredUploadCount(store).Should().Be(0);
+
+        (await store.AppendChunkAsync(upload.UploadId, 0, ToBase64("x"), CancellationToken.None))
+            .Should().Be("Validation error: upload ID was not found.");
     }
 
     [Fact]
@@ -999,6 +1027,22 @@ public class RuntimeContractTests
 
         var entry = enumerator.Current!;
         return entry.GetType().GetProperty("Value")!.GetValue(entry)!;
+    }
+
+    private static int GetUploadCount(ImageUploadStore store)
+    {
+        var uploadsField = typeof(ImageUploadStore).GetField("_uploads", BindingFlags.NonPublic | BindingFlags.Instance);
+        uploadsField.Should().NotBeNull();
+
+        return ((System.Collections.ICollection)uploadsField!.GetValue(store)!).Count;
+    }
+
+    private static int GetRecentlyExpiredUploadCount(ImageUploadStore store)
+    {
+        var expiredField = typeof(ImageUploadStore).GetField("_recentlyExpiredUploadIds", BindingFlags.NonPublic | BindingFlags.Instance);
+        expiredField.Should().NotBeNull();
+
+        return ((System.Collections.ICollection)expiredField!.GetValue(store)!).Count;
     }
 
     private sealed class MutableTimeProvider : TimeProvider
