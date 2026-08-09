@@ -122,6 +122,7 @@ Notes:
 
 - Chunk size limit: each decoded chunk must be 3 KB or smaller.
 - Total upload limit: the sum of decoded chunks must not exceed 512 MB.
+- Empty uploads are rejected before WSLC is called.
 - Sequence numbering: sequences are zero-based and must be uploaded in increasing order; the server will assemble chunks by sequence.
 - Expiry: an upload that is inactive for more than 15 minutes is expired and its state is discarded.
 - Process-local state: upload state is kept only in the service process and is not persisted across restarts; do not rely on uploads surviving a process restart.
