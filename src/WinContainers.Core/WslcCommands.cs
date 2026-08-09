@@ -36,6 +36,8 @@ public static class WslcCommands
 
     public static string ImagePull(string image) => $"image pull {Quote(image)}";
 
+    public static string ImageLoad(string path) => $"image load --input {Quote(path)}";
+
     public static string ImageRemove(string id) => $"image rm --force {Quote(id)}";
 
     public static string ImageInspect(string id) => $"image inspect {Quote(id)}";

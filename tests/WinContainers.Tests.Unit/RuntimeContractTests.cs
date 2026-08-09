@@ -1,9 +1,12 @@
+using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Runtime.Models;
+using WinContainers.Tests.Unit.Ai;
 
 namespace WinContainers.Tests.Unit;
 
@@ -145,6 +148,22 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcDriver_ShouldKillAndDrainOnCallerCancellation()
+    {
+        // RunAsync creates Process directly, so this contract test asserts the
+        // cancellation branch in source instead of spinning up wslc.exe.
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.Runtime/WslcDriver.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("catch (OperationCanceledException) when (ct.IsCancellationRequested && !timeoutCts.IsCancellationRequested)");
+        source.Should().Contain("TryKill(process);");
+        source.Should().Contain("await DrainOutputAsync(stdoutTask, stderrTask);");
+        source.Should().Contain("throw;");
+    }
+
+    [Fact]
     public void OnboardingViewModel_ShouldCleanupElevatedTempFilesOnEveryExitPath()
     {
         var path = Path.GetFullPath(Path.Combine(
@@ -176,6 +195,7 @@ public class RuntimeContractTests
         methods.Should().Contain(nameof(IWslcDriver.RemoveContainerAsync));
         methods.Should().Contain(nameof(IWslcDriver.GetImagesAsync));
         methods.Should().Contain(nameof(IWslcDriver.PullImageAsync));
+        methods.Should().Contain(nameof(IWslcDriver.LoadImageAsync));
         methods.Should().Contain(nameof(IWslcDriver.RemoveImageAsync));
         methods.Should().Contain(nameof(IWslcDriver.GetVolumesAsync));
         methods.Should().Contain(nameof(IWslcDriver.CreateVolumeAsync));
@@ -183,6 +203,129 @@ public class RuntimeContractTests
         methods.Should().Contain(nameof(IWslcDriver.GetNetworksAsync));
         methods.Should().Contain(nameof(IWslcDriver.CreateNetworkAsync));
         methods.Should().Contain(nameof(IWslcDriver.RemoveNetworkAsync));
+    }
+
+    [Fact]
+    public async Task WslcDriver_LoadImageAsync_ShouldRejectMissingOrDuplicateArguments()
+    {
+        var driver = new WslcDriver();
+
+        (await driver.LoadImageAsync(null, null, CancellationToken.None))
+            .Should().Be("Validation error: provide exactly one of tarPath or tarData.");
+
+        (await driver.LoadImageAsync("image.tar", "dGFy", CancellationToken.None))
+            .Should().Be("Validation error: provide exactly one of tarPath or tarData.");
+    }
+
+    [Fact]
+    public async Task McpTools_LoadImage_ShouldRejectMissingOrDuplicateArguments()
+    {
+        var driver = new FakeDriver();
+
+        (await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, null, driver, CancellationToken.None))
+            .Should().Be("Validation error: provide exactly one of tarPath or tarData.");
+#nullable disable
+        driver.LastLoadImageTarPath.Should().BeNull();
+        driver.LastLoadImageTarData.Should().BeNull();#nullable restore
+    }
+
+    [Fact]
+    public async Task McpTools_LoadImage_ShouldDelegateTarPath()
+    {
+        var driver = new FakeDriver();
+        var path = "C:\\images\\app.tar";
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(path, null, driver, CancellationToken.None);
+
+        result.Should().Be(string.Empty);
+        driver.LastLoadImageTarPath.Should().Be(path);
+        driver.LastLoadImageTarData.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task McpTools_LoadImage_ShouldDelegateTarData()
+    {
+        var driver = new FakeDriver();
+        var data = "dGFy";
+        var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, data, driver, CancellationToken.None);
+        result.Should().Be(string.Empty);
+        driver.LastLoadImageTarPath.Should().BeNull();
+        driver.LastLoadImageTarData.Should().Be(data);
+    }
+
+    [Fact]
+    public async Task WslcDriver_LoadImageAsync_ShouldRejectInvalidTarPath()
+    {
+        var driver = new WslcDriver();
+        var tempDir = Path.GetTempPath();
+        var wrongExtension = Path.Combine(tempDir, $"{Guid.NewGuid():N}.txt");
+        var missingTar = Path.Combine(tempDir, $"{Guid.NewGuid():N}.tar");
+
+        await File.WriteAllTextAsync(wrongExtension, "not a tar");
+
+        try
+        {
+            (await driver.LoadImageAsync(wrongExtension, null, CancellationToken.None))
+                .Should().Be("Validation error: tarPath must point to an existing .tar file.");
+
+            (await driver.LoadImageAsync(missingTar, null, CancellationToken.None))
+                .Should().Be("Validation error: tarPath must point to an existing .tar file.");
+        }
+        finally
+        {
+            if (File.Exists(wrongExtension))
+            {
+                File.Delete(wrongExtension);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task WslcDriver_LoadImageAsync_ShouldRejectInvalidBase64()
+    {
+        var driver = new WslcDriver();
+
+        (await driver.LoadImageAsync(null, "not-base64", CancellationToken.None))
+            .Should().Be("Validation error: tarData is not valid base64.");
+    }
+
+    [Fact]
+    public void WslcDriver_ShouldRejectOversizedBase64ByEncodedLength()
+    {
+        var method = typeof(WslcDriver).GetMethod(
+            "TryGetMaximumDecodedBytes",
+            BindingFlags.NonPublic | BindingFlags.Static,
+            [typeof(int), typeof(int), typeof(long).MakeByRefType()]);
+
+        method.Should().NotBeNull();
+
+        var oversized = new object?[] { 715827884, 0, 0L };
+        var ok = (bool)method!.Invoke(null, oversized)!;
+
+        ok.Should().BeTrue();
+        ((long)oversized[2]!).Should().BeGreaterThan(512L * 1024 * 1024);
+    }
+
+    [Fact]
+    public async Task WslcDriver_LoadImageAsync_ShouldDeleteTempArchiveOnExit()
+    {
+        var driver = new WslcDriver();
+        var tempDir = Path.GetTempPath();
+        var before = Directory.GetFiles(tempDir, "*.tar").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var tarData = Convert.ToBase64String(Encoding.UTF8.GetBytes("tar"));
+
+        try
+        {
+            await driver.LoadImageAsync(null, tarData, CancellationToken.None);
+        }
+        catch (FileNotFoundException)
+        {
+        }
+
+        var after = Directory.GetFiles(tempDir, "*.tar").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var created = after.Except(before).ToArray();
+
+        created.Should().BeEmpty();
     }
 
     [Fact]
@@ -337,6 +480,8 @@ public class RuntimeContractTests
         WslcCommands.ContainerStop("abc").Should().Be("container stop abc");
         WslcCommands.ImageLs().Should().Be("image ls --format json");
         WslcCommands.ImagePull("nginx").Should().Be("image pull nginx");
+        WslcCommands.ImageLoad(@"C:\images\app.tar").Should().Be(@"image load --input C:\images\app.tar");
+        WslcCommands.ImageLoad(@"C:\Users\me\my image.tar").Should().Be(@"image load --input ""C:\Users\me\my image.tar""");
         WslcCommands.VolumeLs().Should().Be("volume ls --format json");
         WslcCommands.NetworkLs().Should().Be("network ls --format json");
     }

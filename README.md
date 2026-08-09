@@ -109,6 +109,7 @@ Omit the `headers` block when connecting from localhost without a token configur
 | `RemoveNetwork` | Delete a network |
 | `HealthCheck` | Check whether the wslc runtime is available |
 | `GetVersion` | Get the wslc runtime version |
+| `load_image` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |
 
 ## AI Assistant
 

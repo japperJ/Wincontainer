@@ -126,6 +126,21 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.InspectImageAsync(id, ct);
 
+    [McpServerTool, Description("Load a local .tar container image archive into the WSLC image store.")]
+    public static async Task<string> LoadImage(
+        [Description("Existing local .tar path on the Wincontainer host; provide this or tarData, not both.")] string? tarPath = null,
+        [Description("Base64-encoded .tar archive, maximum 512 MB decoded; provide this or tarPath, not both.")] string? tarData = null,
+        IWslcDriver driver = null!,
+        CancellationToken ct = default)
+    {
+        var hasPath = !string.IsNullOrWhiteSpace(tarPath);
+        var hasData = !string.IsNullOrWhiteSpace(tarData);
+        if (hasPath == hasData)
+            return "Validation error: provide exactly one of tarPath or tarData.";
+
+        return await driver.LoadImageAsync(tarPath, tarData, ct);
+    }
+
     // ── Volumes ──────────────────────────────────────────────────────
 
     [McpServerTool, Description("List all storage volumes.")]

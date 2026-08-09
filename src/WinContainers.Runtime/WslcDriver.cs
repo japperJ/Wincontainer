@@ -11,6 +11,7 @@ public sealed class WslcDriver : IWslcDriver
     private const int RuntimeProbeTimeoutMs = 15000;
     private const int SlowTimeoutMs = 120000;
     private const int OutputCleanupTimeoutMs = 5000;
+    private const long MaxImageTarBytes = 512L * 1024 * 1024;
     public async Task<bool> IsAvailableAsync(CancellationToken ct)
     {
         try
@@ -59,6 +60,59 @@ public sealed class WslcDriver : IWslcDriver
 
     public Task<string> PullImageAsync(string image, CancellationToken ct) =>
         RunAndCaptureAsync(WslcCommands.ImagePull(image), 1800000, ct);
+
+    public async Task<string> LoadImageAsync(string? tarPath, string? tarData, CancellationToken ct)
+    {
+        var hasTarPath = !string.IsNullOrWhiteSpace(tarPath);
+        var hasTarData = !string.IsNullOrWhiteSpace(tarData);
+
+        if (hasTarPath == hasTarData)
+        {
+            return "Validation error: provide exactly one of tarPath or tarData.";
+        }
+
+        if (hasTarPath)
+        {
+            if (!IsValidTarPath(tarPath!))
+            {
+                return "Validation error: tarPath must point to an existing .tar file.";
+            }
+
+            return await RunAndCaptureAsync(WslcCommands.ImageLoad(tarPath!), 1800000, ct);
+        }
+
+        var base64 = tarData!;
+        if (TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes) && maxDecodedBytes > MaxImageTarBytes)
+        {
+            return "Validation error: tarData exceeds 512 MB after decoding.";
+        }
+
+        byte[] decodedBytes;
+        try
+        {
+            decodedBytes = Convert.FromBase64String(base64);
+        }
+        catch (FormatException)
+        {
+            return "Validation error: tarData is not valid base64.";
+        }
+
+        if (decodedBytes.LongLength > MaxImageTarBytes)
+        {
+            return "Validation error: tarData exceeds 512 MB after decoding.";
+        }
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.tar");
+        try
+        {
+            await File.WriteAllBytesAsync(tempPath, decodedBytes, ct);
+            return await RunAndCaptureAsync(WslcCommands.ImageLoad(tempPath), 1800000, ct);
+        }
+        finally
+        {
+            TryDeleteFile(tempPath);
+        }
+    }
 
     public Task<string> RemoveImageAsync(string id, CancellationToken ct) =>
         RunAndCaptureAsync(WslcCommands.ImageRemove(id), DefaultTimeoutMs, ct);
@@ -152,6 +206,85 @@ public sealed class WslcDriver : IWslcDriver
             TryKill(process);
             await DrainOutputAsync(stdoutTask, stderrTask);
             return new RunResult(-1, string.Empty, $"Command timed out after {timeoutMs}ms.");
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested && !timeoutCts.IsCancellationRequested)
+        {
+            TryKill(process);
+            await DrainOutputAsync(stdoutTask, stderrTask);
+            throw;
+        }
+    }
+
+    private static bool IsValidTarPath(string tarPath) =>
+        File.Exists(tarPath) && string.Equals(Path.GetExtension(tarPath), ".tar", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryGetMaximumDecodedBytes(string base64, out long maxDecodedBytes)
+    {
+        var contentLength = 0;
+        for (var i = 0; i < base64.Length; i++)
+        {
+            if (!char.IsWhiteSpace(base64[i]))
+            {
+                contentLength++;
+            }
+        }
+
+        return TryGetMaximumDecodedBytes(contentLength, CountBase64PaddingChars(base64), out maxDecodedBytes);
+    }
+
+    private static int CountBase64PaddingChars(string base64)
+    {
+        var padding = 0;
+        for (var i = base64.Length - 1; i >= 0; i--)
+        {
+            var c = base64[i];
+            if (char.IsWhiteSpace(c))
+            {
+                continue;
+            }
+
+            if (c != '=')
+            {
+                break;
+            }
+
+            padding++;
+            if (padding == 2)
+            {
+                break;
+            }
+        }
+
+        return padding;
+    }
+
+    private static bool TryGetMaximumDecodedBytes(int base64ContentLength, int paddingChars, out long maxDecodedBytes)
+    {
+        var fullGroups = base64ContentLength / 4;
+        var remainder = base64ContentLength % 4;
+        maxDecodedBytes = remainder switch
+        {
+            0 => fullGroups * 3L - Math.Min(paddingChars, 2),
+            2 => fullGroups * 3L + 1,
+            3 => fullGroups * 3L + 2,
+            _ => 0
+        };
+
+        return remainder is 0 or 2 or 3;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[WslcDriver] Temp file cleanup failed: {ex}");
         }
     }
 
