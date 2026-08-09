@@ -176,6 +176,7 @@ public class RuntimeContractTests
         methods.Should().Contain(nameof(IWslcDriver.RemoveContainerAsync));
         methods.Should().Contain(nameof(IWslcDriver.GetImagesAsync));
         methods.Should().Contain(nameof(IWslcDriver.PullImageAsync));
+        methods.Should().Contain(nameof(IWslcDriver.LoadImageAsync));
         methods.Should().Contain(nameof(IWslcDriver.RemoveImageAsync));
         methods.Should().Contain(nameof(IWslcDriver.GetVolumesAsync));
         methods.Should().Contain(nameof(IWslcDriver.CreateVolumeAsync));
@@ -337,6 +338,8 @@ public class RuntimeContractTests
         WslcCommands.ContainerStop("abc").Should().Be("container stop abc");
         WslcCommands.ImageLs().Should().Be("image ls --format json");
         WslcCommands.ImagePull("nginx").Should().Be("image pull nginx");
+        WslcCommands.ImageLoad(@"C:\images\app.tar").Should().Be(@"image load --input C:\images\app.tar");
+        WslcCommands.ImageLoad(@"C:\Users\me\my image.tar").Should().Be(@"image load --input \"C:\Users\me\my image.tar\"");
         WslcCommands.VolumeLs().Should().Be("volume ls --format json");
         WslcCommands.NetworkLs().Should().Be("network ls --format json");
     }

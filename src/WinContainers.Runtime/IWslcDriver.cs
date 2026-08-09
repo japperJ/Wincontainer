@@ -14,6 +14,7 @@ public interface IWslcDriver
     Task<string> GetContainerLogsAsync(string id, int tail, CancellationToken ct);
     Task<string> GetImagesAsync(CancellationToken ct);
     Task<string> PullImageAsync(string image, CancellationToken ct);
+    Task<string> LoadImageAsync(string? tarPath, string? tarData, CancellationToken ct);
     Task<string> RemoveImageAsync(string id, CancellationToken ct);
     Task<string> InspectImageAsync(string id, CancellationToken ct);
     Task<string> GetVolumesAsync(CancellationToken ct);
