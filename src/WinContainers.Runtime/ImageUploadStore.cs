@@ -511,7 +511,6 @@ public sealed class ImageUploadStore
         private int _retainedOperations;
         private int _removed;
         private int _expired;
-        private int _gateDisposed;
 
         public bool IsExpired => Volatile.Read(ref _expired) == 1;
 
@@ -521,10 +520,7 @@ public sealed class ImageUploadStore
 
         public void ReleaseOperation()
         {
-            if (Interlocked.Decrement(ref _retainedOperations) == 0 && Volatile.Read(ref _removed) == 1)
-            {
-                DisposeGate();
-            }
+            Interlocked.Decrement(ref _retainedOperations);
         }
 
         public void MarkRemoved(bool expired)
@@ -533,21 +529,7 @@ public sealed class ImageUploadStore
             {
                 MarkExpired();
             }
-
             Volatile.Write(ref _removed, 1);
-
-            if (Volatile.Read(ref _retainedOperations) == 0)
-            {
-                DisposeGate();
-            }
-        }
-
-        private void DisposeGate()
-        {
-            if (Interlocked.Exchange(ref _gateDisposed, 1) == 0)
-            {
-                Gate.Dispose();
-            }
         }
     }
 
