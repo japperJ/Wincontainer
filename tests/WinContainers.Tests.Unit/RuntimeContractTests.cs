@@ -868,6 +868,22 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcCommands_Run_ShouldAttachNamedNetworkWhenProvided()
+    {
+        var command = WslcCommands.Run("api:latest", "api", network: "famnet");
+
+        command.Should().Be("run --detach --name api --network famnet api:latest");
+    }
+
+    [Fact]
+    public void WslcCommands_Run_ShouldOmitNetworkWhenBlank()
+    {
+        var command = WslcCommands.Run("api:latest", network: " ");
+
+        command.Should().Be("run --detach api:latest");
+    }
+
+    [Fact]
     public void QuickActions_ShouldNotExposeUnsupportedRestartPolicyConfiguration()
     {
         var xamlPath = Path.GetFullPath(Path.Combine(
@@ -1281,7 +1297,7 @@ public class RuntimeContractTests
         public Task<string> GetNetworksAsync(CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> CreateNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
-        public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
+        public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default, string? network = null) => Task.FromResult(string.Empty);
         public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default) => Task.FromResult(string.Empty);
         public Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
     }

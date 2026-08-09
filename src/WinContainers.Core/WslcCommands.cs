@@ -60,7 +60,7 @@ public static class WslcCommands
 
     public static string Login(string host, string username) => $"login {Quote(host)} --username {Quote(username)} --password-stdin";
 
-    public static string Run(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null)
+    public static string Run(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? network = null)
     {
         var sb = new System.Text.StringBuilder("run --detach");
         if (!string.IsNullOrWhiteSpace(name))
@@ -74,6 +74,8 @@ public static class WslcCommands
         if (env is not null)
             foreach (var e in env.Where(e => !string.IsNullOrWhiteSpace(e)))
                 sb.Append($" --env {Quote(e)}");
+        if (!string.IsNullOrWhiteSpace(network))
+            sb.Append($" --network {Quote(network)}");
         sb.Append($" {Quote(image)}");
         return sb.ToString();
     }

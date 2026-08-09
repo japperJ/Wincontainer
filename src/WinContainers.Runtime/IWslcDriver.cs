@@ -24,7 +24,7 @@ public interface IWslcDriver
     Task<string> GetNetworksAsync(CancellationToken ct);
     Task<string> CreateNetworkAsync(string name, CancellationToken ct);
     Task<string> RemoveNetworkAsync(string name, CancellationToken ct);
-    Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default);
+    Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default, string? network = null);
     Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default);
     Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default);
 }
