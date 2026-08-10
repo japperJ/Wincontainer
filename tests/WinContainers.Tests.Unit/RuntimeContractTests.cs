@@ -11,6 +11,26 @@ namespace WinContainers.Tests.Unit;
 
 public class RuntimeContractTests
 {
+    [Theory]
+    [InlineData("1", true)]
+    [InlineData("true", true)]
+    [InlineData("0", false)]
+    [InlineData("false", false)]
+    public void EnvironmentBooleanParser_ShouldParseDocumentedValues(string value, bool expected)
+    {
+        EnvironmentBooleanParser.TryParse(value, out var result).Should().BeTrue();
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("yes")]
+    public void EnvironmentBooleanParser_ShouldRejectUndocumentedValues(string? value)
+    {
+        EnvironmentBooleanParser.TryParse(value, out _).Should().BeFalse();
+    }
+
     [Fact]
     public void ViewModelBase_ShouldHandleDispatcherLifecycleSafely()
     {

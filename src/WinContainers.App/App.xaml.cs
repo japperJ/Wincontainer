@@ -5,6 +5,7 @@ using Velopack;
 using WinContainers_App.Pages;
 using WinContainers_App.Services;
 using WinContainers_App.ViewModels;
+using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Service.Host;
@@ -128,12 +129,14 @@ public partial class App : Application
 
                 // Env-var overrides for test/automation deployments. Applied at startup only;
                 // the Settings toggles remain the live source of truth.
-                if (bool.TryParse(Environment.GetEnvironmentVariable("WINCONTAINERS_MCP_ENABLED"), out var mcpEnabled))
+                if (EnvironmentBooleanParser.TryParse(
+                        Environment.GetEnvironmentVariable("WINCONTAINERS_MCP_ENABLED"), out var mcpEnabled))
                 {
                     OutputService.Instance.McpEnabled = mcpEnabled;
                 }
 
-                if (bool.TryParse(Environment.GetEnvironmentVariable("WINCONTAINERS_ALLOW_REMOTE_API"), out var allowRemoteApi))
+                if (EnvironmentBooleanParser.TryParse(
+                        Environment.GetEnvironmentVariable("WINCONTAINERS_ALLOW_REMOTE_API"), out var allowRemoteApi))
                 {
                     OutputService.Instance.AllowRemoteApiAccess = allowRemoteApi;
                 }

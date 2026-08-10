@@ -59,8 +59,8 @@ The port and token can be overridden with environment variables:
 |---|---|---|
 | `WINCONTAINERS_SERVICE_PORT` | `5123` | Port the service listens on |
 | `WINCONTAINERS_SERVICE_TOKEN` | *(none)* | ****** required for remote connections |
-| `WINCONTAINERS_MCP_ENABLED` | *(unset)* | Set to `0` to start with the MCP server disabled |
-| `WINCONTAINERS_ALLOW_REMOTE_API` | *(unset)* | Set to `0` to start with remote API access blocked |
+| `WINCONTAINERS_MCP_ENABLED` | *(unset)* | Set to `0` or `false` to start with the MCP server disabled |
+| `WINCONTAINERS_ALLOW_REMOTE_API` | *(unset)* | Set to `0` or `false` to start with remote API access blocked |
 
 When no token is set the service only accepts loopback connections. When a token is set it also accepts connections from other hosts and requires `Authorization: ******
 
