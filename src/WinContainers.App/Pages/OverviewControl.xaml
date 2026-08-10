@@ -20,6 +20,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -72,6 +73,32 @@
                                     <TextBlock Text="Activity" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="RunningCountText" Text="Running: --" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <TextBlock x:Name="ImageCountText" Text="Images: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2" Grid.Column="0" Padding="12" CornerRadius="10"
+                                Background="{ThemeResource LayerFillColorAltBrush}">
+                            <Grid ColumnSpacing="10">
+                                <Ellipse x:Name="McpStatusDot" Width="10" Height="10"
+                                         Fill="{ThemeResource SystemFillColorAttentionBrush}"
+                                         VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="MCP server" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="McpStatusText" Text="Checking..." Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2" Grid.Column="1" Padding="12" CornerRadius="10"
+                                Background="{ThemeResource LayerFillColorAltBrush}">
+                            <Grid ColumnSpacing="10">
+                                <Ellipse x:Name="ApiStatusDot" Width="10" Height="10"
+                                         Fill="{ThemeResource SystemFillColorAttentionBrush}"
+                                         VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Remote API access" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="ApiStatusText" Text="Checking..." Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 </StackPanel>
                             </Grid>
                         </Border>

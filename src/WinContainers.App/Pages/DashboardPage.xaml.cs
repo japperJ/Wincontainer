@@ -64,48 +64,7 @@ public sealed partial class DashboardPage : Page
             MainWindow.ReturnToPivotIndex = -1;
         }
 
-        UpdateServiceStatusBanner();
-    }
-
-    private void UpdateServiceStatusBanner()
-    {
-        var output = WinContainers_App.Services.OutputService.Instance;
-        var mcpOff = !output.McpEnabled;
-        var remoteApiBlocked = !output.AllowRemoteApiAccess;
-
-        if (mcpOff && remoteApiBlocked)
-        {
-            ServiceStatusBanner.Severity = InfoBarSeverity.Warning;
-            ServiceStatusBanner.Title = "MCP server is off and remote API access is blocked";
-            ServiceStatusBanner.Message = "External clients cannot reach the MCP server or the API. Open Settings to re-enable.";
-        }
-        else if (mcpOff)
-        {
-            ServiceStatusBanner.Severity = InfoBarSeverity.Warning;
-            ServiceStatusBanner.Title = "MCP server is off";
-            ServiceStatusBanner.Message = "External MCP clients receive 404. The in-app AI chat is not affected. Open Settings to re-enable.";
-        }
-        else if (remoteApiBlocked)
-        {
-            ServiceStatusBanner.Severity = InfoBarSeverity.Warning;
-            ServiceStatusBanner.Title = "Remote API access is blocked";
-            ServiceStatusBanner.Message = "External clients receive 403. Local requests always work. Open Settings to allow remote access.";
-        }
-        else
-        {
-            ServiceStatusBanner.Severity = InfoBarSeverity.Success;
-            ServiceStatusBanner.Title = "All services running";
-            ServiceStatusBanner.Message = "MCP server and remote API access are enabled.";
-        }
-
-        ServiceStatusBanner.IsOpen = true;
-        ServiceStatusBanner.Visibility = Visibility.Visible;
-    }
-
-    private void ServiceStatusBanner_OpenSettings_Click(object sender, RoutedEventArgs e)
-    {
-        if (MainWindow.Instance is { } main)
-            main.NavigateToPage(typeof(SettingsPage));
+        OverviewContent.UpdateServiceStatus();
     }
 
     /// <summary>
