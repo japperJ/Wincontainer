@@ -133,7 +133,16 @@ public static class ServiceHost
 
         app.MapGet("/api/health", async (CancellationToken ct) =>
         {
-            var version = await driver.GetVersionAsync(ct);
+            string version;
+            try
+            {
+                version = await driver.GetVersionAsync(ct);
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                version = "unavailable";
+            }
+
             var runtimeAvailable = await driver.IsAvailableAsync(ct);
             return Results.Ok(new
             {
