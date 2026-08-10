@@ -267,11 +267,6 @@ public class UnitTest1
         var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
         var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
 
-        // Bind to all interfaces so a request from the machine's own non-loopback IP is treated as remote.
-        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
-        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
-        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", "0.0.0.0");
-
         var nonLoopback = Dns.GetHostAddresses(Dns.GetHostName())
             .FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip));
 
@@ -280,6 +275,11 @@ public class UnitTest1
             // No non-loopback address available (e.g. isolated CI) — cannot exercise the remote path.
             return;
         }
+
+        // Bind to all interfaces so a request from the machine's own non-loopback IP is treated as remote.
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", "0.0.0.0");
 
         var logger = new TestRequestLogger { AllowRemoteApiAccess = false };
         var app = ServiceHost.Build(Array.Empty<string>(), logger);
