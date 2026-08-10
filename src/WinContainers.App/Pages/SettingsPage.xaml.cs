@@ -10,6 +10,7 @@ namespace WinContainers_App.Pages;
 public sealed partial class SettingsPage : Page
 {
     private readonly SettingsViewModel _viewModel;
+    private bool _isLoading;
 
     public SettingsPage()
     {
@@ -21,20 +22,31 @@ public sealed partial class SettingsPage : Page
 
     private async void SettingsPage_Loaded(object sender, RoutedEventArgs e)
     {
-        await _viewModel.LoadAsync();
-        PortBox.Text = _viewModel.PortText;
-        TokenBox.Text = _viewModel.TokenText;
-        ApiLoggingToggle.IsOn = _viewModel.ApiLoggingEnabled;
-        RemoteApiLoggingToggle.IsOn = _viewModel.RemoteApiLoggingEnabled;
-        AppVersionText.Text = _viewModel.AppVersion;
-        UpdateChannelBox.SelectedValue = _viewModel.UpdateChannel;
-        AiProviderBox.SelectedValue = _viewModel.AiProviderKind;
-        AiEndpointBox.Text = _viewModel.AiEndpoint;
-        AiModelBox.Text = _viewModel.AiModel;
-        AiKeyBox.Password = _viewModel.AiApiKey ?? string.Empty;
-        AiConfirmToggle.IsOn = _viewModel.AiConfirmDestructiveActions;
-        AiStatusText.Text = _viewModel.AiStatusText;
-        UpdateStatusDisplay();
+        _isLoading = true;
+        try
+        {
+            await _viewModel.LoadAsync();
+            PortBox.Text = _viewModel.PortText;
+            TokenBox.Text = _viewModel.TokenText;
+            ApiLoggingToggle.IsOn = _viewModel.ApiLoggingEnabled;
+            RemoteApiLoggingToggle.IsOn = _viewModel.RemoteApiLoggingEnabled;
+            AllowRemoteApiToggle.IsOn = _viewModel.AllowRemoteApiAccess;
+            McpEnabledToggle.IsOn = _viewModel.McpEnabled;
+            McpLoggingToggle.IsOn = _viewModel.McpLoggingEnabled;
+            AppVersionText.Text = _viewModel.AppVersion;
+            UpdateChannelBox.SelectedValue = _viewModel.UpdateChannel;
+            AiProviderBox.SelectedValue = _viewModel.AiProviderKind;
+            AiEndpointBox.Text = _viewModel.AiEndpoint;
+            AiModelBox.Text = _viewModel.AiModel;
+            AiKeyBox.Password = _viewModel.AiApiKey ?? string.Empty;
+            AiConfirmToggle.IsOn = _viewModel.AiConfirmDestructiveActions;
+            AiStatusText.Text = _viewModel.AiStatusText;
+            UpdateStatusDisplay();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateStatusDisplay()
@@ -77,6 +89,27 @@ public sealed partial class SettingsPage : Page
     private void RemoteApiLoggingToggle_Toggled(object sender, RoutedEventArgs e)
     {
         _viewModel.RemoteApiLoggingEnabled = RemoteApiLoggingToggle.IsOn;
+        _viewModel.SaveLoggingSettings();
+    }
+
+    private void AllowRemoteApiToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+        _viewModel.AllowRemoteApiAccess = AllowRemoteApiToggle.IsOn;
+        _viewModel.SaveLoggingSettings();
+    }
+
+    private void McpEnabledToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+        _viewModel.McpEnabled = McpEnabledToggle.IsOn;
+        _viewModel.SaveLoggingSettings();
+    }
+
+    private void McpLoggingToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+        _viewModel.McpLoggingEnabled = McpLoggingToggle.IsOn;
         _viewModel.SaveLoggingSettings();
     }
 

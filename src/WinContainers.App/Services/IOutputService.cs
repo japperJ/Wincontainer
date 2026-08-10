@@ -13,6 +13,9 @@ public interface IOutputService
     IReadOnlyList<(LogLevel Level, string Message)> History { get; }
     bool ApiLoggingEnabled { get; set; }
     bool RemoteApiLoggingEnabled { get; set; }
+    bool McpEnabled { get; set; }
+    bool AllowRemoteApiAccess { get; set; }
+    bool McpLoggingEnabled { get; set; }
 
     void Write(string text);
     void Write(string text, LogLevel level);

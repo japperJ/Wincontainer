@@ -17,6 +17,9 @@ public sealed class OutputService : IOutputService, IApiRequestLogger
     public IReadOnlyList<(LogLevel Level, string Message)> History => _history;
     public bool ApiLoggingEnabled { get; set; }
     public bool RemoteApiLoggingEnabled { get; set; }
+    public bool McpEnabled { get; set; } = true;
+    public bool AllowRemoteApiAccess { get; set; } = true;
+    public bool McpLoggingEnabled { get; set; } = true;
     private readonly List<(LogLevel Level, string Message)> _history = [];
 
     public void Write(string text) => Write(text, LogLevel.Info);
@@ -50,5 +53,16 @@ public sealed class OutputService : IOutputService, IApiRequestLogger
         }
 
         Write($"[API][Remote:{isRemote}] {method} {path} from {remoteIp}", LogLevel.Info);
+    }
+
+    public void LogMcpRequest(string methodInfo, string remoteIp, bool isRemote, string? outcome)
+    {
+        if (!McpLoggingEnabled)
+        {
+            return;
+        }
+
+        var suffix = string.IsNullOrWhiteSpace(outcome) ? string.Empty : $" -> {outcome}";
+        Write($"[MCP][Remote:{isRemote}] {methodInfo} from {remoteIp}{suffix}", LogLevel.Info);
     }
 }

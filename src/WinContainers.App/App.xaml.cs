@@ -5,6 +5,7 @@ using Velopack;
 using WinContainers_App.Pages;
 using WinContainers_App.Services;
 using WinContainers_App.ViewModels;
+using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Service.Host;
@@ -122,6 +123,24 @@ public partial class App : Application
 
                 OutputService.Instance.ApiLoggingEnabled = settings.ApiLoggingEnabled;
                 OutputService.Instance.RemoteApiLoggingEnabled = settings.RemoteApiLoggingEnabled;
+                OutputService.Instance.McpEnabled = settings.McpEnabled;
+                OutputService.Instance.McpLoggingEnabled = settings.McpLoggingEnabled;
+                OutputService.Instance.AllowRemoteApiAccess = settings.AllowRemoteApiAccess;
+
+                // Env-var overrides for test/automation deployments. Applied at startup only;
+                // the Settings toggles remain the live source of truth.
+                if (EnvironmentBooleanParser.TryParse(
+                        Environment.GetEnvironmentVariable("WINCONTAINERS_MCP_ENABLED"), out var mcpEnabled))
+                {
+                    OutputService.Instance.McpEnabled = mcpEnabled;
+                }
+
+                if (EnvironmentBooleanParser.TryParse(
+                        Environment.GetEnvironmentVariable("WINCONTAINERS_ALLOW_REMOTE_API"), out var allowRemoteApi))
+                {
+                    OutputService.Instance.AllowRemoteApiAccess = allowRemoteApi;
+                }
+
                 if (!string.IsNullOrWhiteSpace(settings.ApiToken))
                 {
                     ServiceEndpointResolver.SetToken(settings.ApiToken);

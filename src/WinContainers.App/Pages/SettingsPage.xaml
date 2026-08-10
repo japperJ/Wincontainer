@@ -31,7 +31,49 @@
                                   OnContent="Remote"
                                   Toggled="RemoteApiLoggingToggle_Toggled" />
 
+                    <StackPanel Spacing="4">
+                        <ToggleSwitch x:Name="AllowRemoteApiToggle"
+                                      Header="Allow remote API access"
+                                      OffContent="Blocked"
+                                      OnContent="Allowed"
+                                      Toggled="AllowRemoteApiToggle_Toggled" />
+                        <TextBlock Text="Local requests always work. Turn off to block external clients."
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
                     <TextBlock x:Name="EndpointText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+
+            <Border Padding="24" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="MCP Server" Style="{StaticResource SubtitleTextBlockStyle}" />
+
+                    <StackPanel Spacing="4">
+                        <ToggleSwitch x:Name="McpEnabledToggle"
+                                      Header="MCP server"
+                                      OffContent="Off"
+                                      OnContent="On"
+                                      Toggled="McpEnabledToggle_Toggled" />
+                        <TextBlock Text="When off, external MCP clients receive 404. The in-app AI chat is not affected."
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <ToggleSwitch x:Name="McpLoggingToggle"
+                                      Header="MCP request logging"
+                                      OffContent="Off"
+                                      OnContent="On"
+                                      Toggled="McpLoggingToggle_Toggled" />
+                        <TextBlock Text="Logs MCP activity (methods, tool calls and their results) to the Output window."
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

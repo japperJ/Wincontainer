@@ -63,6 +63,8 @@ public sealed partial class DashboardPage : Page
             SideNavList.SelectedIndex = index;
             MainWindow.ReturnToPivotIndex = -1;
         }
+
+        OverviewContent.UpdateServiceStatus();
     }
 
     /// <summary>

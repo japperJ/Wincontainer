@@ -104,6 +104,53 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    private bool _mcpEnabled;
+    public bool McpEnabled
+    {
+        get => _mcpEnabled;
+        set
+        {
+            if (SetProperty(ref _mcpEnabled, value))
+            {
+                _output.McpEnabled = value;
+                if (!_isLoading)
+                {
+                    _output.Write(value ? "MCP server enabled" : "MCP server disabled", LogLevel.Info);
+                }
+            }
+        }
+    }
+
+    private bool _mcpLoggingEnabled;
+    public bool McpLoggingEnabled
+    {
+        get => _mcpLoggingEnabled;
+        set
+        {
+            if (SetProperty(ref _mcpLoggingEnabled, value))
+            {
+                _output.McpLoggingEnabled = value;
+            }
+        }
+    }
+
+    private bool _allowRemoteApiAccess;
+    public bool AllowRemoteApiAccess
+    {
+        get => _allowRemoteApiAccess;
+        set
+        {
+            if (SetProperty(ref _allowRemoteApiAccess, value))
+            {
+                _output.AllowRemoteApiAccess = value;
+                if (!_isLoading)
+                {
+                    _output.Write(value ? "Remote API access enabled" : "Remote API access blocked", LogLevel.Info);
+                }
+            }
+        }
+    }
+
     private string _updateChannel = UpdateService.StableChannel;
     public string UpdateChannel
     {
@@ -195,38 +242,50 @@ public partial class SettingsViewModel : ViewModelBase
         _serviceClient = serviceClient;
     }
 
+    private bool _isLoading;
     public async Task LoadAsync()
     {
-        ApiLoggingEnabled = _output.ApiLoggingEnabled;
-        RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
-        var settings = _settingsService.Load();
-        UpdateChannel = string.Equals(settings.UpdateChannel, UpdateService.BetaChannel, StringComparison.OrdinalIgnoreCase)
-            ? UpdateService.BetaChannel
-            : UpdateService.StableChannel;
-        PortText = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
-        TokenText = ServiceEndpointResolver.ResolveToken();
-        StatusText = $"Current endpoint: {ServiceEndpointResolver.Resolve()}";
-
-        AiProviderKind = string.Equals(settings.AiProviderKind, "Ollama", StringComparison.OrdinalIgnoreCase)
-            ? "Ollama"
-            : "OpenAiCompatible";
-        AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) ? "https://api.openai.com/v1" : settings.AiEndpoint;
-        AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? "gpt-4o-mini" : settings.AiModel;
-        AiApiKey = settings.AiApiKey;
-        AiConfirmDestructiveActions = settings.AiConfirmDestructiveActions;
-
+        _isLoading = true;
         try
         {
-            ServiceHealthy = await _serviceClient.IsHealthyAsync();
-            var version = await _serviceClient.GetVersionAsync();
-            VersionText = ServiceHealthy ? $"WSLC version: {WslcVersionFormatter.Format(version)}" : "Service unavailable";
-            ServiceStatusText = ServiceHealthy ? "WSLC service is running" : "WSLC service is not responding";
+            ApiLoggingEnabled = _output.ApiLoggingEnabled;
+            RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
+            McpEnabled = _output.McpEnabled;
+            McpLoggingEnabled = _output.McpLoggingEnabled;
+            AllowRemoteApiAccess = _output.AllowRemoteApiAccess;
+            var settings = _settingsService.Load();
+            UpdateChannel = string.Equals(settings.UpdateChannel, UpdateService.BetaChannel, StringComparison.OrdinalIgnoreCase)
+                ? UpdateService.BetaChannel
+                : UpdateService.StableChannel;
+            PortText = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT") ?? "5123";
+            TokenText = ServiceEndpointResolver.ResolveToken();
+            StatusText = $"Current endpoint: {ServiceEndpointResolver.Resolve()}";
+
+            AiProviderKind = string.Equals(settings.AiProviderKind, "Ollama", StringComparison.OrdinalIgnoreCase)
+                ? "Ollama"
+                : "OpenAiCompatible";
+            AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) ? "https://api.openai.com/v1" : settings.AiEndpoint;
+            AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? "gpt-4o-mini" : settings.AiModel;
+            AiApiKey = settings.AiApiKey;
+            AiConfirmDestructiveActions = settings.AiConfirmDestructiveActions;
+
+            try
+            {
+                ServiceHealthy = await _serviceClient.IsHealthyAsync();
+                var version = await _serviceClient.GetVersionAsync();
+                VersionText = ServiceHealthy ? $"WSLC version: {WslcVersionFormatter.Format(version)}" : "Service unavailable";
+                ServiceStatusText = ServiceHealthy ? "WSLC service is running" : "WSLC service is not responding";
+            }
+            catch
+            {
+                ServiceHealthy = false;
+                VersionText = "WSLC: unavailable";
+                ServiceStatusText = "Failed to connect to WSLC service";
+            }
         }
-        catch
+        finally
         {
-            ServiceHealthy = false;
-            VersionText = "WSLC: unavailable";
-            ServiceStatusText = "Failed to connect to WSLC service";
+            _isLoading = false;
         }
     }
 
@@ -254,6 +313,9 @@ public partial class SettingsViewModel : ViewModelBase
         var settings = _settingsService.Load();
         settings.ApiLoggingEnabled = _output.ApiLoggingEnabled;
         settings.RemoteApiLoggingEnabled = _output.RemoteApiLoggingEnabled;
+        settings.McpEnabled = _output.McpEnabled;
+        settings.McpLoggingEnabled = _output.McpLoggingEnabled;
+        settings.AllowRemoteApiAccess = _output.AllowRemoteApiAccess;
         _settingsService.Save(settings);
     }
 

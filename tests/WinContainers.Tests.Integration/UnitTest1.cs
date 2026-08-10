@@ -185,6 +185,209 @@ public class UnitTest1
         }
     }
 
+    [Fact]
+    public async Task ServiceHost_ShouldReturn404ForMcpWhenDisabled()
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+
+        var logger = new TestRequestLogger { McpEnabled = false };
+        var app = ServiceHost.Build(Array.Empty<string>(), logger);
+
+        try
+        {
+            await app.StartAsync();
+
+            var address = app.Urls.First();
+            var localAddress = CreateLoopbackUri(address);
+
+            using var client = new HttpClient { BaseAddress = localAddress };
+
+            using var response = await client.PostAsync("/mcp", CreateMcpToolsListRequest());
+
+            response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        }
+        finally
+        {
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
+    [Fact]
+    public async Task ServiceHost_Health_ShouldReportToggleState()
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+
+        var logger = new TestRequestLogger
+        {
+            McpEnabled = false,
+            AllowRemoteApiAccess = false,
+            McpLoggingEnabled = true
+        };
+        var app = ServiceHost.Build(Array.Empty<string>(), logger);
+
+        try
+        {
+            await app.StartAsync();
+
+            var address = app.Urls.First();
+            var localAddress = CreateLoopbackUri(address);
+
+            using var client = new HttpClient { BaseAddress = localAddress };
+
+            using var response = await client.GetAsync("/api/health");
+            var json = await response.Content.ReadAsStringAsync();
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            using var document = JsonDocument.Parse(json);
+            document.RootElement.GetProperty("mcpEnabled").GetBoolean().Should().BeFalse();
+            document.RootElement.GetProperty("apiRemoteAccessEnabled").GetBoolean().Should().BeFalse();
+        }
+        finally
+        {
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
+    [Fact]
+    public async Task ServiceHost_ShouldBlockRemoteApiWhenDisabled()
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+        var originalHost = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST");
+
+        var nonLoopback = Dns.GetHostAddresses(Dns.GetHostName())
+            .FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip));
+
+        if (nonLoopback is null)
+        {
+            // No non-loopback address available (e.g. isolated CI) — cannot exercise the remote path.
+            return;
+        }
+
+        // Bind to all interfaces so a request from the machine's own non-loopback IP is treated as remote.
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", "0.0.0.0");
+
+        var logger = new TestRequestLogger { AllowRemoteApiAccess = false };
+        var app = ServiceHost.Build(Array.Empty<string>(), logger);
+
+        try
+        {
+            await app.StartAsync();
+
+            var address = app.Urls.First();
+            var localAddress = CreateLoopbackUri(address);
+            var remoteAddress = new UriBuilder(address) { Host = nonLoopback.ToString() }.Uri;
+
+            // Localhost still works when remote access is disabled.
+            using (var localClient = new HttpClient { BaseAddress = localAddress })
+            {
+                using var localResponse = await localClient.GetAsync("/api/health");
+                localResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            }
+
+            // A request from a non-loopback source is rejected with 403.
+            using (var remoteClient = new HttpClient { BaseAddress = remoteAddress })
+            {
+                using var remoteResponse = await remoteClient.GetAsync("/api/health");
+                remoteResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            }
+        }
+        finally
+        {
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_HOST", originalHost);
+        }
+    }
+
+    [Fact]
+    public async Task ServiceHost_McpLogging_ShouldLogToolCallsWhenEnabled()
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+
+        var logger = new TestRequestLogger { McpLoggingEnabled = true };
+        var app = ServiceHost.Build(Array.Empty<string>(), logger);
+
+        try
+        {
+            await app.StartAsync();
+
+            var address = app.Urls.First();
+            var localAddress = CreateLoopbackUri(address);
+
+            using var client = new HttpClient { BaseAddress = localAddress };
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+
+            using var response = await client.PostAsync("/mcp", CreateMcpToolsListRequest());
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            logger.McpLogs.Should().Contain(log => log.StartsWith("/mcp [tools/list]", StringComparison.Ordinal));
+            logger.McpLogs.Should().Contain(log => log.EndsWith("|ok", StringComparison.Ordinal));
+        }
+        finally
+        {
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
+    [Fact]
+    public async Task ServiceHost_McpLogging_ShouldSkipWhenDisabled()
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+
+        var logger = new TestRequestLogger { McpLoggingEnabled = false };
+        var app = ServiceHost.Build(Array.Empty<string>(), logger);
+
+        try
+        {
+            await app.StartAsync();
+
+            var address = app.Urls.First();
+            var localAddress = CreateLoopbackUri(address);
+
+            using var client = new HttpClient { BaseAddress = localAddress };
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+
+            using var response = await client.PostAsync("/mcp", CreateMcpToolsListRequest());
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            logger.McpLogs.Should().BeEmpty();
+        }
+        finally
+        {
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
     private static StringContent CreateMcpToolsListRequest()
     {
         return new StringContent(
@@ -212,5 +415,23 @@ public class UnitTest1
         process.WaitForExit();
 
         process.ExitCode.Should().Be(0);
+    }
+}
+
+internal sealed class TestRequestLogger : WinContainers.Core.Models.IApiRequestLogger
+{
+    public bool McpEnabled { get; set; } = true;
+    public bool AllowRemoteApiAccess { get; set; } = true;
+    public bool McpLoggingEnabled { get; set; } = true;
+
+    public List<string> McpLogs { get; } = [];
+
+    public void LogRequest(string method, string path, string remoteIp, bool isRemote)
+    {
+    }
+
+    public void LogMcpRequest(string methodInfo, string remoteIp, bool isRemote, string? outcome)
+    {
+        McpLogs.Add($"{methodInfo}|{outcome}");
     }
 }
