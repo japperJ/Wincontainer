@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Features;
@@ -89,6 +90,24 @@ public static class ServiceHost
             await next();
         });
 
+        // Remote API access gate — blocks non-loopback /api calls when AllowRemoteApiAccess is off.
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api") && requestLogger is { AllowRemoteApiAccess: false })
+            {
+                var remoteIp = context.Connection.RemoteIpAddress;
+                var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIp?.ToString() ?? string.Empty));
+                if (isRemote)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsJsonAsync(new { error = "Remote API access is disabled" });
+                    return;
+                }
+            }
+
+            await next();
+        });
+
         app.Use(async (context, next) =>
         {
             if (!context.Request.Path.StartsWithSegments("/api"))
@@ -121,7 +140,9 @@ public static class ServiceHost
                 ok = true,
                 wslcAvailable = runtimeAvailable,
                 wslcVersion = version,
-                appVersion = "WinContainers WSLC"
+                appVersion = "WinContainers WSLC",
+                mcpEnabled = requestLogger?.McpEnabled ?? true,
+                apiRemoteAccessEnabled = requestLogger?.AllowRemoteApiAccess ?? true
             });
         });
 
@@ -203,6 +224,19 @@ public static class ServiceHost
         app.MapGet("/api/runtime/version", async (CancellationToken ct) =>
             Results.Ok(new { version = await driver.GetVersionAsync(ct) }));
 
+        // MCP enable gate — rejects all /mcp traffic when the MCP server is disabled.
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/mcp") && requestLogger is { McpEnabled: false })
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                await context.Response.WriteAsJsonAsync(new { error = "MCP server is disabled" });
+                return;
+            }
+
+            await next();
+        });
+
         // MCP authorization middleware — enforce the same bearer token rules as /api
         app.Use(async (context, next) =>
         {
@@ -227,7 +261,8 @@ public static class ServiceHost
             await next();
         });
 
-        // MCP request logging middleware — logs every MCP tool invocation to the output window
+        // MCP request logging middleware — logs every MCP method to the output window
+        // when McpLoggingEnabled is on, with result status and error summary for tool calls.
         app.Use(async (context, next) =>
         {
             if (!context.Request.Path.StartsWithSegments("/mcp") || !HttpMethods.IsPost(context.Request.Method))
@@ -236,48 +271,80 @@ public static class ServiceHost
                 return;
             }
 
-            context.Request.EnableBuffering();
+            var shouldLog = requestLogger?.McpLoggingEnabled ?? true;
 
             string methodInfo;
-            var contentLength = context.Request.ContentLength;
-            if (contentLength is null || contentLength > 64 * 1024)
+            if (!shouldLog)
             {
-                methodInfo = "mcp (body too large)";
+                methodInfo = "mcp";
             }
             else
             {
-                try
+                context.Request.EnableBuffering();
+
+                var contentLength = context.Request.ContentLength;
+                if (contentLength is null || contentLength > 64 * 1024)
                 {
-                    using var reader = new StreamReader(context.Request.Body, leaveOpen: true);
-                    var body = await reader.ReadToEndAsync();
-                    context.Request.Body.Position = 0;
-
-                    using var doc = JsonDocument.Parse(body);
-                    var method = doc.RootElement.GetProperty("method").GetString() ?? "unknown";
-
-                    if (method == "tools/call"
-                        && doc.RootElement.TryGetProperty("params", out var paramsEl)
-                        && paramsEl.TryGetProperty("name", out var nameEl))
-                    {
-                        methodInfo = $"{method} {nameEl.GetString()}";
-                    }
-                    else
-                    {
-                        methodInfo = method;
-                    }
+                    methodInfo = "mcp (body too large)";
                 }
-                catch
+                else
                 {
-                    methodInfo = "mcp (parse error)";
+                    try
+                    {
+                        using var reader = new StreamReader(context.Request.Body, leaveOpen: true);
+                        var body = await reader.ReadToEndAsync();
+                        context.Request.Body.Position = 0;
+
+                        using var doc = JsonDocument.Parse(body);
+                        var method = doc.RootElement.GetProperty("method").GetString() ?? "unknown";
+
+                        if (method == "tools/call"
+                            && doc.RootElement.TryGetProperty("params", out var paramsEl)
+                            && paramsEl.TryGetProperty("name", out var nameEl))
+                        {
+                            methodInfo = $"{method} {nameEl.GetString()}";
+                        }
+                        else
+                        {
+                            methodInfo = method;
+                        }
+                    }
+                    catch
+                    {
+                        methodInfo = "mcp (parse error)";
+                    }
                 }
             }
 
-            var remoteIp = context.Connection.RemoteIpAddress;
-            var remoteIpText = remoteIp?.ToString() ?? "unknown";
-            var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIpText));
-            requestLogger?.LogRequest("MCP", $"/mcp [{methodInfo}]", remoteIpText, isRemote);
+            string? outcome = null;
+            ResponseCaptureStream? capture = null;
+            var originalBody = context.Response.Body;
+            if (shouldLog)
+            {
+                capture = new ResponseCaptureStream(originalBody);
+                context.Response.Body = capture;
+            }
 
-            await next();
+            try
+            {
+                await next();
+            }
+            finally
+            {
+                context.Response.Body = originalBody;
+            }
+
+            if (shouldLog && requestLogger is { } logger)
+            {
+                outcome = capture is null
+                    ? (context.Response.StatusCode >= 400 ? $"http {context.Response.StatusCode}" : null)
+                    : SummarizeMcpOutcome(capture, context.Response.StatusCode);
+
+                var remoteIp = context.Connection.RemoteIpAddress;
+                var remoteIpText = remoteIp?.ToString() ?? "unknown";
+                var isRemote = remoteIp is null || (!IPAddress.IsLoopback(remoteIp) && !IsLocalHostAddress(remoteIpText));
+                logger.LogMcpRequest($"/mcp [{methodInfo}]", remoteIpText, isRemote, outcome);
+            }
         });
 
         app.MapMcp("/mcp");
@@ -291,6 +358,163 @@ public static class ServiceHost
             || string.Equals(address, "::1", StringComparison.Ordinal)
             || string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>Writes through to the real response body while keeping a bounded capture for diagnostics.</summary>
+    private sealed class ResponseCaptureStream : Stream
+    {
+        private const int MaxCaptureBytes = 1 * 1024 * 1024;
+        private readonly Stream _inner;
+        private readonly MemoryStream _capture = new();
+
+        public ResponseCaptureStream(Stream inner) => _inner = inner;
+
+        public string CapturedText => Encoding.UTF8.GetString(_capture.ToArray());
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => _inner.CanWrite;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => _inner.Position = value; }
+
+        public override void Flush() => _inner.Flush();
+
+        public override Task FlushAsync(CancellationToken cancellationToken) => _inner.FlushAsync(cancellationToken);
+
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+
+        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+
+        public override void SetLength(long value) => _inner.SetLength(value);
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            _inner.Write(buffer, offset, count);
+            Capture(buffer, offset, count);
+        }
+
+        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            await _inner.WriteAsync(buffer, offset, count, cancellationToken);
+            Capture(buffer, offset, count);
+        }
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var innerTask = _inner.WriteAsync(buffer, cancellationToken);
+            Capture(buffer.Span);
+            return innerTask;
+        }
+
+        private void Capture(byte[] buffer, int offset, int count)
+        {
+            var remaining = MaxCaptureBytes - checked((int)_capture.Length);
+            if (remaining <= 0)
+            {
+                return;
+            }
+
+            var take = Math.Min(count, remaining);
+            _capture.Write(buffer, offset, take);
+        }
+
+        private void Capture(ReadOnlySpan<byte> span)
+        {
+            var remaining = MaxCaptureBytes - checked((int)_capture.Length);
+            if (remaining <= 0)
+            {
+                return;
+            }
+
+            var take = Math.Min(span.Length, remaining);
+            _capture.Write(span[..take]);
+        }
+    }
+
+    /// <summary>Builds a one-line outcome summary from the captured MCP response body (SSE or JSON).</summary>
+    private static string? SummarizeMcpOutcome(ResponseCaptureStream capture, int statusCode)
+    {
+        if (statusCode >= 400)
+        {
+            return $"http {statusCode}";
+        }
+
+        var text = capture.CapturedText;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        try
+        {
+            // MCP over HTTP responds with SSE: one or more "data: {...}" lines.
+            var dataLine = text
+                .Split('\n')
+                .Select(line => line.Trim())
+                .FirstOrDefault(line => line.StartsWith("data:", StringComparison.OrdinalIgnoreCase));
+
+            if (dataLine is null)
+            {
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(dataLine["data:".Length..].Trim());
+
+            if (doc.RootElement.TryGetProperty("error", out var errorEl))
+            {
+                var message = errorEl.TryGetProperty("message", out var msgEl)
+                    ? msgEl.GetString()
+                    : null;
+                return string.IsNullOrWhiteSpace(message) ? "error" : $"error: {message}";
+            }
+
+            if (doc.RootElement.TryGetProperty("result", out var resultEl))
+            {
+                var isError = resultEl.TryGetProperty("isError", out var flagEl) && flagEl.GetBoolean();
+                if (isError)
+                {
+                    var content = resultEl.TryGetProperty("content", out var contentEl)
+                        ? ExtractTextContent(contentEl)
+                        : null;
+                    return string.IsNullOrWhiteSpace(content) ? "failed" : $"failed: {Truncate(content, 120)}";
+                }
+
+                return "ok";
+            }
+
+            return "ok";
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? ExtractTextContent(JsonElement contentEl)
+    {
+        if (contentEl.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var item in contentEl.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object
+                && item.TryGetProperty("text", out var textEl)
+                && textEl.ValueKind == JsonValueKind.String)
+            {
+                var text = textEl.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string Truncate(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[..maxLength] + "…";
 }
 
 public sealed record PullImageRequest(string Image);

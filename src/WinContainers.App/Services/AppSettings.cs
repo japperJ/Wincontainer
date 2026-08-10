@@ -8,6 +8,15 @@ public sealed class AppSettings
 
     public bool RemoteApiLoggingEnabled { get; set; }
 
+    /// <summary>When false, the MCP server is disabled and /mcp returns 404.</summary>
+    public bool McpEnabled { get; set; } = true;
+
+    /// <summary>When true, MCP activity is written to the Output window.</summary>
+    public bool McpLoggingEnabled { get; set; } = true;
+
+    /// <summary>When false, non-loopback /api requests are rejected with 403.</summary>
+    public bool AllowRemoteApiAccess { get; set; } = true;
+
     public string UpdateChannel { get; set; } = "Stable";
 
     public DateTimeOffset? LastUpdateCheckUtc { get; set; }

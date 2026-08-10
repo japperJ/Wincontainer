@@ -59,8 +59,22 @@ The port and token can be overridden with environment variables:
 |---|---|---|
 | `WINCONTAINERS_SERVICE_PORT` | `5123` | Port the service listens on |
 | `WINCONTAINERS_SERVICE_TOKEN` | *(none)* | ****** required for remote connections |
+| `WINCONTAINERS_MCP_ENABLED` | *(unset)* | Set to `0` to start with the MCP server disabled |
+| `WINCONTAINERS_ALLOW_REMOTE_API` | *(unset)* | Set to `0` to start with remote API access blocked |
 
 When no token is set the service only accepts loopback connections. When a token is set it also accepts connections from other hosts and requires `Authorization: ******
+
+### On/Off Controls
+
+The app Settings page provides live toggles (persisted across restarts):
+
+| Setting | Effect |
+|---|---|
+| **MCP server** | When off, `/mcp` returns `404` for all clients. The in-app AI chat is not affected. |
+| **MCP request logging** | When on, MCP activity (methods, tool calls, and their results) is written to the Output window. |
+| **Allow remote API access** | When off, non-loopback `/api` requests return `403`. Localhost requests always work. |
+
+The environment variables above apply only at startup and are useful for tests or automation; the Settings toggles are the live source of truth. `/api/health` reports the current state in the `mcpEnabled` and `apiRemoteAccessEnabled` fields.
 
 ### Connecting an AI Client
 

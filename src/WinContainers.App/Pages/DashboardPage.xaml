@@ -11,11 +11,24 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!-- Status banner when MCP is off or remote API is blocked -->
+        <InfoBar x:Name="ServiceStatusBanner"
+                 Grid.Row="0"
+                 IsClosable="False"
+                 IsOpen="False"
+                 Severity="Warning"
+                 Visibility="Collapsed">
+            <InfoBar.ActionButton>
+                <Button Content="Open Settings" Click="ServiceStatusBanner_OpenSettings_Click" />
+            </InfoBar.ActionButton>
+        </InfoBar>
+
         <!-- Container detail actions bar (visible only when detail tab is active) -->
-        <Border x:Name="ContainerActionsBar" Grid.Row="0" Padding="16,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Visibility="Collapsed">
+        <Border x:Name="ContainerActionsBar" Grid.Row="1" Padding="16,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Visibility="Collapsed">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -46,7 +59,7 @@
         </Border>
 
         <!-- Side nav + content area -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="220" />
                 <ColumnDefinition Width="*" />
