@@ -271,7 +271,7 @@ public static class ServiceHost
                 return;
             }
 
-            var shouldLog = requestLogger?.McpLoggingEnabled ?? true;
+            var shouldLog = requestLogger is { McpLoggingEnabled: true };
 
             string methodInfo;
             if (!shouldLog)
