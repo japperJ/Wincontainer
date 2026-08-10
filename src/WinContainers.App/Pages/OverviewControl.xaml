@@ -9,36 +9,72 @@
 
     <ScrollViewer>
         <StackPanel Spacing="16">
-            <Border Padding="24" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <StackPanel Spacing="12">
-                    <TextBlock Text="Runtime status" Style="{StaticResource TitleTextBlockStyle}" />
-                    <Grid ColumnSpacing="24" RowSpacing="12">
+            <Border Padding="20" CornerRadius="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="16">
+                    <Grid>
+                        <TextBlock Text="Runtime status" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock Text="Live overview" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+                    <Grid ColumnSpacing="12" RowSpacing="12">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <Ellipse Grid.Row="0" Grid.Column="0" x:Name="StatusDot" Width="12" Height="12" Fill="{ThemeResource SystemFillColorCriticalBrush}" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="StatusText" Text="Checking..." Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Row="0" Grid.Column="0" Padding="12" CornerRadius="10"
+                                Background="{ThemeResource LayerFillColorAltBrush}">
+                            <Grid ColumnSpacing="10">
+                                <Ellipse x:Name="StatusDot" Width="10" Height="10"
+                                         Fill="{ThemeResource SystemFillColorCriticalBrush}"
+                                         VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Service" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="StatusText" Text="Checking..." Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
-                        <Ellipse Grid.Row="1" Grid.Column="0" Width="12" Height="12" Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ContainerCountText" Text="Containers: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Row="0" Grid.Column="1" Padding="12" CornerRadius="10"
+                                Background="{ThemeResource LayerFillColorAltBrush}">
+                            <Grid ColumnSpacing="10">
+                                <Ellipse Width="10" Height="10" Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                                         VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="WSLC runtime" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="WslcVersionText" Text="WSLC: --" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
-                        <Ellipse Grid.Row="2" Grid.Column="0" Width="12" Height="12" Fill="{ThemeResource SystemFillColorAttentionBrush}" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="RunningCountText" Text="Running: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Row="1" Grid.Column="0" Padding="12" CornerRadius="10"
+                                Background="{ThemeResource LayerFillColorAltBrush}">
+                            <Grid ColumnSpacing="10">
+                                <Ellipse Width="10" Height="10" Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                                         VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Containers" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="ContainerCountText" Text="Containers: --" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
-                        <Ellipse Grid.Row="0" Grid.Column="2" Width="12" Height="12" Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Grid.Row="0" Grid.Column="3" x:Name="WslcVersionText" Text="WSLC: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-
-                        <Ellipse Grid.Row="1" Grid.Column="2" Width="12" Height="12" Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Grid.Row="1" Grid.Column="3" x:Name="ImageCountText" Text="Images: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Row="1" Grid.Column="1" Padding="12" CornerRadius="10"
+                                Background="{ThemeResource LayerFillColorAltBrush}">
+                            <Grid ColumnSpacing="10">
+                                <Ellipse Width="10" Height="10" Fill="{ThemeResource SystemFillColorAttentionBrush}"
+                                         VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Activity" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="RunningCountText" Text="Running: --" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock x:Name="ImageCountText" Text="Images: --" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                     </Grid>
                 </StackPanel>
             </Border>

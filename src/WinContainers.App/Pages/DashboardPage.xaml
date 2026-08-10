@@ -15,13 +15,15 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Status banner when MCP is off or remote API is blocked -->
+        <!-- Compact service status strip -->
         <InfoBar x:Name="ServiceStatusBanner"
                  Grid.Row="0"
                  IsClosable="False"
                  IsOpen="False"
                  Severity="Warning"
-                 Visibility="Collapsed">
+                 Visibility="Collapsed"
+                 Padding="12,4"
+                 Margin="0,0,0,8">
             <InfoBar.ActionButton>
                 <Button Content="Open Settings" Click="ServiceStatusBanner_OpenSettings_Click" />
             </InfoBar.ActionButton>
