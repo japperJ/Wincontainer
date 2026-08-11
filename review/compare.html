@@ -363,6 +363,101 @@
 
   .verdict b { color: #fff; }
 
+  /* ---------- validated section ---------- */
+  .prose-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 20px;
+    margin-bottom: 40px;
+    align-items: start;
+  }
+
+  .prose {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 26px 26px 20px;
+    animation: rise 0.6s ease both;
+    animation-delay: 0.15s;
+  }
+
+  .prose h3 {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 14px;
+    color: #fff;
+  }
+
+  .prose h3::before {
+    content: "";
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+
+  .prose p {
+    font-size: 0.94rem;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  .prose p b { color: var(--text); }
+
+  .prose code {
+    font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 0.84em;
+    color: #9db8ff;
+    background: rgba(79, 140, 255, 0.1);
+    border: 1px solid rgba(79, 140, 255, 0.18);
+    border-radius: 6px;
+    padding: 1px 6px;
+    white-space: nowrap;
+  }
+
+  .prose ul { list-style: none; }
+
+  .prose ul li {
+    position: relative;
+    font-size: 0.92rem;
+    color: var(--text-dim);
+    padding: 6px 0 6px 18px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .prose ul li:first-child { border-top: none; }
+  .prose ul li b { color: var(--text); }
+
+  .prose ul li::before {
+    content: "▸";
+    position: absolute;
+    left: 2px;
+    color: var(--accent);
+  }
+
+  .claim-list li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 9px 0;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .claim-list li:first-child { border-top: none; }
+  .claim-list li .ico { margin-top: 1px; }
+  .claim-list li div { font-size: 0.92rem; color: var(--text-dim); }
+  .claim-list li div b { color: var(--text); }
+  .claim-list li div i { color: var(--text-faint); }
+
+  @media (max-width: 980px) {
+    .prose-grid { grid-template-columns: 1fr; }
+  }
+
   footer {
     text-align: center;
     padding: 28px 0 40px;
@@ -413,16 +508,64 @@
 
   <div class="cards" id="summary-cards"></div>
 
+  <h2 class="section-title">Wincontainer, validated</h2>
+  <p class="section-note">Every Wincontainer claim above was checked against the actual repository —
+  README, architecture docs, runtime layer, and release tooling. Each item is expanded below; the
+  <b>✓ / ± / ✕</b> marks follow the table.</p>
+
+  <div class="prose-grid">
+    <section class="prose">
+      <h3>What Wincontainer actually is</h3>
+      <p>
+        Wincontainer is a <b>focused Windows 11 desktop manager</b> (native WinUI 3) for containers running
+        on Microsoft's <b>WSL Containers (WSLC)</b> runtime. It gives developers a small, fast interface for
+        viewing and operating containers, images, volumes, and networks — <b>without Docker Desktop</b>.
+      </p>
+      <p>
+        It is <b>not a container runtime itself</b>: container operations are delegated to Microsoft's
+        <code>wslc.exe</code>, hosted by the per-user <code>wslcsession.exe</code> service on top of WSL2.
+        Wincontainer is the native management layer around that stack.
+      </p>
+      <ul>
+        <li><b>Single self-contained executable</b> — the WinUI shell, an in-process Kestrel service (REST API), an MCP server, and the AI chat run in one process. No bundled background daemons.</li>
+        <li><b>Container workflows</b> — list, start, stop, restart, remove; pull/inspect images; volumes and networks; live logs; a ConPTY-backed interactive terminal.</li>
+        <li><b>Prerequisite onboarding</b> — a wizard detects WSL2, virtualization, and WSLC and can install or update WSLC from Microsoft's official releases.</li>
+        <li><b>Built-in MCP server</b> — <code>localhost:5123/mcp</code> lets AI assistants (Copilot, Cursor, Claude) drive containers directly; REST API and an in-app AI chat share the same driver layer.</li>
+        <li><b>Updates</b> — Velopack-based custom feed with Stable and Beta channels, an update policy, and in-app checks.</li>
+        <li><b>Distribution</b> — portable ZIP or a Velopack <code>Setup.exe</code> installer.</li>
+      </ul>
+    </section>
+
+    <section class="prose">
+      <h3>Claim check</h3>
+      <ul class="claim-list">
+        <li><span class="ico good">✓</span><div><b>No Docker Desktop required</b> — that is the product's core purpose.</div></li>
+        <li><span class="ico good">✓</span><div><b>No Hyper-V</b> — WSL2's Virtual Machine Platform is used, not full Hyper-V; virtualization must be enabled.</div></li>
+        <li><span class="ico good">✓</span><div><b>Lightweight footprint</b> — one exe, in-process services, no background services of its own.</div></li>
+        <li><span class="ico good">✓</span><div><b>Auditable / minimal services</b> — Wincontainer adds no Windows service; <code>wslcsession.exe</code> belongs to the WSLC stack.</div></li>
+        <li><span class="ico good">✓</span><div><b>Full Windows API access</b> — native WinUI 3 on Windows 11.</div></li>
+        <li><span class="ico good">✓</span><div><b>Linux container support</b> — containers run on WSL2 via WSLC.</div></li>
+        <li><span class="ico good">✓</span><div><b>Update system</b> — custom Velopack feed, Stable/Beta channels, <code>update-policy.json</code>.</div></li>
+        <li><span class="ico part">±</span><div><b>Windows-native runtime</b> — the <i>GUI</i> is native WinUI 3, but the container runtime is WSL-based (WSLC on WSL2). "Fully native" overstates it.</div></li>
+        <li><span class="ico part">±</span><div><b>Portable / MSI install</b> — portable ZIP: yes. Installer: Velopack <code>Setup.exe</code> — not an MSI.</div></li>
+        <li><span class="ico part">±</span><div><b>GPU passthrough</b> — inherited from WSL2's GPU paravirtualization (WSLg, CUDA, DirectML). Wincontainer itself contains no DirectX/D3D12 integration.</div></li>
+        <li><span class="ico part">±</span><div><b>CLI / TUI tooling</b> — no CLI ships with the app. The tooling surface is the GUI plus the REST API and MCP server; <code>wslc.exe</code> provides the basic CLI.</div></li>
+        <li><span class="ico part">±</span><div><b>Enterprise governance</b> — no RBAC, audit logs, or policy engine exist in the repository. Security is loopback binding, an optional auth token, and MCP / remote-API toggles.</div></li>
+        <li><span class="ico bad">✕</span><div><b>No WSL dependency</b> — WSL2 <i>and</i> WSLC are hard requirements: "Windows 11, WSL2 and virtualization enabled, WSLC (<code>wslc.exe</code>)".</div></li>
+        <li><span class="ico bad">✕</span><div><b>Windows container support</b> — operations are WSLC-only, and WSLC manages Linux containers in WSL. No Windows-container code paths exist in the repository.</div></li>
+      </ul>
+    </section>
+  </div>
+
   <div class="verdict">
     <span class="mark">◆</span>
-    <p><b>Wincontainer is still unique in the Windows ecosystem</b> — the only fully
-    Windows-native, lightweight, and portable container runtime that needs neither
-    Hyper-V nor WSL.</p>
+    <p><b>The honest bottom line:</b> Wincontainer's strengths are real — no Docker Desktop, no Hyper-V,
+    lightweight, portable, a native GUI, a custom update channel, Linux containers, and an MCP/AI surface.</p>
   </div>
 </main>
 
 <footer>
-  Generated from <code>review/compare.md</code> · Windows Container Runtime Comparison
+  Windows Container Runtime Comparison
 </footer>
 
 <script>
@@ -437,24 +580,24 @@
   ];
 
   const ROWS = [
-    { feature: "Windows-native runtime",     cells: ["✓ Fully native", "✓ Native (WSL-based)", "✘ Hyper-V / WSL", "✘ WSL only", "✘ WSL only", "✓ Native"] },
+    { feature: "Windows-native runtime",     cells: ["± Native GUI · WSLC runtime", "✓ Native (WSL-based)", "✘ Hyper-V / WSL", "✘ WSL only", "✘ WSL only", "✓ Native"] },
     { feature: "No Docker Desktop required", cells: ["yes", "yes", "no", "yes", "yes", "yes"] },
     { feature: "No Hyper-V",                 cells: ["yes", "yes", "✘ Requires Hyper-V", "yes", "yes", "yes"] },
-    { feature: "No WSL dependency",          cells: ["yes", "✘ Requires WSL", "no", "✘ Requires WSL", "✘ Requires WSL", "yes"] },
+    { feature: "No WSL dependency",          cells: ["✘ Requires WSL2 + WSLC", "✘ Requires WSL", "no", "✘ Requires WSL", "✘ Requires WSL", "yes"] },
     { feature: "Lightweight footprint",      cells: ["✓ Very small", "Medium", "✘ Heavy services", "Medium", "Medium", "✓ Small"] },
-    { feature: "Portable / MSI install",     cells: ["✓ MSI + portable", "no", "no", "no", "no", "✘ manual"] },
+    { feature: "Portable / MSI install",     cells: ["✓ Portable + Setup.exe", "no", "no", "no", "no", "✘ manual"] },
     { feature: "Auditable / minimal services", cells: ["✓ Minimal", "✘ WSL subsystem", "✘ Many services", "✘ WSL services", "✘ WSL services", "✓ Minimal"] },
     { feature: "Full Windows API access",    cells: ["yes", "yes", "yes", "yes", "yes", "yes"] },
     { feature: "Linux container support",    cells: ["yes", "yes", "yes", "yes", "yes", "✓ Exp."] },
-    { feature: "Windows container support",  cells: ["yes", "no", "yes", "no", "no", "✓ Exp."] },
-    { feature: "GPU passthrough",            cells: ["✓ DirectX / D3D12", "✓ WSL GPU", "yes", "yes", "yes", "no"] },
+    { feature: "Windows container support",  cells: ["no", "no", "yes", "no", "no", "✓ Exp."] },
+    { feature: "GPU passthrough",            cells: ["± Via WSL2", "✓ WSL GPU", "yes", "yes", "yes", "no"] },
     { feature: "Update system",              cells: ["✓ Custom index", "no", "yes", "no", "no", "no"] },
-    { feature: "CLI / TUI tooling",          cells: ["✓ Rich", "✓ Basic", "yes", "yes", "yes", "Limited"] },
-    { feature: "Enterprise governance",      cells: ["✓ Strong", "Medium", "✓ Strong", "Medium", "Medium", "no"] },
+    { feature: "CLI / TUI tooling",          cells: ["± GUI · REST · MCP", "✓ Basic", "yes", "yes", "yes", "Limited"] },
+    { feature: "Enterprise governance",      cells: ["± Limited", "Medium", "✓ Strong", "Medium", "Medium", "no"] },
   ];
 
   const USE_CASES = [
-    "Windows-native containers & dev workflows",
+    "Windows-native GUI for WSLC container workflows",
     "Lightweight Docker alternative on Windows",
     "Full Docker ecosystem",
     "Dev-only Linux containers",
@@ -463,7 +606,7 @@
   ];
 
   const SUMMARY = [
-    { name: "Wincontainer", tag: "The pick", win: true,  text: "The only fully Windows-native, lightweight, portable container runtime." },
+    { name: "Wincontainer", tag: "The pick", win: true,  text: "A lightweight, portable, native WinUI 3 manager for WSL Containers (WSLC) — Docker Desktop not required, but WSL2 is." },
     { name: "WSL Containers", tag: "Closest rival", win: false, text: "Closest official Microsoft alternative — but WSL-based." },
     { name: "Docker Desktop", tag: "Heavy", win: false, text: "Heavy, Hyper-V, background services." },
     { name: "Docker Engine in WSL2", tag: "Linux only", win: false, text: "Linux-only, not Windows-native." },
@@ -474,6 +617,7 @@
   // ---- helpers ------------------------------------------------------------
   function classify(cell) {
     if (cell.startsWith("✘") || cell === "no") return "bad";
+    if (cell.startsWith("±")) return "part";
     if (cell.startsWith("✓") || cell === "yes") {
       // a ✔ with an experimental caveat still counts as partial
       return cell.toLowerCase().includes("experimental") ? "part" : "good";
@@ -491,7 +635,7 @@
     if (cell === "no") {
       return `<span class="status"><span class="ico bad">✕</span><span class="label">No</span></span>`;
     }
-    const note = cell.replace(/^[✘✓]\s*/, "");
+    const note = cell.replace(/^[✘✓±]\s*/, "");
     const icon = cls === "bad" ? '<span class="ico bad">✕</span>'
               : cls === "part" ? '<span class="ico part">±</span>'
               : '<span class="ico good">✓</span>';
