@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Windows Container Runtime Comparison — Wincontainer</title>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --bg-soft: #0f1522;
+    --card: #141b2c;
+    --card-hover: #182136;
+    --border: #22304a;
+    --border-soft: #1a2438;
+    --text: #e8edf7;
+    --text-dim: #9aa7c0;
+    --text-faint: #64708c;
+    --accent: #4f8cff;
+    --accent-2: #7c5cff;
+    --accent-glow: rgba(79, 140, 255, 0.35);
+    --good: #3ecf8e;
+    --good-bg: rgba(62, 207, 142, 0.12);
+    --bad: #ff5d6c;
+    --bad-bg: rgba(255, 93, 108, 0.12);
+    --partial: #ffb020;
+    --partial-bg: rgba(255, 176, 32, 0.12);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
+    --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-display: "Space Grotesk", "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font);
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(124, 92, 255, 0.14), transparent 60%),
+      radial-gradient(1000px 500px at -10% 0%, rgba(79, 140, 255, 0.16), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ---------- Hero ---------- */
+  header {
+    padding: 72px 0 40px;
+    text-align: center;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(79, 140, 255, 0.1);
+    border: 1px solid rgba(79, 140, 255, 0.25);
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 20px;
+  }
+
+  .eyebrow .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(0.8); }
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3.4rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+    background: linear-gradient(120deg, #ffffff 30%, #9db8ff 70%, #b9a4ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 16px;
+  }
+
+  .subtitle {
+    max-width: 640px;
+    margin: 0 auto;
+    color: var(--text-dim);
+    font-size: 1.05rem;
+  }
+
+  .subtitle strong { color: var(--text); font-weight: 600; }
+
+  /* ---------- Legend / stats ---------- */
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px 28px;
+    margin: 28px 0 8px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+
+  .stats .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .ico.good { background: var(--good-bg); color: var(--good); }
+  .ico.bad  { background: var(--bad-bg);  color: var(--bad); }
+  .ico.part { background: var(--partial-bg); color: var(--partial); font-size: 11px; }
+
+  /* ---------- Table ---------- */
+  .table-scroll {
+    margin: 36px 0 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+
+  thead th {
+    background: #111a2c;
+    color: var(--text);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.84rem;
+    text-align: left;
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  thead th.hl { color: #fff; }
+  thead th.hl .hl-tag {
+    display: block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-top: 2px;
+  }
+
+  tbody td {
+    padding: 10px 10px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: middle;
+    color: var(--text-dim);
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+  td.feature {
+    background: var(--bg-soft);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.82rem;
+    box-shadow: inset -1px 0 0 var(--border-soft);
+  }
+
+  tbody tr:hover td.feature { background: #111a2c; }
+
+  /* highlighted Wincontainer column */
+  td.hl {
+    background: rgba(79, 140, 255, 0.08);
+    border-left: 1px solid rgba(79, 140, 255, 0.25);
+    border-right: 1px solid rgba(79, 140, 255, 0.25);
+    box-shadow: inset 0 0 40px -30px var(--accent-glow);
+  }
+
+  tbody tr:hover td.hl { background: rgba(79, 140, 255, 0.14); }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status .label { font-size: 0.84rem; color: var(--text-dim); }
+  .status .label b { color: var(--text); font-weight: 600; }
+
+  /* score pills in header */
+  .score-pill {
+    display: inline-block;
+    margin-left: 8px;
+    font-family: var(--font);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    vertical-align: middle;
+  }
+
+  .score-pill.good { background: var(--good-bg); color: var(--good); }
+  .score-pill.part { background: var(--partial-bg); color: var(--partial); }
+
+  /* best-use-case row */
+  tr.usecase td {
+    white-space: normal;
+    font-size: 0.86rem;
+    color: var(--text-dim);
+    min-width: 150px;
+  }
+  tr.usecase td.hl b { color: var(--accent); }
+
+  /* ---------- Summary ---------- */
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 48px 0 6px;
+  }
+
+  .section-note {
+    color: var(--text-faint);
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 20px 18px;
+    transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+    animation: rise 0.6s ease both;
+    animation-delay: calc(var(--i, 0) * 70ms);
+  }
+
+  .card:hover {
+    transform: translateY(-4px);
+    background: var(--card-hover);
+    border-color: var(--accent);
+    box-shadow: 0 18px 40px -18px var(--accent-glow);
+  }
+
+  .card .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .card h3 {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .card.win h3 { color: #fff; }
+  .card.win h3::after {
+    content: "★";
+    color: var(--accent);
+    margin-left: 8px;
+    font-size: 0.85em;
+  }
+
+  .card p {
+    font-size: 0.92rem;
+    color: var(--text-dim);
+  }
+
+  .card.win {
+    border-color: rgba(79, 140, 255, 0.45);
+    background: linear-gradient(160deg, rgba(79, 140, 255, 0.16), rgba(124, 92, 255, 0.1) 60%), var(--card);
+  }
+
+  .card .tag {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-soft);
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+
+  .card.win .tag { color: var(--accent); border-color: rgba(79, 140, 255, 0.35); }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* verdict banner */
+  .verdict {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 72px;
+    padding: 22px 26px;
+    border-radius: var(--radius);
+    border: 1px solid rgba(79, 140, 255, 0.35);
+    background: linear-gradient(120deg, rgba(79, 140, 255, 0.14), rgba(124, 92, 255, 0.1));
+    font-size: 1.02rem;
+  }
+
+  .verdict .mark {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .verdict b { color: #fff; }
+
+  footer {
+    text-align: center;
+    padding: 28px 0 40px;
+    color: var(--text-faint);
+    font-size: 0.82rem;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  @media (max-width: 720px) {
+    header { padding: 48px 0 28px; }
+    .cards { grid-template-columns: 1fr; }
+  }
+
+  /* only as a last resort on very small screens */
+  @media (max-width: 640px) {
+    .table-scroll { overflow: auto; }
+    table { min-width: 640px; }
+    thead th:first-child { position: sticky; left: 0; z-index: 4; background: #111a2c; }
+    td.feature { position: sticky; left: 0; z-index: 2; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span> Runtime Comparison · 2026</span>
+    <h1>Windows Container Runtime<br />Comparison</h1>
+    <p class="subtitle">
+      How <strong>Wincontainer</strong> stacks up against the alternatives on Windows —
+      from Docker Desktop to WSL-based engines, evaluated across <strong id="feat-count">14</strong> capabilities.
+    </p>
+    <div class="stats">
+      <span class="chip"><span class="ico good">✓</span> Supported</span>
+      <span class="chip"><span class="ico bad">✕</span> Not supported</span>
+      <span class="chip"><span class="ico part">±</span> Partial / caveats</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="table-scroll" id="table-scroll">
+    <table id="compare-table"></table>
+  </div>
+
+  <h2 class="section-title">The blunt version</h2>
+  <p class="section-note">One sentence per runtime. No sugar-coating.</p>
+
+  <div class="cards" id="summary-cards"></div>
+
+  <div class="verdict">
+    <span class="mark">◆</span>
+    <p><b>Wincontainer is still unique in the Windows ecosystem</b> — the only fully
+    Windows-native, lightweight, and portable container runtime that needs neither
+    Hyper-V nor WSL.</p>
+  </div>
+</main>
+
+<footer>
+  Generated from <code>review/compare.md</code> · Windows Container Runtime Comparison
+</footer>
+
+<script>
+  // ---- data ---------------------------------------------------------------
+  const COLUMNS = [
+    { name: "Wincontainer",     short: "Wincontainer", hl: true  },
+    { name: "WSL Containers",   short: "WSLC",         hl: false },
+    { name: "Docker Desktop",   short: "Docker Desk.", hl: false },
+    { name: "Docker Engine",    short: "Docker WSL2",  hl: false },
+    { name: "Podman",           short: "Podman",       hl: false },
+    { name: "Psroot",           short: "Psroot",       hl: false },
+  ];
+
+  const ROWS = [
+    { feature: "Windows-native runtime",     cells: ["✓ Fully native", "✓ Native (WSL-based)", "✘ Hyper-V / WSL", "✘ WSL only", "✘ WSL only", "✓ Native"] },
+    { feature: "No Docker Desktop required", cells: ["yes", "yes", "no", "yes", "yes", "yes"] },
+    { feature: "No Hyper-V",                 cells: ["yes", "yes", "✘ Requires Hyper-V", "yes", "yes", "yes"] },
+    { feature: "No WSL dependency",          cells: ["yes", "✘ Requires WSL", "no", "✘ Requires WSL", "✘ Requires WSL", "yes"] },
+    { feature: "Lightweight footprint",      cells: ["✓ Very small", "Medium", "✘ Heavy services", "Medium", "Medium", "✓ Small"] },
+    { feature: "Portable / MSI install",     cells: ["✓ MSI + portable", "no", "no", "no", "no", "✘ manual"] },
+    { feature: "Auditable / minimal services", cells: ["✓ Minimal", "✘ WSL subsystem", "✘ Many services", "✘ WSL services", "✘ WSL services", "✓ Minimal"] },
+    { feature: "Full Windows API access",    cells: ["yes", "yes", "yes", "yes", "yes", "yes"] },
+    { feature: "Linux container support",    cells: ["yes", "yes", "yes", "yes", "yes", "✓ Exp."] },
+    { feature: "Windows container support",  cells: ["yes", "no", "yes", "no", "no", "✓ Exp."] },
+    { feature: "GPU passthrough",            cells: ["✓ DirectX / D3D12", "✓ WSL GPU", "yes", "yes", "yes", "no"] },
+    { feature: "Update system",              cells: ["✓ Custom index", "no", "yes", "no", "no", "no"] },
+    { feature: "CLI / TUI tooling",          cells: ["✓ Rich", "✓ Basic", "yes", "yes", "yes", "Limited"] },
+    { feature: "Enterprise governance",      cells: ["✓ Strong", "Medium", "✓ Strong", "Medium", "Medium", "no"] },
+  ];
+
+  const USE_CASES = [
+    "Windows-native containers & dev workflows",
+    "Lightweight Docker alternative on Windows",
+    "Full Docker ecosystem",
+    "Dev-only Linux containers",
+    "Rootless containers (Linux-first)",
+    "Experimental Windows-native containers",
+  ];
+
+  const SUMMARY = [
+    { name: "Wincontainer", tag: "The pick", win: true,  text: "The only fully Windows-native, lightweight, portable container runtime." },
+    { name: "WSL Containers", tag: "Closest rival", win: false, text: "Closest official Microsoft alternative — but WSL-based." },
+    { name: "Docker Desktop", tag: "Heavy", win: false, text: "Heavy, Hyper-V, background services." },
+    { name: "Docker Engine in WSL2", tag: "Linux only", win: false, text: "Linux-only, not Windows-native." },
+    { name: "Podman", tag: "Rootless", win: false, text: "Rootless, but still WSL-based on Windows." },
+    { name: "Psroot", tag: "Experimental", win: false, text: "Experimental Windows-native alternative, not production-ready." },
+  ];
+
+  // ---- helpers ------------------------------------------------------------
+  function classify(cell) {
+    if (cell.startsWith("✘") || cell === "no") return "bad";
+    if (cell.startsWith("✓") || cell === "yes") {
+      // a ✔ with an experimental caveat still counts as partial
+      return cell.toLowerCase().includes("experimental") ? "part" : "good";
+    }
+    const s = cell.toLowerCase();
+    if (s.includes("medium") || s.includes("limited") || s.includes("experimental") || s.includes("manual") || s.includes("basic")) return "part";
+    return "good"; // anything else with an explicit capability (e.g. "Rich", "Small") is a win
+  }
+
+  function statusHTML(cell) {
+    const cls = classify(cell);
+    if (cell === "yes") {
+      return `<span class="status"><span class="ico good">✓</span><span class="label">Yes</span></span>`;
+    }
+    if (cell === "no") {
+      return `<span class="status"><span class="ico bad">✕</span><span class="label">No</span></span>`;
+    }
+    const note = cell.replace(/^[✘✓]\s*/, "");
+    const icon = cls === "bad" ? '<span class="ico bad">✕</span>'
+              : cls === "part" ? '<span class="ico part">±</span>'
+              : '<span class="ico good">✓</span>';
+    return `<span class="status">${icon}<span class="label">${note}</span></span>`;
+  }
+
+  function scoreOf(rowCells) {
+    let pts = 0;
+    rowCells.forEach(c => { const k = classify(c); if (k === "good") pts += 1; else if (k === "part") pts += 0.5; });
+    return (pts / rowCells.length) * 100;
+  }
+
+  // ---- render table -------------------------------------------------------
+  const t = document.getElementById("compare-table");
+  const N = ROWS.length;
+
+  // proportional column widths so the table always fits the window
+  const colgroup = `<colgroup>
+    <col class="feature" style="width:22%">
+    ${COLUMNS.map(() => `<col class="run" style="width:13%">`).join("")}
+  </colgroup>`;
+
+  // header
+  let thead = `<thead><tr><th>Feature / Capability</th>`;
+  COLUMNS.forEach((col, i) => {
+    const score = Math.round(scoreOf(ROWS.map(r => r.cells[i])));
+    const pill = col.hl
+      ? `<span class="score-pill good">${score}%</span>`
+      : score >= 80 ? `<span class="score-pill good">${score}%</span>`
+      : score >= 50 ? `<span class="score-pill part">${score}%</span>`
+      : "";
+    thead += `<th class="${col.hl ? "hl" : ""}">${col.name}${pill}${col.hl ? '<span class="hl-tag">Highlighted</span>' : ""}</th>`;
+  });
+  thead += `</tr></thead>`;
+  t.innerHTML = thead;
+
+  let body = `<tbody>`;
+  ROWS.forEach((r, ri) => {
+    body += `<tr>`;
+    body += `<td class="feature">${r.feature}</td>`;
+    r.cells.forEach((cell, ci) => {
+      body += `<td class="${COLUMNS[ci].hl ? "hl" : ""}">${statusHTML(cell)}</td>`;
+    });
+    body += `</tr>`;
+  });
+
+  // best use case row
+  body += `<tr class="usecase"><td class="feature">Best use case</td>`;
+  USE_CASES.forEach((uc, ci) => {
+    const hl = COLUMNS[ci].hl;
+    body += `<td class="${hl ? "hl" : ""}">${hl ? `<b>${uc}</b>` : uc}</td>`;
+  });
+  body += `</tr></tbody>`;
+
+  const table = document.createElement("table");
+  table.innerHTML = colgroup + thead + body;
+  t.replaceWith(table);
+
+  document.getElementById("feat-count").textContent = N;
+
+  // ---- render summary cards ----------------------------------------------
+  const cards = document.getElementById("summary-cards");
+  SUMMARY.forEach((s, i) => {
+    const el = document.createElement("article");
+    el.className = "card" + (s.win ? " win" : "");
+    el.style.setProperty("--i", i);
+    el.innerHTML = `
+      <div class="card-top">
+        <h3>${s.name}</h3>
+        <span class="tag">${s.tag}</span>
+      </div>
+      <p>${s.text}</p>`;
+    cards.appendChild(el);
+  });
+</script>
+</body>
+</html>
