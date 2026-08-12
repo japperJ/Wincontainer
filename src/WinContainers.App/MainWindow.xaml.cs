@@ -19,7 +19,13 @@ namespace WinContainers_App;
 
 public sealed partial class MainWindow : Window
 {
-    private const double AiPanelWidth = 380;
+    private const double DefaultAiPanelWidth = 380;
+    private const double MinAiPanelWidth = 220;
+    private const double MaxAiPanelWidth = 900;
+
+    private bool _isDraggingAiPanel;
+    private double _dragStartPointerX;
+    private double _dragStartAiPanelWidth;
 
     public static MainWindow? Instance { get; private set; }
 
@@ -58,6 +64,8 @@ public sealed partial class MainWindow : Window
 
         _navigation = ViewModelLocator.NavigationService;
         _output = ViewModelLocator.OutputService;
+
+        _settings.AiPanelWidth = Math.Clamp(_settings.AiPanelWidth, MinAiPanelWidth, MaxAiPanelWidth);
 
         AppWindow.SetIcon("Assets/AppIcon.ico");
 
@@ -161,8 +169,14 @@ public sealed partial class MainWindow : Window
             _settingsService.Save(_settings);
         }
 
-        AiPanelColumn.Width = isOpen ? new GridLength(AiPanelWidth) : new GridLength(0);
-        AiPanelHost.Width = isOpen ? AiPanelWidth : 0;
+        var storedWidth = _settings.AiPanelWidth;
+        var width = Math.Clamp(storedWidth, MinAiPanelWidth, MaxAiPanelWidth);
+        _settings.AiPanelWidth = width;
+
+        AiPanelColumn.Width = isOpen ? new GridLength(width) : new GridLength(0);
+        AiPanelSplitterColumn.Width = isOpen ? new GridLength(8) : new GridLength(0);
+        AiPanelResizeGrip.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
+        AiPanelHost.Width = isOpen ? width : 0;
         AiPanelHost.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
         AiPanelToggleText.Text = isOpen ? "Hide AI" : "AI";
         ToolTipService.SetToolTip(ToggleAiPanelButton, isOpen ? "Hide AI assistant panel" : "Show AI assistant panel");
@@ -179,6 +193,36 @@ public sealed partial class MainWindow : Window
         {
             AiPanelFrame.Navigate(typeof(AiPage));
         }
+    }
+
+    private void AiPanelResizeGrip_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        _isDraggingAiPanel = true;
+        _dragStartPointerX = e.GetCurrentPoint(AiPanelResizeGrip).Position.X;
+        _dragStartAiPanelWidth = AiPanelColumn.ActualWidth;
+        AiPanelResizeGrip.CapturePointer(e.Pointer);
+    }
+
+    private void AiPanelResizeGrip_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isDraggingAiPanel)
+        {
+            return;
+        }
+
+        var deltaX = e.GetCurrentPoint(AiPanelResizeGrip).Position.X - _dragStartPointerX;
+        var desiredWidth = Math.Clamp(_dragStartAiPanelWidth + deltaX, MinAiPanelWidth, MaxAiPanelWidth);
+
+        _settings.AiPanelWidth = desiredWidth;
+        AiPanelColumn.Width = new GridLength(desiredWidth);
+        AiPanelHost.Width = desiredWidth;
+        _settingsService.Save(_settings);
+    }
+
+    private void AiPanelResizeGrip_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        _isDraggingAiPanel = false;
+        AiPanelResizeGrip.ReleasePointerCapture(e.Pointer);
     }
 
     private void NavigateTo(string tag)
