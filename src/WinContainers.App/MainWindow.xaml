@@ -109,11 +109,11 @@
             <Frame x:Name="AiPanelFrame" />
         </Border>
 
-        <Grid Grid.Row="2" Grid.ColumnSpan="2" Height="8" Background="Transparent" x:Name="OutputSplitter" PointerPressed="OutputSplitter_PointerPressed" PointerMoved="OutputSplitter_PointerMoved" PointerReleased="OutputSplitter_PointerReleased">
+        <Grid Grid.Row="2" Grid.ColumnSpan="3" Height="8" Background="Transparent" x:Name="OutputSplitter" PointerPressed="OutputSplitter_PointerPressed" PointerMoved="OutputSplitter_PointerMoved" PointerReleased="OutputSplitter_PointerReleased">
             <Rectangle Height="2" VerticalAlignment="Center" HorizontalAlignment="Stretch" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.6" />
         </Grid>
 
-        <Grid Grid.Row="3" Grid.ColumnSpan="2" Background="{ThemeResource LayerFillColorAltBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,4" ColumnSpacing="8">
+        <Grid Grid.Row="3" Grid.ColumnSpan="3" Background="{ThemeResource LayerFillColorAltBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,4" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -132,7 +132,7 @@
             <Button Grid.Column="4" x:Name="ToggleBottomPaneButton" Content="Output" Click="ToggleBottomPaneButton_Click" ToolTipService.ToolTip="Toggle output pane" AutomationProperties.Name="Toggle output pane" />
         </Grid>
 
-        <ScrollViewer Grid.Row="4" Grid.ColumnSpan="2" x:Name="OutputScrollViewer" Background="{ThemeResource LayerFillColorAltBrush}" Visibility="Collapsed">
+        <ScrollViewer Grid.Row="4" Grid.ColumnSpan="3" x:Name="OutputScrollViewer" Background="{ThemeResource LayerFillColorAltBrush}" Visibility="Collapsed">
             <TextBlock x:Name="OutputTextBlock" Padding="12,4" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontFamily="Consolas" FontSize="12" />
         </ScrollViewer>
     </Grid>
