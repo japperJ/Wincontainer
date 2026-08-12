@@ -173,7 +173,7 @@ public sealed partial class MainWindow : Window
         }
 
         AiPanelColumn.Width = isOpen ? new GridLength(width) : new GridLength(0);
-        AiPanelSplitterColumn.Width = isOpen ? new GridLength(8) : new GridLength(0);
+        AiPanelSplitterColumn.Width = isOpen ? new GridLength(16) : new GridLength(0);
         AiPanelResizeGrip.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
         AiPanelHost.Width = isOpen ? width : 0;
         AiPanelHost.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
