@@ -40,4 +40,7 @@ public sealed class AppSettings
 
     /// <summary>When true, the global AI assistant panel is pinned to the right side of the app.</summary>
     public bool ShowAiPanel { get; set; }
+
+    /// <summary>Preferred width of the AI assistant panel in pixels.</summary>
+    public double AiPanelWidth { get; set; } = 380;
 }

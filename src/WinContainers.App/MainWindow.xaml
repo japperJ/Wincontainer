@@ -14,7 +14,8 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition x:Name="AiPanelColumn" Width="0" />
+            <ColumnDefinition x:Name="AiPanelSplitterColumn" Width="0" />
+            <ColumnDefinition x:Name="AiPanelColumn" Width="0" MinWidth="220" />
         </Grid.ColumnDefinitions>
 
         <Grid.RowDefinitions>
@@ -82,9 +83,21 @@
             </Grid>
         </NavigationView>
 
-        <Border x:Name="AiPanelHost"
+        <Border x:Name="AiPanelResizeGrip"
                 Grid.Row="1"
                 Grid.Column="1"
+                Width="8"
+                Visibility="Collapsed"
+                Background="Transparent"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1,0,0,0"
+                PointerPressed="AiPanelResizeGrip_PointerPressed"
+                PointerMoved="AiPanelResizeGrip_PointerMoved"
+                PointerReleased="AiPanelResizeGrip_PointerReleased" />
+
+        <Border x:Name="AiPanelHost"
+                Grid.Row="1"
+                Grid.Column="2"
                 Width="0"
                 Visibility="Collapsed"
                 Background="{ThemeResource LayerFillColorDefaultBrush}"
