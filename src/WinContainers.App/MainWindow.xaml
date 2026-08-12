@@ -12,6 +12,11 @@
     </Window.SystemBackdrop>
 
     <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="AiPanelColumn" Width="0" />
+        </Grid.ColumnDefinitions>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition x:Name="ContentRow" Height="*" />
@@ -21,6 +26,7 @@
         </Grid.RowDefinitions>
 
         <InfoBar Grid.Row="0"
+                 Grid.ColumnSpan="2"
                  x:Name="AdminWarningBar"
                  IsClosable="False"
                  Severity="Warning"
@@ -31,6 +37,7 @@
         <NavigationView
             x:Name="RootNavigation"
             Grid.Row="1"
+            Grid.Column="0"
             PaneDisplayMode="Left"
             OpenPaneLength="280"
             CompactPaneLength="56"
@@ -57,14 +64,40 @@
                 <Button x:Name="HelpButton" Content="Help &amp; Diagnostics" Click="HelpButton_Click" HorizontalAlignment="Stretch" AutomationProperties.Name="Help and Diagnostics" />
             </NavigationView.PaneFooter>
 
-            <Frame x:Name="RootFrame" />
+            <Grid>
+                <Frame x:Name="RootFrame" />
+                <Button x:Name="ToggleAiPanelButton"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0,10,12,0"
+                        Padding="12,8"
+                        Click="ToggleAiPanelButton_Click"
+                        ToolTipService.ToolTip="Toggle AI assistant panel"
+                        AutomationProperties.Name="Toggle AI assistant panel">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8BD;" />
+                        <TextBlock x:Name="AiPanelToggleText" Text="AI" />
+                    </StackPanel>
+                </Button>
+            </Grid>
         </NavigationView>
 
-        <Grid Grid.Row="2" Height="8" Background="Transparent" x:Name="OutputSplitter" PointerPressed="OutputSplitter_PointerPressed" PointerMoved="OutputSplitter_PointerMoved" PointerReleased="OutputSplitter_PointerReleased">
+        <Border x:Name="AiPanelHost"
+                Grid.Row="1"
+                Grid.Column="1"
+                Width="0"
+                Visibility="Collapsed"
+                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1,0,0,0">
+            <Frame x:Name="AiPanelFrame" />
+        </Border>
+
+        <Grid Grid.Row="2" Grid.ColumnSpan="2" Height="8" Background="Transparent" x:Name="OutputSplitter" PointerPressed="OutputSplitter_PointerPressed" PointerMoved="OutputSplitter_PointerMoved" PointerReleased="OutputSplitter_PointerReleased">
             <Rectangle Height="2" VerticalAlignment="Center" HorizontalAlignment="Stretch" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.6" />
         </Grid>
 
-        <Grid Grid.Row="3" Background="{ThemeResource LayerFillColorAltBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,4" ColumnSpacing="8">
+        <Grid Grid.Row="3" Grid.ColumnSpan="2" Background="{ThemeResource LayerFillColorAltBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,4" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -83,7 +116,7 @@
             <Button Grid.Column="4" x:Name="ToggleBottomPaneButton" Content="Output" Click="ToggleBottomPaneButton_Click" ToolTipService.ToolTip="Toggle output pane" AutomationProperties.Name="Toggle output pane" />
         </Grid>
 
-        <ScrollViewer Grid.Row="4" x:Name="OutputScrollViewer" Background="{ThemeResource LayerFillColorAltBrush}" Visibility="Collapsed">
+        <ScrollViewer Grid.Row="4" Grid.ColumnSpan="2" x:Name="OutputScrollViewer" Background="{ThemeResource LayerFillColorAltBrush}" Visibility="Collapsed">
             <TextBlock x:Name="OutputTextBlock" Padding="12,4" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontFamily="Consolas" FontSize="12" />
         </ScrollViewer>
     </Grid>
