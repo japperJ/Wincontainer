@@ -65,7 +65,7 @@ public sealed partial class MainWindow : Window
         _navigation = ViewModelLocator.NavigationService;
         _output = ViewModelLocator.OutputService;
 
-        _settings.AiPanelWidth = Math.Clamp(_settings.AiPanelWidth, MinAiPanelWidth, MaxAiPanelWidth);
+        _settings.AiPanelWidth = NormalizeAiPanelWidth(_settings.AiPanelWidth);
 
         AppWindow.SetIcon("Assets/AppIcon.ico");
 
@@ -164,17 +164,16 @@ public sealed partial class MainWindow : Window
     {
         _settings.ShowAiPanel = isOpen;
 
+        var width = NormalizeAiPanelWidth(_settings.AiPanelWidth);
+        _settings.AiPanelWidth = width;
+
         if (persist)
         {
             _settingsService.Save(_settings);
         }
 
-        var storedWidth = _settings.AiPanelWidth;
-        var width = Math.Clamp(storedWidth, MinAiPanelWidth, MaxAiPanelWidth);
-        _settings.AiPanelWidth = width;
-
         AiPanelColumn.Width = isOpen ? new GridLength(width) : new GridLength(0);
-        AiPanelSplitterColumn.Width = isOpen ? new GridLength(8) : new GridLength(0);
+        AiPanelSplitterColumn.Width = isOpen ? new GridLength(16) : new GridLength(0);
         AiPanelResizeGrip.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
         AiPanelHost.Width = isOpen ? width : 0;
         AiPanelHost.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
@@ -185,6 +184,16 @@ public sealed partial class MainWindow : Window
         {
             EnsureAiPanelLoaded();
         }
+    }
+
+    private static double NormalizeAiPanelWidth(double width)
+    {
+        if (!double.IsFinite(width) || width <= 0)
+        {
+            return DefaultAiPanelWidth;
+        }
+
+        return Math.Clamp(width, MinAiPanelWidth, MaxAiPanelWidth);
     }
 
     private void EnsureAiPanelLoaded()
@@ -198,7 +207,7 @@ public sealed partial class MainWindow : Window
     private void AiPanelResizeGrip_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         _isDraggingAiPanel = true;
-        _dragStartPointerX = e.GetCurrentPoint(AiPanelResizeGrip).Position.X;
+        _dragStartPointerX = e.GetCurrentPoint(null).Position.X;
         _dragStartAiPanelWidth = AiPanelColumn.ActualWidth;
         AiPanelResizeGrip.CapturePointer(e.Pointer);
     }
@@ -210,18 +219,20 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var deltaX = e.GetCurrentPoint(AiPanelResizeGrip).Position.X - _dragStartPointerX;
-        var desiredWidth = Math.Clamp(_dragStartAiPanelWidth + deltaX, MinAiPanelWidth, MaxAiPanelWidth);
+        var pointerX = e.GetCurrentPoint(null).Position.X;
+        var deltaX = pointerX - _dragStartPointerX;
+        var desiredWidth = Math.Clamp(_dragStartAiPanelWidth - deltaX, MinAiPanelWidth, MaxAiPanelWidth);
 
         _settings.AiPanelWidth = desiredWidth;
         AiPanelColumn.Width = new GridLength(desiredWidth);
         AiPanelHost.Width = desiredWidth;
-        _settingsService.Save(_settings);
     }
 
     private void AiPanelResizeGrip_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
         _isDraggingAiPanel = false;
+        _settings.AiPanelWidth = NormalizeAiPanelWidth(_settings.AiPanelWidth);
+        _settingsService.Save(_settings);
         AiPanelResizeGrip.ReleasePointerCapture(e.Pointer);
     }
 

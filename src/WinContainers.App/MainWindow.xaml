@@ -27,7 +27,7 @@
         </Grid.RowDefinitions>
 
         <InfoBar Grid.Row="0"
-                 Grid.ColumnSpan="2"
+                 Grid.ColumnSpan="3"
                  x:Name="AdminWarningBar"
                  IsClosable="False"
                  Severity="Warning"
@@ -86,9 +86,12 @@
         <Border x:Name="AiPanelResizeGrip"
                 Grid.Row="1"
                 Grid.Column="1"
-                Width="8"
+                Width="16"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
                 Visibility="Collapsed"
-                Background="Transparent"
+                Background="{ThemeResource ControlStrongFillColorDefaultBrush}"
+                Opacity="0.15"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1,0,0,0"
                 PointerPressed="AiPanelResizeGrip_PointerPressed"
