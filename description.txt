@@ -5,7 +5,7 @@ Now we are adding LXC (13-06-26)
 Prompt to give your AI coder
 Title  
 Build a Windows Container GUI App to Replace Docker Desktop
-
+f
 Context  
 We need an app that provides a user‑friendly GUI for managing Windows and Linux containers on Windows without using Docker Desktop. The app must integrate with WSL2 and native Windows container runtimes (containerd/nerdctl, Moby/containerd, or Windows Server containers), provide image/volume/network management, support compose workflows, and offer an installer and background service so non‑technical users can run containers reliably.
 
