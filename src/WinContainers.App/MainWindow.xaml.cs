@@ -226,12 +226,13 @@ public sealed partial class MainWindow : Window
         _settings.AiPanelWidth = desiredWidth;
         AiPanelColumn.Width = new GridLength(desiredWidth);
         AiPanelHost.Width = desiredWidth;
-        _settingsService.Save(_settings);
     }
 
     private void AiPanelResizeGrip_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
         _isDraggingAiPanel = false;
+        _settings.AiPanelWidth = NormalizeAiPanelWidth(_settings.AiPanelWidth);
+        _settingsService.Save(_settings);
         AiPanelResizeGrip.ReleasePointerCapture(e.Pointer);
     }
 

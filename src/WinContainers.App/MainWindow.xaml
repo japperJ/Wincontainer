@@ -27,7 +27,7 @@
         </Grid.RowDefinitions>
 
         <InfoBar Grid.Row="0"
-                 Grid.ColumnSpan="2"
+                 Grid.ColumnSpan="3"
                  x:Name="AdminWarningBar"
                  IsClosable="False"
                  Severity="Warning"
