@@ -19,6 +19,8 @@ namespace WinContainers_App;
 
 public sealed partial class MainWindow : Window
 {
+    private const double AiPanelWidth = 380;
+
     public static MainWindow? Instance { get; private set; }
 
     public static int ReturnToPivotIndex { get; set; } = -1;
@@ -27,6 +29,8 @@ public sealed partial class MainWindow : Window
 
     private readonly INavigationService _navigation;
     private readonly IOutputService _output;
+    private readonly AppSettingsService _settingsService;
+    private readonly AppSettings _settings;
     private nint _mainHwnd;
 
     public bool IsRunningAsAdmin { get; }
@@ -40,6 +44,9 @@ public sealed partial class MainWindow : Window
         var identity = WindowsIdentity.GetCurrent();
         var principal = new WindowsPrincipal(identity);
         IsRunningAsAdmin = principal.IsInRole(WindowsBuiltInRole.Administrator);
+
+        _settingsService = App.Services.GetRequiredService<AppSettingsService>();
+        _settings = _settingsService.Load();
 
         System.Diagnostics.Debug.WriteLine($"[MainWindow] IsRunningAsAdmin={IsRunningAsAdmin}");
 
@@ -65,6 +72,7 @@ public sealed partial class MainWindow : Window
 
         RootNavigation.SelectedItem = RootNavigation.MenuItems.OfType<NavigationViewItem>().First();
         NavigateTo("Dashboard");
+        ApplyAiPanelState(_settings.ShowAiPanel, persist: false);
 
         _mainHwnd = hwnd;
 
@@ -124,7 +132,53 @@ public sealed partial class MainWindow : Window
     private void RootNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
+        {
+            if (tag == "AI")
+            {
+                SetAiPanelOpen(true);
+            }
+
             NavigateTo(tag);
+        }
+    }
+
+    private void ToggleAiPanelButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetAiPanelOpen(!_settings.ShowAiPanel);
+    }
+
+    private void SetAiPanelOpen(bool isOpen)
+    {
+        ApplyAiPanelState(isOpen, persist: true);
+    }
+
+    private void ApplyAiPanelState(bool isOpen, bool persist)
+    {
+        _settings.ShowAiPanel = isOpen;
+
+        if (persist)
+        {
+            _settingsService.Save(_settings);
+        }
+
+        AiPanelColumn.Width = isOpen ? new GridLength(AiPanelWidth) : new GridLength(0);
+        AiPanelHost.Width = isOpen ? AiPanelWidth : 0;
+        AiPanelHost.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
+        AiPanelToggleText.Text = isOpen ? "Hide AI" : "AI";
+        ToolTipService.SetToolTip(ToggleAiPanelButton, isOpen ? "Hide AI assistant panel" : "Show AI assistant panel");
+
+        if (isOpen)
+        {
+            EnsureAiPanelLoaded();
+        }
+    }
+
+    private void EnsureAiPanelLoaded()
+    {
+        if (AiPanelFrame.Content is null)
+        {
+            AiPanelFrame.Navigate(typeof(AiPage));
+        }
     }
 
     private void NavigateTo(string tag)

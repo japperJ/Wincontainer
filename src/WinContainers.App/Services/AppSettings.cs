@@ -37,4 +37,7 @@ public sealed class AppSettings
 
     /// <summary>When true, destructive AI actions require explicit confirmation.</summary>
     public bool AiConfirmDestructiveActions { get; set; } = true;
+
+    /// <summary>When true, the global AI assistant panel is pinned to the right side of the app.</summary>
+    public bool ShowAiPanel { get; set; }
 }
