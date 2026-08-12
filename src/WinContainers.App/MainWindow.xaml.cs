@@ -65,7 +65,7 @@ public sealed partial class MainWindow : Window
         _navigation = ViewModelLocator.NavigationService;
         _output = ViewModelLocator.OutputService;
 
-        _settings.AiPanelWidth = Math.Clamp(_settings.AiPanelWidth, MinAiPanelWidth, MaxAiPanelWidth);
+        _settings.AiPanelWidth = NormalizeAiPanelWidth(_settings.AiPanelWidth);
 
         AppWindow.SetIcon("Assets/AppIcon.ico");
 
@@ -164,14 +164,13 @@ public sealed partial class MainWindow : Window
     {
         _settings.ShowAiPanel = isOpen;
 
+        var width = NormalizeAiPanelWidth(_settings.AiPanelWidth);
+        _settings.AiPanelWidth = width;
+
         if (persist)
         {
             _settingsService.Save(_settings);
         }
-
-        var storedWidth = _settings.AiPanelWidth;
-        var width = Math.Clamp(storedWidth, MinAiPanelWidth, MaxAiPanelWidth);
-        _settings.AiPanelWidth = width;
 
         AiPanelColumn.Width = isOpen ? new GridLength(width) : new GridLength(0);
         AiPanelSplitterColumn.Width = isOpen ? new GridLength(8) : new GridLength(0);
@@ -185,6 +184,16 @@ public sealed partial class MainWindow : Window
         {
             EnsureAiPanelLoaded();
         }
+    }
+
+    private static double NormalizeAiPanelWidth(double width)
+    {
+        if (!double.IsFinite(width) || width <= 0)
+        {
+            return DefaultAiPanelWidth;
+        }
+
+        return Math.Clamp(width, MinAiPanelWidth, MaxAiPanelWidth);
     }
 
     private void EnsureAiPanelLoaded()
