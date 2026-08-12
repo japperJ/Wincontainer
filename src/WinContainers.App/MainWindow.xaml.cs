@@ -198,7 +198,7 @@ public sealed partial class MainWindow : Window
     private void AiPanelResizeGrip_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         _isDraggingAiPanel = true;
-        _dragStartPointerX = e.GetCurrentPoint(AiPanelResizeGrip).Position.X;
+        _dragStartPointerX = e.GetCurrentPoint(null).Position.X;
         _dragStartAiPanelWidth = AiPanelColumn.ActualWidth;
         AiPanelResizeGrip.CapturePointer(e.Pointer);
     }
@@ -210,8 +210,9 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var deltaX = e.GetCurrentPoint(AiPanelResizeGrip).Position.X - _dragStartPointerX;
-        var desiredWidth = Math.Clamp(_dragStartAiPanelWidth + deltaX, MinAiPanelWidth, MaxAiPanelWidth);
+        var pointerX = e.GetCurrentPoint(null).Position.X;
+        var deltaX = pointerX - _dragStartPointerX;
+        var desiredWidth = Math.Clamp(_dragStartAiPanelWidth - deltaX, MinAiPanelWidth, MaxAiPanelWidth);
 
         _settings.AiPanelWidth = desiredWidth;
         AiPanelColumn.Width = new GridLength(desiredWidth);
