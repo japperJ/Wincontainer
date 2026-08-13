@@ -189,7 +189,7 @@ public static class McpDestructiveConfirmationPolicy
         lock (record.SyncRoot)
         {
             record.ApprovalRequestDispatching = false;
-            if (subscriberFailed)
+            if (subscriberFailed || subscribers is null)
             {
                 record.ApprovalUnavailable = true;
                 record.ApprovalStatus = McpDestructiveApprovalStatus.Unavailable;
@@ -208,6 +208,9 @@ public static class McpDestructiveConfirmationPolicy
 
     public static bool TryReject(string operationId, out string reason, DateTimeOffset? nowUtc = null)
         => TrySetApproval(operationId, McpDestructiveApprovalStatus.Denied, out reason, nowUtc);
+
+    public static bool TryMarkUnavailable(string operationId, DateTimeOffset? nowUtc = null)
+        => TrySetApproval(operationId, McpDestructiveApprovalStatus.Unavailable, nowUtc);
 
     public static bool TryGetApprovalStatus(
         string operationId,
@@ -395,6 +398,7 @@ public static class McpDestructiveConfirmationPolicy
             // Preserve the operation record until expiry so duplicate approval or denial
             // attempts remain deterministic and do not invalidate a valid approval.
             record.ApprovalStatus = approvalStatus;
+            record.ApprovalUnavailable = approvalStatus == McpDestructiveApprovalStatus.Unavailable;
             return true;
         }
     }

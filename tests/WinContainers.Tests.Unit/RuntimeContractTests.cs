@@ -565,7 +565,7 @@ public class RuntimeContractTests
                 out var status,
                 out var statusReason)
             .Should().BeTrue();
-        status.Should().Be(McpDestructiveApprovalStatus.Pending);
+        status.Should().Be(McpDestructiveApprovalStatus.Unavailable);
         statusReason.Should().BeEmpty();
     }
 
@@ -757,7 +757,7 @@ public class RuntimeContractTests
             .And.Contain("network supplied");
         summary.Should().NotContain("PASSWORD").And.NotContain("do-not-show").And.NotContain("/host/secret");
         document.RootElement.GetProperty("humanApprovalRequired").GetBoolean().Should().BeTrue();
-        document.RootElement.GetProperty("approvalStatus").GetString().Should().Be("pending");
+        document.RootElement.GetProperty("approvalStatus").GetString().Should().Be("unavailable");
         driver.StoppedContainers.Should().BeEmpty();
         driver.RemovedContainers.Should().BeEmpty();
     }

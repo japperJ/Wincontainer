@@ -64,7 +64,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
 
         if (dispatcher is null || !dispatcher.TryEnqueue(() => _ = ShowApprovalAsync(request)))
         {
-            McpDestructiveConfirmationPolicy.TryReject(request.OperationId);
+            McpDestructiveConfirmationPolicy.TryMarkUnavailable(request.OperationId);
             _logger.LogWarning(
                 "Blocked MCP destructive operation {OperationId}: approval channel is unavailable.",
                 request.OperationId);
@@ -77,7 +77,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
         {
             if (_xamlRootProvider is null || _xamlRootProvider() is null)
             {
-                McpDestructiveConfirmationPolicy.TryReject(request.OperationId);
+                McpDestructiveConfirmationPolicy.TryMarkUnavailable(request.OperationId);
                 _logger.LogWarning(
                     "Blocked MCP destructive operation {OperationId}: approval channel is unavailable because XamlRoot is unavailable.",
                     request.OperationId);
@@ -123,7 +123,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
         }
         catch (Exception ex)
         {
-            McpDestructiveConfirmationPolicy.TryReject(request.OperationId);
+            McpDestructiveConfirmationPolicy.TryMarkUnavailable(request.OperationId);
             _logger.LogError(
                 ex,
                 "Blocked MCP destructive operation {OperationId}: approval channel failed.",

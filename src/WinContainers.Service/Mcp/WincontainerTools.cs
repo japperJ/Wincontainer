@@ -187,6 +187,14 @@ public class WincontainerTools
             return true;
         }
 
+        var approvalStatus = McpDestructiveConfirmationPolicy.TryGetApprovalStatus(
+                operationId!,
+                out var status,
+                out _)
+            && status is McpDestructiveApprovalStatus.Denied or McpDestructiveApprovalStatus.Unavailable
+            ? status.ToString().ToLowerInvariant()
+            : null;
+
         response = Wrap(
             toolName,
             false,
@@ -195,12 +203,7 @@ public class WincontainerTools
             failure: new { reason = rejectReason },
             message: $"Destructive confirmation rejected: {rejectReason}.",
             humanApprovalRequired: true,
-            approvalStatus: rejectReason switch
-            {
-                "human approval was denied" => McpDestructiveApprovalStatus.Denied.ToString().ToLowerInvariant(),
-                "human approval channel is unavailable" => McpDestructiveApprovalStatus.Unavailable.ToString().ToLowerInvariant(),
-                _ => null
-            },
+            approvalStatus: approvalStatus,
             approvalSummary: displaySummary);
         return false;
     }
