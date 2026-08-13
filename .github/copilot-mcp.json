@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "wincontainer": {
-      "description": "Wincontainer container management — run, stop, inspect containers, images, volumes, and networks via wslc.",
+      "description": "Wincontainer container management via wslc. Destructive tools require a real human Allow/Deny decision followed by the exact same call with confirm=true and operationId; pending, denied, expired, mismatched, and reused approvals fail closed.",
       "url": "http://localhost:5123/mcp",
       "headers": {
         "Authorization": "Bearer ${WINCONTAINERS_SERVICE_TOKEN}"

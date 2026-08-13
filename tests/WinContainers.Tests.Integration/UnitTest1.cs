@@ -4,12 +4,136 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using WinContainers.Runtime;
 using WinContainers.Service.Host;
+using WinContainers.Service.Mcp;
 
 namespace WinContainers.Tests.Integration;
 
 public class UnitTest1
 {
+    [Fact]
+    public void McpDestructiveApproval_ShouldRequireApprovalEventBeforeConsumption()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        McpDestructiveApprovalRequest? request = null;
+        EventHandler<McpDestructiveApprovalRequest> handler = (_, approvalRequest) =>
+        {
+            request = approvalRequest;
+            McpDestructiveConfirmationPolicy.TryApprove(approvalRequest.OperationId).Should().BeTrue();
+        };
+
+        McpDestructiveConfirmationPolicy.ApprovalRequested += handler;
+        try
+        {
+            var operation = McpDestructiveConfirmationPolicy.IssueOperation(
+                "remove_network",
+                McpDestructiveConfirmationPolicy.CanonicalizeArguments("frontend"),
+                "Remove network 'frontend'.",
+                "session-1",
+                "Admin session",
+                true,
+                true);
+
+            request.Should().NotBeNull();
+            request!.DisplaySummary.Should().Be("Remove network 'frontend'.");
+            McpDestructiveConfirmationPolicy.TryConsume(
+                    "remove_network",
+                    operation.OperationId,
+                    McpDestructiveConfirmationPolicy.CanonicalizeArguments("frontend"),
+                    out var reason)
+                .Should().BeTrue();
+            reason.Should().BeEmpty();
+        }
+        finally
+        {
+            McpDestructiveConfirmationPolicy.ApprovalRequested -= handler;
+        }
+    }
+
+    [Fact]
+    public async Task ServiceHost_ShouldRequireHumanApprovalBeforeDestructiveExecution()
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+        var driver = new IntegrationRecordingDriver();
+        McpDestructiveApprovalRequest? request = null;
+        EventHandler<McpDestructiveApprovalRequest> handler = (_, approvalRequest) =>
+        {
+            request = approvalRequest;
+        };
+
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        McpDestructiveConfirmationPolicy.ApprovalRequested += handler;
+        var app = ServiceHost.Build(Array.Empty<string>(), null, driver);
+
+        try
+        {
+            await app.StartAsync();
+
+            var localAddress = CreateLoopbackUri(app.Urls.First());
+            using var client = new HttpClient { BaseAddress = localAddress };
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+
+            using var firstResponse = await client.PostAsync(
+                "/mcp",
+                CreateMcpToolCallRequest("remove_container", new { id = "integration-web" }));
+            var firstText = ExtractMcpText(await firstResponse.Content.ReadAsStringAsync());
+            using var firstDocument = JsonDocument.Parse(firstText);
+
+            firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            firstDocument.RootElement.GetProperty("approvalStatus").GetString().Should().Be("pending");
+            firstDocument.RootElement.GetProperty("humanApprovalRequired").GetBoolean().Should().BeTrue();
+            request.Should().NotBeNull();
+            driver.RemoveContainerCalls.Should().Be(0);
+
+            using var beforeApprovalResponse = await client.PostAsync(
+                "/mcp",
+                CreateMcpToolCallRequest(
+                    "remove_container",
+                    new
+                    {
+                        id = "integration-web",
+                        confirm = true,
+                        operationId = request!.OperationId
+                    }));
+            var beforeApprovalText = ExtractMcpText(await beforeApprovalResponse.Content.ReadAsStringAsync());
+
+            beforeApprovalText.Should().Contain("human approval is still pending");
+            driver.RemoveContainerCalls.Should().Be(0);
+
+            McpDestructiveConfirmationPolicy.TryApprove(request.OperationId, out var approvalReason)
+                .Should().BeTrue();
+            approvalReason.Should().BeEmpty();
+
+            using var approvedResponse = await client.PostAsync(
+                "/mcp",
+                CreateMcpToolCallRequest(
+                    "remove_container",
+                    new
+                    {
+                        id = "integration-web",
+                        confirm = true,
+                        operationId = request.OperationId
+                    }));
+            var approvedText = ExtractMcpText(await approvedResponse.Content.ReadAsStringAsync());
+
+            approvedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            approvedText.Should().Contain("removed integration-web");
+            driver.RemoveContainerCalls.Should().Be(1);
+        }
+        finally
+        {
+            McpDestructiveConfirmationPolicy.ApprovalRequested -= handler;
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
     private static Uri CreateLoopbackUri(string address)
     {
         var builder = new UriBuilder(address);
@@ -398,6 +522,36 @@ public class UnitTest1
             "application/json");
     }
 
+    private static StringContent CreateMcpToolCallRequest(string toolName, object arguments)
+    {
+        return new StringContent(
+            JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                id = Guid.NewGuid().ToString("N"),
+                method = "tools/call",
+                @params = new { name = toolName, arguments }
+            }),
+            Encoding.UTF8,
+            "application/json");
+    }
+
+    private static string ExtractMcpText(string body)
+    {
+        var dataLine = body
+            .Split('\n')
+            .Select(line => line.Trim())
+            .First(line => line.StartsWith("data: ", StringComparison.Ordinal));
+        using var document = JsonDocument.Parse(dataLine["data: ".Length..]);
+        return document.RootElement
+            .GetProperty("result")
+            .GetProperty("content")
+            .EnumerateArray()
+            .Single()
+            .GetProperty("text")
+            .GetString()!;
+    }
+
     [Fact(Skip = "WSLC is not available in CI by default")]
     public void WslcRuntime_ShouldBeReachable()
     {
@@ -416,6 +570,50 @@ public class UnitTest1
 
         process.ExitCode.Should().Be(0);
     }
+}
+
+internal sealed class IntegrationRecordingDriver : IWslcDriver
+{
+    public int RemoveContainerCalls { get; private set; }
+
+    public Task<bool> IsAvailableAsync(CancellationToken ct) => Task.FromResult(true);
+    public Task<string> GetVersionAsync(CancellationToken ct) => Task.FromResult("integration");
+    public Task<string> GetContainersAsync(CancellationToken ct) => Task.FromResult("[]");
+    public Task<string> StartContainerAsync(string id, CancellationToken ct) => Task.FromResult($"started {id}");
+    public Task<string> StopContainerAsync(string id, CancellationToken ct) => Task.FromResult($"stopped {id}");
+    public Task<string> RestartContainerAsync(string id, CancellationToken ct) => Task.FromResult($"restarted {id}");
+    public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult($"renamed {id}");
+
+    public Task<string> RemoveContainerAsync(string id, CancellationToken ct)
+    {
+        RemoveContainerCalls++;
+        return Task.FromResult($"removed {id}");
+    }
+
+    public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult("{}");
+    public Task<string> GetContainerLogsAsync(string id, int tail, CancellationToken ct) => Task.FromResult(string.Empty);
+    public Task<string> GetImagesAsync(CancellationToken ct) => Task.FromResult("[]");
+    public Task<string> PullImageAsync(string image, CancellationToken ct) => Task.FromResult($"pulled {image}");
+    public Task<string> LoadImageAsync(string? tarPath, string? tarData, CancellationToken ct) => Task.FromResult(string.Empty);
+    public Task<string> RemoveImageAsync(string id, CancellationToken ct) => Task.FromResult($"removed {id}");
+    public Task<string> InspectImageAsync(string id, CancellationToken ct) => Task.FromResult("{}");
+    public Task<string> GetVolumesAsync(CancellationToken ct) => Task.FromResult("[]");
+    public Task<string> CreateVolumeAsync(string name, CancellationToken ct) => Task.FromResult($"created {name}");
+    public Task<string> RemoveVolumeAsync(string name, CancellationToken ct) => Task.FromResult($"removed {name}");
+    public Task<string> InspectVolumeAsync(string name, CancellationToken ct) => Task.FromResult("{}");
+    public Task<string> GetNetworksAsync(CancellationToken ct) => Task.FromResult("[]");
+    public Task<string> CreateNetworkAsync(string name, CancellationToken ct) => Task.FromResult($"created {name}");
+    public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) => Task.FromResult($"removed {name}");
+    public Task<string> RunContainerAsync(
+        string image,
+        string? name = null,
+        IEnumerable<string>? ports = null,
+        IEnumerable<string>? volumes = null,
+        IEnumerable<string>? env = null,
+        CancellationToken ct = default,
+        string? network = null) => Task.FromResult($"ran {image}");
+    public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default) => Task.FromResult(string.Empty);
+    public Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
 }
 
 internal sealed class TestRequestLogger : WinContainers.Core.Models.IApiRequestLogger

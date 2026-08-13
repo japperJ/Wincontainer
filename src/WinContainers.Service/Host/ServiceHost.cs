@@ -11,7 +11,10 @@ namespace WinContainers.Service.Host;
 
 public static class ServiceHost
 {
-    public static WebApplication Build(string[] args, IApiRequestLogger? requestLogger = null)
+    public static WebApplication Build(
+        string[] args,
+        IApiRequestLogger? requestLogger = null,
+        IWslcDriver? driverOverride = null)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -47,7 +50,7 @@ public static class ServiceHost
             options.Limits.MaxRequestBodySize = null;
         });
 
-        builder.Services.AddSingleton<IWslcDriver, WslcDriver>();
+        builder.Services.AddSingleton<IWslcDriver>(_ => driverOverride ?? new WslcDriver());
         builder.Services.AddSingleton<ImageUploadStore>();
 
         builder.Services.Configure<FormOptions>(o =>
