@@ -122,7 +122,6 @@ skills can use it when working in a Wincontainer project.
 | `PullImage` | Pull an image from a registry |
 | `RemoveImage` | Delete an image |
 | `InspectImage` | Get detailed image metadata |
-| `LoadImage` | Load a local .tar image archive or base64 tar data into WSLC |
 | `ListVolumes` | List storage volumes |
 | `CreateVolume` | Create a volume |
 | `RemoveVolume` | Delete a volume |
