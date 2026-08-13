@@ -4,6 +4,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 using WinContainers.Runtime;
 using WinContainers.Service.Host;
 using WinContainers.Service.Mcp;
@@ -40,6 +43,140 @@ public class UnitTest1
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             text.Should().Contain("elicitation");
+            driver.RemoveContainerCalls.Should().Be(0);
+        }
+        finally
+        {
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
+    [Fact]
+    public async Task ServiceHost_ShouldAllowMcpElicitationAndInvokeDestructiveDriverOnce()
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+        var driver = new IntegrationRecordingDriver();
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        var app = ServiceHost.Build(Array.Empty<string>(), null, driver);
+
+        try
+        {
+            await app.StartAsync();
+            var endpoint = CreateLoopbackUri(app.Urls.First()).ToString().TrimEnd('/');
+            using var httpClient = new HttpClient();
+            var transport = new HttpClientTransport(
+                new HttpClientTransportOptions { Endpoint = new Uri($"{endpoint}/mcp") },
+                httpClient,
+                NullLoggerFactory.Instance,
+                ownsHttpClient: false);
+            await using var client = await McpClient.CreateAsync(
+                transport,
+                new McpClientOptions
+                {
+                    ProtocolVersion = "2025-11-25",
+                    ClientInfo = new Implementation { Name = "WinContainers.Tests", Version = "1.0" },
+                    Capabilities = new ClientCapabilities
+                    {
+                        Elicitation = new ElicitationCapability { Form = new FormElicitationCapability() }
+                    },
+                    Handlers = new McpClientHandlers
+                    {
+                        ElicitationHandler = (_, _) => ValueTask.FromResult(new ElicitResult
+                        {
+                            Action = "accept",
+                            Content = new Dictionary<string, JsonElement>
+                            {
+                                ["Allow"] = JsonSerializer.SerializeToElement("allow")
+                            }
+                        })
+                    }
+                },
+                NullLoggerFactory.Instance);
+
+            var result = await client.CallToolAsync(
+                "remove_container",
+                new Dictionary<string, object?> { ["id"] = "integration-web" });
+
+            result.IsError.Should().NotBeTrue();
+            driver.RemoveContainerCalls.Should().Be(1);
+        }
+        finally
+        {
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
+    [Theory]
+    [InlineData("decline")]
+    [InlineData("cancel")]
+    [InlineData("wrong-allow")]
+    [InlineData("missing-content")]
+    [InlineData("handler-failure")]
+    public async Task ServiceHost_ShouldBlockEveryNonAllowMcpElicitationOutcome(string outcome)
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+        var driver = new IntegrationRecordingDriver();
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        var app = ServiceHost.Build(Array.Empty<string>(), null, driver);
+
+        try
+        {
+            await app.StartAsync();
+            var endpoint = CreateLoopbackUri(app.Urls.First()).ToString().TrimEnd('/');
+            using var httpClient = new HttpClient();
+            var transport = new HttpClientTransport(
+                new HttpClientTransportOptions { Endpoint = new Uri($"{endpoint}/mcp") },
+                httpClient,
+                NullLoggerFactory.Instance,
+                ownsHttpClient: false);
+            await using var client = await McpClient.CreateAsync(
+                transport,
+                new McpClientOptions
+                {
+                    ProtocolVersion = "2025-11-25",
+                    ClientInfo = new Implementation { Name = "WinContainers.Tests", Version = "1.0" },
+                    Capabilities = new ClientCapabilities
+                    {
+                        Elicitation = new ElicitationCapability { Form = new FormElicitationCapability() }
+                    },
+                    Handlers = new McpClientHandlers
+                    {
+                        ElicitationHandler = (_, _) =>
+                        {
+                            if (outcome == "handler-failure")
+                                throw new InvalidOperationException("test elicitation failure");
+
+                            return ValueTask.FromResult(new ElicitResult
+                            {
+                                Action = outcome == "cancel" ? "cancel" : outcome == "decline" ? "decline" : "accept",
+                                Content = outcome == "missing-content"
+                                    ? null
+                                    : new Dictionary<string, JsonElement>
+                                    {
+                                        ["Allow"] = JsonSerializer.SerializeToElement(
+                                            outcome == "wrong-allow" ? "deny" : "allow")
+                                    }
+                            });
+                        }
+                    }
+                },
+                NullLoggerFactory.Instance);
+
+            var result = await client.CallToolAsync(
+                "remove_container",
+                new Dictionary<string, object?> { ["id"] = "integration-web" });
+
+            result.IsError.Should().NotBeTrue();
             driver.RemoveContainerCalls.Should().Be(0);
         }
         finally

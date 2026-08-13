@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using WinContainers.Runtime;
@@ -163,6 +164,7 @@ public class WincontainerTools
                     }
                 },
                 ct);
+            ct.ThrowIfCancellationRequested();
 
             if (string.Equals(result.Action, "accept", StringComparison.Ordinal) &&
                 result.Content is not null &&
@@ -178,7 +180,16 @@ public class WincontainerTools
                 "Destructive action was not approved.",
                 failure: new { reason = "human_approval_denied" }));
         }
-        catch (Exception) when (!(ct.IsCancellationRequested))
+        catch (InvalidOperationException) when (!ct.IsCancellationRequested)
+        {
+            return (false, Wrap(
+                toolName,
+                false,
+                "Destructive action is blocked because human elicitation failed.",
+                guidance: "Run this action from an MCP client that supports in-request human elicitation.",
+                failure: new { reason = "elicitation_unavailable" }));
+        }
+        catch (McpException) when (!ct.IsCancellationRequested)
         {
             return (false, Wrap(
                 toolName,
@@ -311,6 +322,7 @@ public class WincontainerTools
             return confirmation.Response!;
         }
 
+        ct.ThrowIfCancellationRequested();
         var result = await driver.RemoveContainerAsync(id, ct);
         return WithSessionWarningPrefixIfNeeded("remove_container", result);
     }
@@ -374,6 +386,7 @@ public class WincontainerTools
             return confirmation.Response!;
         }
 
+        ct.ThrowIfCancellationRequested();
         var result = await driver.RemoveImageAsync(id, ct);
         return WithSessionWarningPrefixIfNeeded("remove_image", result);
     }
@@ -454,14 +467,17 @@ public class WincontainerTools
             return confirmation.Response!;
         }
 
+        ct.ThrowIfCancellationRequested();
         var stop = await driver.StopContainerAsync(webContainerId, ct);
         if (IsWslcError(stop))
             return Wrap("redeploy_web_only", false, stop);
 
+        ct.ThrowIfCancellationRequested();
         var remove = await driver.RemoveContainerAsync(webContainerId, ct);
         if (IsWslcError(remove))
             return Wrap("redeploy_web_only", false, remove);
 
+        ct.ThrowIfCancellationRequested();
         var run = await driver.RunContainerAsync(
             image,
             name,
@@ -514,6 +530,7 @@ public class WincontainerTools
             return confirmation.Response!;
         }
 
+        ct.ThrowIfCancellationRequested();
         var result = await driver.RemoveVolumeAsync(name, ct);
         return WithSessionWarningPrefixIfNeeded("remove_volume", result);
     }
@@ -555,6 +572,7 @@ public class WincontainerTools
             return confirmation.Response!;
         }
 
+        ct.ThrowIfCancellationRequested();
         var result = await driver.RemoveNetworkAsync(name, ct);
         return WithSessionWarningPrefixIfNeeded("remove_network", result);
     }
