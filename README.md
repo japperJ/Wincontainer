@@ -51,7 +51,7 @@ WinContainers exposes a built-in [Model Context Protocol (MCP)](https://modelcon
 
 ### Endpoint
 
-The MCP server runs on `http://localhost:5123/mcp` (HTTP/SSE transport) as part of the in-process Kestrel service that starts with the app.
+The MCP server runs on `http://localhost:5123/mcp` (stateful Streamable HTTP transport) as part of the in-process Kestrel service that starts with the app.
 
 The port and token can be overridden with environment variables:
 
@@ -73,30 +73,14 @@ The app Settings page provides live toggles (persisted across restarts):
 |---|---|
 | **MCP server** | When off, `/mcp` returns `404` for all clients. The in-app AI chat is not affected. |
 | **MCP request logging** | When on, MCP activity (methods, tool calls, and their results) is written to the Output window. |
-| **Destructive confirmation** | When on, destructive MCP tools require a human Allow/Deny decision plus a two-call confirmation flow. Default is `true`. |
+| **Destructive confirmation** | When on, destructive MCP tools request an in-request human Allow/Deny elicitation. Default is `true`. |
 | **Allow remote API access** | When off, non-loopback `/api` requests return `403`. Localhost requests always work. |
 
 The environment variables above apply only at startup and are useful for tests or automation; the Settings toggles are the live source of truth. `/api/health` reports the current state in the `mcpEnabled` and `apiRemoteAccessEnabled` fields.
 
 ### Destructive tool confirmation
 
-When `McpDestructiveConfirmationEnabled` is on (default), destructive MCP tools such as `remove_container`, `remove_image`, `remove_volume`, `remove_network`, and `redeploy_web_only` require a real human Allow/Deny decision and a confirmation round trip before they execute:
-
-1. Call the tool without `confirm` and without a valid `operationId`.
-2. The server returns `requiresConfirmation: true`, `humanApprovalRequired: true`, `approvalStatus: "pending"`, a safe `approvalSummary`, an `operationId`, and `expiresAtUtc`.
-3. Wait for the WinContainers app to show the human Allow/Deny dialog. Allow records approval; Deny, close, UI failure, or expiry fails closed.
-4. After Allow, re-run the exact same tool with `confirm: true` and the returned `operationId`.
-5. The server validates the tool name, normalized arguments, expiry, human approval, and single-use check before executing.
-
-The server rejects pending, denied, expired, reused, mismatched, or wrong-tool confirmations without executing the destructive action. Approval summaries contain only safe action and target information; environment values, tar data, and full mount details are never shown. The setting can be disabled for explicit automation bypass, but the DB-special confirm guard rails remain enforced for DB-related operations.
-
-The approval contract is host-agnostic:
-
-- An interactive harness can show the approval request in its own UI, terminal, or chat surface.
-- The WinContainers desktop app shows the request in its Allow/Deny dialog.
-- A harness with no human approval channel receives `approvalStatus: "unavailable"` and the action is blocked.
-
-The tool never treats a missing prompt as approval and never executes a destructive action silently.
+When `McpDestructiveConfirmationEnabled` is on (default), each destructive tool requests an in-request MCP elicitation with `Allow`/`Deny` choices before it executes. The action proceeds only when the client returns `Action: "accept"` and `Content["Allow"] == "allow"`. Clients that do not support elicitation, cancellations, transport errors, and any malformed response fail closed. Approval prompts contain only safe action, target, and session information; environment values, tar data, and full mount details are never shown. Disabling the setting preserves the explicit automation bypass, but DB-special `confirmDestructive` guard rails remain enforced.
 
 ### Connecting an AI Client
 
@@ -106,7 +90,7 @@ Add the server to your AI client's MCP configuration. A ready-made `.github/copi
 {
   "mcpServers": {
     "wincontainer": {
-      "description": "Wincontainer container management via wslc. Destructive tools require a real human Allow/Deny decision followed by the exact same call with confirm=true and operationId; pending, denied, expired, mismatched, and reused approvals fail closed.",
+      "description": "Wincontainer container management via wslc. Destructive tools require in-request MCP elicitation with a real human Allow/Deny decision; unsupported clients and failed elicitation fail closed.",
       "url": "http://localhost:5123/mcp",
       "headers": {
         "Authorization": "******"
@@ -136,22 +120,22 @@ skills can use it when working in a Wincontainer project.
 | `StopContainer` | Stop a running container |
 | `RestartContainer` | Restart a container |
 | `RenameContainer` | Rename a container |
-| `RemoveContainer` | Delete a container — requires human Allow/Deny approval plus the confirmation token |
+| `RemoveContainer` | Delete a container — requires in-request human Allow/Deny elicitation |
 | `InspectContainer` | Get detailed container configuration and status |
 | `ExecCommand` | Execute a command inside a running container |
 | `GetContainerLogs` | Retrieve recent container logs |
 | `ListImages` | List downloaded images |
 | `PullImage` | Pull an image from a registry |
-| `RemoveImage` | Delete an image — requires human Allow/Deny approval plus the confirmation token |
+| `RemoveImage` | Delete an image — requires in-request human Allow/Deny elicitation |
 | `InspectImage` | Get detailed image metadata |
 | `ListVolumes` | List storage volumes |
 | `CreateVolume` | Create a volume |
-| `RemoveVolume` | Delete a volume — requires human Allow/Deny approval plus the confirmation token |
+| `RemoveVolume` | Delete a volume — requires in-request human Allow/Deny elicitation |
 | `InspectVolume` | Get detailed volume information |
 | `ListNetworks` | List container networks |
 | `CreateNetwork` | Create a network |
-| `RemoveNetwork` | Delete a network — requires human Allow/Deny approval plus the confirmation token |
-| `RedeployWebOnly` | Redeploy the web container (stops, removes, and re-creates it) — requires human Allow/Deny approval plus the confirmation token |
+| `RemoveNetwork` | Delete a network — requires in-request human Allow/Deny elicitation |
+| `RedeployWebOnly` | Redeploy the web container (stops, removes, and re-creates it) — requires in-request human Allow/Deny elicitation |
 | `HealthCheck` | Check whether the wslc runtime is available |
 | `GetVersion` | Get the wslc runtime version |
 | `LoadImage` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |

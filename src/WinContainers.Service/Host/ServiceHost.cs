@@ -68,7 +68,9 @@ public static class ServiceHost
         builder.Services.AddMcpServer()
             .WithHttpTransport(options =>
             {
-                options.Stateless = true;
+                // Elicitation sends a server request over the originating stream,
+                // so the transport must retain the MCP session.
+                options.Stateless = false;
             })
 .WithTools<global::WinContainers.Service.Mcp.WincontainerTools>(jsonOptions);
 

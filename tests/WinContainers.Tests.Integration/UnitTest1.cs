@@ -13,60 +13,14 @@ namespace WinContainers.Tests.Integration;
 public class UnitTest1
 {
     [Fact]
-    public void McpDestructiveApproval_ShouldRequireApprovalEventBeforeConsumption()
-    {
-        McpDestructiveConfirmationPolicy.SetEnabled(true);
-        McpDestructiveApprovalRequest? request = null;
-        EventHandler<McpDestructiveApprovalRequest> handler = (_, approvalRequest) =>
-        {
-            request = approvalRequest;
-            McpDestructiveConfirmationPolicy.TryApprove(approvalRequest.OperationId).Should().BeTrue();
-        };
-
-        McpDestructiveConfirmationPolicy.ApprovalRequested += handler;
-        try
-        {
-            var operation = McpDestructiveConfirmationPolicy.IssueOperation(
-                "remove_network",
-                McpDestructiveConfirmationPolicy.CanonicalizeArguments("frontend"),
-                "Remove network 'frontend'.",
-                "session-1",
-                "Admin session",
-                true,
-                true);
-
-            request.Should().NotBeNull();
-            request!.DisplaySummary.Should().Be("Remove network 'frontend'.");
-            McpDestructiveConfirmationPolicy.TryConsume(
-                    "remove_network",
-                    operation.OperationId,
-                    McpDestructiveConfirmationPolicy.CanonicalizeArguments("frontend"),
-                    out var reason)
-                .Should().BeTrue();
-            reason.Should().BeEmpty();
-        }
-        finally
-        {
-            McpDestructiveConfirmationPolicy.ApprovalRequested -= handler;
-        }
-    }
-
-    [Fact]
-    public async Task ServiceHost_ShouldRequireHumanApprovalBeforeDestructiveExecution()
+    public async Task ServiceHost_ShouldFailClosedWhenMcpClientDoesNotSupportElicitation()
     {
         var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
         var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
         var driver = new IntegrationRecordingDriver();
-        McpDestructiveApprovalRequest? request = null;
-        EventHandler<McpDestructiveApprovalRequest> handler = (_, approvalRequest) =>
-        {
-            request = approvalRequest;
-        };
-
         Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
         Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
         McpDestructiveConfirmationPolicy.SetEnabled(true);
-        McpDestructiveConfirmationPolicy.ApprovalRequested += handler;
         var app = ServiceHost.Build(Array.Empty<string>(), null, driver);
 
         try
@@ -77,57 +31,19 @@ public class UnitTest1
             using var client = new HttpClient { BaseAddress = localAddress };
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            await InitializeMcpAsync(client);
 
-            using var firstResponse = await client.PostAsync(
+            using var response = await client.PostAsync(
                 "/mcp",
                 CreateMcpToolCallRequest("remove_container", new { id = "integration-web" }));
-            var firstText = ExtractMcpText(await firstResponse.Content.ReadAsStringAsync());
-            using var firstDocument = JsonDocument.Parse(firstText);
+            var text = ExtractMcpText(await response.Content.ReadAsStringAsync());
 
-            firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-            firstDocument.RootElement.GetProperty("approvalStatus").GetString().Should().Be("pending");
-            firstDocument.RootElement.GetProperty("humanApprovalRequired").GetBoolean().Should().BeTrue();
-            request.Should().NotBeNull();
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            text.Should().Contain("elicitation");
             driver.RemoveContainerCalls.Should().Be(0);
-
-            using var beforeApprovalResponse = await client.PostAsync(
-                "/mcp",
-                CreateMcpToolCallRequest(
-                    "remove_container",
-                    new
-                    {
-                        id = "integration-web",
-                        confirm = true,
-                        operationId = request!.OperationId
-                    }));
-            var beforeApprovalText = ExtractMcpText(await beforeApprovalResponse.Content.ReadAsStringAsync());
-
-            beforeApprovalText.Should().Contain("human approval is still pending");
-            driver.RemoveContainerCalls.Should().Be(0);
-
-            McpDestructiveConfirmationPolicy.TryApprove(request.OperationId, out var approvalReason)
-                .Should().BeTrue();
-            approvalReason.Should().BeEmpty();
-
-            using var approvedResponse = await client.PostAsync(
-                "/mcp",
-                CreateMcpToolCallRequest(
-                    "remove_container",
-                    new
-                    {
-                        id = "integration-web",
-                        confirm = true,
-                        operationId = request.OperationId
-                    }));
-            var approvedText = ExtractMcpText(await approvedResponse.Content.ReadAsStringAsync());
-
-            approvedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-            approvedText.Should().Contain("removed integration-web");
-            driver.RemoveContainerCalls.Should().Be(1);
         }
         finally
         {
-            McpDestructiveConfirmationPolicy.ApprovalRequested -= handler;
             await app.StopAsync();
             Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
             Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
@@ -273,6 +189,7 @@ public class UnitTest1
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            await InitializeMcpAsync(client);
 
             using var response = await client.PostAsync("/mcp", CreateMcpToolsListRequest());
             var body = await response.Content.ReadAsStringAsync();
@@ -461,6 +378,7 @@ public class UnitTest1
             using var client = new HttpClient { BaseAddress = localAddress };
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            await InitializeMcpAsync(client);
 
             using var response = await client.PostAsync("/mcp", CreateMcpToolsListRequest());
 
@@ -498,6 +416,7 @@ public class UnitTest1
             using var client = new HttpClient { BaseAddress = localAddress };
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            await InitializeMcpAsync(client);
 
             using var response = await client.PostAsync("/mcp", CreateMcpToolsListRequest());
 
@@ -520,6 +439,22 @@ public class UnitTest1
             """,
             Encoding.UTF8,
             "application/json");
+    }
+
+    private static async Task InitializeMcpAsync(HttpClient client)
+    {
+        using var response = await client.PostAsync(
+            "/mcp",
+            new StringContent(
+                """
+                {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"WinContainers.Tests","version":"1.0"}}}
+                """,
+                Encoding.UTF8,
+                "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.TryGetValues("Mcp-Session-Id", out var values).Should().BeTrue();
+        client.DefaultRequestHeaders.Add("Mcp-Session-Id", values!.Single());
     }
 
     private static StringContent CreateMcpToolCallRequest(string toolName, object arguments)
