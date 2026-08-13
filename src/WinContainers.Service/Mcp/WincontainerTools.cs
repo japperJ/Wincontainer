@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ModelContextProtocol.Server;
 using WinContainers.Runtime;
 
@@ -30,11 +31,11 @@ public class WincontainerTools
         string? Guidance = null,
         object? Validation = null,
         object? Failure = null,
-        bool RequiresConfirmation = false,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool RequiresConfirmation = false,
         string? OperationId = null,
         DateTimeOffset? ExpiresAtUtc = null,
         string? Message = null,
-        bool HumanApprovalRequired = false,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool HumanApprovalRequired = false,
         string? ApprovalStatus = null,
         string? ApprovalSummary = null);
 
@@ -122,13 +123,13 @@ public class WincontainerTools
             $"environment {environmentState}; name {nameState}; network {networkState}).";
     }
 
-    private static string WithSessionWarningPrefixIfNeeded(string tool, string response)
+    private static string WithSessionWarningPrefixIfNeeded(string tool, string response, string? approvalStatus = null)
     {
         var session = BuildSessionContext();
         if (session.Warning is null)
-            return response;
+            return Wrap(tool, !IsWslcError(response), response, approvalStatus: approvalStatus);
 
-        return Wrap(tool, !IsWslcError(response), response, session.Warning);
+        return Wrap(tool, !IsWslcError(response), response, guidance: session.Warning, approvalStatus: approvalStatus);
     }
 
     private static bool TryHandleDestructiveConfirmation(
@@ -162,7 +163,7 @@ public class WincontainerTools
                 toolName,
                 false,
                     "Destructive action requires human approval.",
-                    guidance: "Wait for humanApprovalRequired approvalStatus=approved, then re-run with confirm=true and the returned operationId.",
+                    guidance: "Wait for human approval; after Allow, re-run with confirm=true and the returned operationId.",
                 failure: new { reason = "confirmation_required" },
                 requiresConfirmation: true,
                 operationId: operation.OperationId,
@@ -320,7 +321,7 @@ public class WincontainerTools
         }
 
         var result = await driver.RemoveContainerAsync(id, ct);
-        return WithSessionWarningPrefixIfNeeded("remove_container", result);
+        return WithSessionWarningPrefixIfNeeded("remove_container", result, "approved");
     }
 
     [McpServerTool, Description("Inspect a container and return detailed configuration and status information.")]
@@ -385,7 +386,8 @@ public class WincontainerTools
             return confirmationResponse;
         }
 
-        return await driver.RemoveImageAsync(id, ct);
+        var result = await driver.RemoveImageAsync(id, ct);
+        return WithSessionWarningPrefixIfNeeded("remove_image", result, "approved");
     }
 
     [McpServerTool, Description("Inspect an image and return detailed metadata.")]
@@ -484,7 +486,7 @@ public class WincontainerTools
             ct,
             network);
 
-        return WithSessionWarningPrefixIfNeeded("redeploy_web_only", run);
+        return WithSessionWarningPrefixIfNeeded("redeploy_web_only", run, "approved");
     }
 
     // ── Volumes ──────────────────────────────────────────────────────
@@ -531,7 +533,7 @@ public class WincontainerTools
         }
 
         var result = await driver.RemoveVolumeAsync(name, ct);
-        return WithSessionWarningPrefixIfNeeded("remove_volume", result);
+        return WithSessionWarningPrefixIfNeeded("remove_volume", result, "approved");
     }
 
     [McpServerTool, Description("Inspect a volume and return detailed information.")]
@@ -574,7 +576,8 @@ public class WincontainerTools
             return confirmationResponse;
         }
 
-        return await driver.RemoveNetworkAsync(name, ct);
+        var result = await driver.RemoveNetworkAsync(name, ct);
+        return WithSessionWarningPrefixIfNeeded("remove_network", result, "approved");
     }
 
     // ── System ───────────────────────────────────────────────────────

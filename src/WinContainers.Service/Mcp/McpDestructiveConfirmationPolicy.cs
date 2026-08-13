@@ -385,6 +385,8 @@ public static class McpDestructiveConfirmationPolicy
                 return false;
             }
 
+            // Preserve the operation record until expiry so duplicate approval or denial
+            // attempts remain deterministic and do not invalidate a valid approval.
             record.ApprovalStatus = approvalStatus;
             return true;
         }

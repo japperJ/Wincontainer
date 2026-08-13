@@ -436,6 +436,8 @@ public class RuntimeContractTests
 
         McpDestructiveConfirmationPolicy.TryApprove(operationId!).Should().BeTrue();
         var confirmResult = await WinContainers.Service.Mcp.WincontainerTools.RemoveContainer("web-app", driver, CancellationToken.None, confirm: true, operationId: operationId);
+        using var confirmDocument = JsonDocument.Parse(confirmResult);
+        confirmDocument.RootElement.GetProperty("approvalStatus").GetString().Should().Be("approved");
         confirmResult.Should().Contain("web-app")
             .And.NotContain("requiresConfirmation");
         driver.RemovedContainers.Should().ContainSingle().Which.Should().Be("web-app");
@@ -482,6 +484,9 @@ public class RuntimeContractTests
         McpDestructiveConfirmationPolicy.TryApprove(denied.OperationId, out var approvalReason)
             .Should().BeFalse();
         approvalReason.Should().Be("human approval was already denied");
+        McpDestructiveConfirmationPolicy.TryReject(denied.OperationId, out var secondRejectReason)
+            .Should().BeFalse();
+        secondRejectReason.Should().Be("human approval was already denied");
     }
 
     [Fact]
