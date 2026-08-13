@@ -159,18 +159,25 @@ public class WincontainerTools
                 session.VisibleInUi,
                 session.AdminSession,
                 session.Warning);
+            var approvalUnavailable = operation.ApprovalStatus == McpDestructiveApprovalStatus.Unavailable;
             response = Wrap(
                 toolName,
                 false,
-                    "Destructive action requires human approval.",
-                    guidance: "Wait for human approval; after Allow, re-run with confirm=true and the returned operationId.",
-                failure: new { reason = "confirmation_required" },
+                    approvalUnavailable
+                        ? "Destructive action is blocked because this host has no human approval channel."
+                        : "Destructive action requires human approval.",
+                    guidance: approvalUnavailable
+                        ? "Run this action from a harness that can present an approval prompt."
+                        : "Wait for human approval; after Allow, re-run with confirm=true and the returned operationId.",
+                failure: new { reason = approvalUnavailable ? "approval_channel_unavailable" : "confirmation_required" },
                 requiresConfirmation: true,
                 operationId: operation.OperationId,
                 expiresAtUtc: operation.ExpiresAtUtc,
-                message: "Destructive action requires human approval. After Allow, re-run with confirm=true and the returned operationId.",
+                message: approvalUnavailable
+                    ? "Destructive action blocked: this host cannot present a human approval prompt."
+                    : "Destructive action requires human approval. After Allow, re-run with confirm=true and the returned operationId.",
                 humanApprovalRequired: true,
-                approvalStatus: McpDestructiveApprovalStatus.Pending.ToString().ToLowerInvariant(),
+                approvalStatus: operation.ApprovalStatus.ToString().ToLowerInvariant(),
                 approvalSummary: operation.DisplaySummary);
             return false;
         }
@@ -188,9 +195,12 @@ public class WincontainerTools
             failure: new { reason = rejectReason },
             message: $"Destructive confirmation rejected: {rejectReason}.",
             humanApprovalRequired: true,
-            approvalStatus: rejectReason == "human approval was denied"
-                ? McpDestructiveApprovalStatus.Denied.ToString().ToLowerInvariant()
-                : null,
+            approvalStatus: rejectReason switch
+            {
+                "human approval was denied" => McpDestructiveApprovalStatus.Denied.ToString().ToLowerInvariant(),
+                "human approval channel is unavailable" => McpDestructiveApprovalStatus.Unavailable.ToString().ToLowerInvariant(),
+                _ => null
+            },
             approvalSummary: displaySummary);
         return false;
     }

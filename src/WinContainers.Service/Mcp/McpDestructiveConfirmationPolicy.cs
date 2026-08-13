@@ -8,7 +8,8 @@ public enum McpDestructiveApprovalStatus
 {
     Pending,
     Approved,
-    Denied
+    Denied,
+    Unavailable
 }
 
 public sealed record DestructiveConfirmationOperation(
@@ -191,7 +192,7 @@ public static class McpDestructiveConfirmationPolicy
             if (subscriberFailed)
             {
                 record.ApprovalUnavailable = true;
-                record.ApprovalStatus = McpDestructiveApprovalStatus.Denied;
+                record.ApprovalStatus = McpDestructiveApprovalStatus.Unavailable;
             }
         }
     }
@@ -297,7 +298,7 @@ public static class McpDestructiveConfirmationPolicy
 
             if (record.ApprovalUnavailable)
             {
-                reason = "human approval UI is unavailable";
+                reason = "human approval channel is unavailable";
                 return false;
             }
 
@@ -310,6 +311,12 @@ public static class McpDestructiveConfirmationPolicy
             if (record.ApprovalStatus == McpDestructiveApprovalStatus.Denied)
             {
                 reason = "human approval was denied";
+                return false;
+            }
+
+            if (record.ApprovalStatus == McpDestructiveApprovalStatus.Unavailable)
+            {
+                reason = "human approval channel is unavailable";
                 return false;
             }
 
@@ -363,7 +370,7 @@ public static class McpDestructiveConfirmationPolicy
 
             if (record.ApprovalUnavailable)
             {
-                reason = "human approval UI is unavailable";
+                reason = "human approval channel is unavailable";
                 return false;
             }
 

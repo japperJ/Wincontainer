@@ -490,6 +490,31 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void McpDestructiveConfirmationPolicy_ShouldFailClosedWhenApprovalChannelFails()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        EventHandler<McpDestructiveApprovalRequest> handler = (_, _) => throw new InvalidOperationException("approval channel unavailable");
+        McpDestructiveConfirmationPolicy.ApprovalRequested += handler;
+        try
+        {
+            var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_image", "image:unavailable");
+
+            operation.ApprovalStatus.Should().Be(McpDestructiveApprovalStatus.Unavailable);
+            McpDestructiveConfirmationPolicy.TryConsume(
+                    "remove_image",
+                    operation.OperationId,
+                    "image:unavailable",
+                    out var reason)
+                .Should().BeFalse();
+            reason.Should().Be("human approval channel is unavailable");
+        }
+        finally
+        {
+            McpDestructiveConfirmationPolicy.ApprovalRequested -= handler;
+        }
+    }
+
+    [Fact]
     public void McpDestructiveConfirmationPolicy_ShouldKeepUsefulExpiredReason()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
@@ -534,7 +559,7 @@ public class RuntimeContractTests
 
         McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, out var reason)
             .Should().BeFalse();
-        reason.Should().Be("human approval UI is unavailable");
+        reason.Should().Be("human approval channel is unavailable");
         McpDestructiveConfirmationPolicy.TryGetApprovalStatus(
                 operation.OperationId,
                 out var status,
@@ -585,7 +610,7 @@ public class RuntimeContractTests
 
             McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, out var reason)
                 .Should().BeFalse();
-            reason.Should().Be("human approval UI is unavailable");
+            reason.Should().Be("human approval channel is unavailable");
             Trace.Flush();
             trace.ToString().Should().Contain("ApprovalRequested subscriber failed")
                 .And.Contain("approval handler failed");

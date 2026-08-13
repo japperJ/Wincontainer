@@ -90,6 +90,14 @@ When `McpDestructiveConfirmationEnabled` is on (default), destructive MCP tools 
 
 The server rejects pending, denied, expired, reused, mismatched, or wrong-tool confirmations without executing the destructive action. Approval summaries contain only safe action and target information; environment values, tar data, and full mount details are never shown. The setting can be disabled for explicit automation bypass, but the DB-special confirm guard rails remain enforced for DB-related operations.
 
+The approval contract is host-agnostic:
+
+- An interactive harness can show the approval request in its own UI, terminal, or chat surface.
+- The WinContainers desktop app shows the request in its Allow/Deny dialog.
+- A harness with no human approval channel receives `approvalStatus: "unavailable"` and the action is blocked.
+
+The tool never treats a missing prompt as approval and never executes a destructive action silently.
+
 ### Connecting an AI Client
 
 Add the server to your AI client's MCP configuration. A ready-made `.github/copilot-mcp.json` is included in this repository for GitHub Copilot:

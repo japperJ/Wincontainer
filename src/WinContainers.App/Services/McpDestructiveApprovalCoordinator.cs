@@ -66,7 +66,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
         {
             McpDestructiveConfirmationPolicy.TryReject(request.OperationId);
             _logger.LogWarning(
-                "Denied MCP destructive operation {OperationId}: approval UI is unavailable.",
+                "Blocked MCP destructive operation {OperationId}: approval channel is unavailable.",
                 request.OperationId);
         }
     }
@@ -79,7 +79,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
             {
                 McpDestructiveConfirmationPolicy.TryReject(request.OperationId);
                 _logger.LogWarning(
-                    "Denied MCP destructive operation {OperationId}: XamlRoot is unavailable.",
+                    "Blocked MCP destructive operation {OperationId}: approval channel is unavailable because XamlRoot is unavailable.",
                     request.OperationId);
                 return;
             }
@@ -126,7 +126,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
             McpDestructiveConfirmationPolicy.TryReject(request.OperationId);
             _logger.LogError(
                 ex,
-                "Denied MCP destructive operation {OperationId}: approval dialog failed.",
+                "Blocked MCP destructive operation {OperationId}: approval channel failed.",
                 request.OperationId);
         }
     }
