@@ -79,7 +79,7 @@ The environment variables above apply only at startup and are useful for tests o
 
 ### Destructive tool confirmation
 
-When `McpDestructiveConfirmationEnabled` is on (default), destructive MCP tools such as `remove_container`, `remove_image`, `remove_volume`, and `remove_network` require a confirmation round trip before they execute:
+When `McpDestructiveConfirmationEnabled` is on (default), destructive MCP tools such as `remove_container`, `remove_image`, `remove_volume`, `remove_network`, and `redeploy_web_only` require a confirmation round trip before they execute:
 
 1. Call the tool without `confirm` and without a valid `operationId`.
 2. The server returns `requiresConfirmation: true`, an `operationId`, and `expiresAtUtc`.
@@ -141,6 +141,7 @@ skills can use it when working in a Wincontainer project.
 | `ListNetworks` | List container networks |
 | `CreateNetwork` | Create a network |
 | `RemoveNetwork` | Delete a network |
+| `RedeployWebOnly` | Redeploy the web container (stops, removes, and re-creates it) — destructive, requires confirmation |
 | `HealthCheck` | Check whether the wslc runtime is available |
 | `GetVersion` | Get the wslc runtime version |
 | `LoadImage` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |

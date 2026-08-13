@@ -227,7 +227,7 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.RenameContainerAsync(id, name, ct);
 
-    [McpServerTool, Description("Remove (delete) a container by ID or name.")]
+    [McpServerTool, Description("Remove (delete) a container by ID or name. DESTRUCTIVE: requires a confirmation round trip (confirm=true with the returned operationId) before execution.")]
     public static async Task<string> RemoveContainer(
         [Description("Container ID or name")] string id,
         IWslcDriver driver,
@@ -297,7 +297,7 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.PullImageAsync(image, ct);
 
-    [McpServerTool, Description("Remove (delete) a downloaded image by ID or tag.")]
+    [McpServerTool, Description("Remove (delete) a downloaded image by ID or tag. DESTRUCTIVE: requires a confirmation round trip (confirm=true with the returned operationId) before execution.")]
     public static async Task<string> RemoveImage(
         [Description("Image ID or tag")] string id,
         IWslcDriver driver,
@@ -367,7 +367,7 @@ public class WincontainerTools
         return Wrap("load_image", !IsWslcError(result), result, guidance: guidance);
     }
 
-    [McpServerTool, Description("Redeploy only the web container. Keeps DB container, network, and app data unchanged.")]
+    [McpServerTool, Description("Redeploy only the web container. Keeps DB container, network, and app data unchanged. DESTRUCTIVE: stops and removes the web container, then re-creates it; requires a confirmation round trip (confirm=true with the returned operationId).")]
     public static async Task<string> RedeployWebOnly(
         [Description("Web container id or name")] string webContainerId,
         [Description("Replacement image for web container")] string image,
@@ -420,7 +420,7 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.CreateVolumeAsync(name, ct);
 
-    [McpServerTool, Description("Remove (delete) a storage volume by name.")]
+    [McpServerTool, Description("Remove (delete) a storage volume by name. DESTRUCTIVE: requires a confirmation round trip (confirm=true with the returned operationId) before execution.")]
     public static async Task<string> RemoveVolume(
         [Description("Volume name")] string name,
         IWslcDriver driver,
@@ -468,7 +468,7 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.CreateNetworkAsync(name, ct);
 
-    [McpServerTool, Description("Remove (delete) a container network by name.")]
+    [McpServerTool, Description("Remove (delete) a container network by name. DESTRUCTIVE: requires a confirmation round trip (confirm=true with the returned operationId) before execution.")]
     public static async Task<string> RemoveNetwork(
         [Description("Network name")] string name,
         IWslcDriver driver,
