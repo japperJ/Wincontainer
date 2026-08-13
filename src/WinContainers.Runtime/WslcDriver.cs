@@ -163,7 +163,16 @@ public sealed class WslcDriver : IWslcDriver
 
     private static async Task<string> RunAndCaptureAsync(string arguments, int timeoutMs, CancellationToken ct)
     {
-        var result = await RunAsync(arguments, timeoutMs, ct);
+        RunResult result;
+        try
+        {
+            result = await RunAsync(arguments, timeoutMs, ct);
+        }
+        catch (FileNotFoundException ex) when (string.Equals(Path.GetFileName(ex.FileName), "wslc.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"wslc error (-1): {ex.Message}";
+        }
+
         if (result.ExitCode != 0)
         {
             var error = string.IsNullOrWhiteSpace(result.Stderr) ? result.Stdout : result.Stderr;
