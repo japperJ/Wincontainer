@@ -287,6 +287,7 @@ public class RuntimeContractTests
         McpDestructiveConfirmationPolicy.SetEnabled(true);
 
         var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_container", "containers:alpha");
+        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId).Should().BeTrue();
         McpDestructiveConfirmationPolicy.TryConsume("remove_container", operation.OperationId, "containers:alpha", out var reason).Should().BeTrue();
         reason.Should().BeEmpty();
 
@@ -323,6 +324,7 @@ public class RuntimeContractTests
         var operationId = doc.RootElement.GetProperty("operationId").GetString();
         operationId.Should().NotBeNullOrEmpty();
 
+        McpDestructiveConfirmationPolicy.TryApprove(operationId!).Should().BeTrue();
         var confirmResult = await WinContainers.Service.Mcp.WincontainerTools.RemoveContainer("web-app", driver, CancellationToken.None, confirm: true, operationId: operationId);
         confirmResult.Should().Contain("web-app")
             .And.NotContain("requiresConfirmation");
@@ -345,6 +347,85 @@ public class RuntimeContractTests
         {
             McpDestructiveConfirmationPolicy.SetEnabled(true);
         }
+    }
+
+    [Fact]
+    public void McpDestructiveConfirmationPolicy_ShouldRejectPendingAndDeniedOperations()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+
+        var pending = McpDestructiveConfirmationPolicy.IssueOperation("remove_image", "image:pending");
+        McpDestructiveConfirmationPolicy.TryConsume("remove_image", pending.OperationId, "image:pending", out var pendingReason)
+            .Should().BeFalse();
+        pendingReason.Should().Be("human approval is still pending");
+
+        var denied = McpDestructiveConfirmationPolicy.IssueOperation("remove_image", "image:denied");
+        McpDestructiveConfirmationPolicy.TryReject(denied.OperationId).Should().BeTrue();
+        McpDestructiveConfirmationPolicy.TryConsume("remove_image", denied.OperationId, "image:denied", out var deniedReason)
+            .Should().BeFalse();
+        deniedReason.Should().Be("human approval was denied");
+    }
+
+    [Fact]
+    public void McpDestructiveConfirmationPolicy_ShouldRejectExpiredApproval()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_volume", "volume:expired");
+
+        McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_volume",
+                operation.OperationId,
+                "volume:expired",
+                out var reason,
+                operation.ExpiresAtUtc.AddSeconds(1))
+            .Should().BeFalse();
+        reason.Should().Be("operation expired");
+        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, operation.ExpiresAtUtc.AddSeconds(1))
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task McpDestructiveConfirmationPolicy_ShouldAllowOnlyOneConcurrentConsumption()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_network", "network:concurrent");
+        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId).Should().BeTrue();
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_index => Task.Run(() =>
+            McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_network",
+                operation.OperationId,
+                "network:concurrent",
+                out var reason))));
+
+        results.Count(result => result).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task McpTools_RedeployWebOnly_ShouldUseSafeApprovalSummary()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        var driver = new FakeDriver();
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.RedeployWebOnly(
+            "web",
+            "myapp:latest",
+            "new-web",
+            "80:80",
+            "/host/secret:/container/secret",
+            "PASSWORD=do-not-show",
+            "frontend",
+            driver,
+            CancellationToken.None);
+
+        using var document = JsonDocument.Parse(result);
+        var summary = document.RootElement.GetProperty("approvalSummary").GetString();
+        summary.Should().Contain("web").And.Contain("myapp:latest");
+        summary.Should().NotContain("PASSWORD").And.NotContain("do-not-show").And.NotContain("/host/secret");
+        document.RootElement.GetProperty("humanApprovalRequired").GetBoolean().Should().BeTrue();
+        document.RootElement.GetProperty("approvalStatus").GetString().Should().Be("pending");
+        driver.StoppedContainers.Should().BeEmpty();
+        driver.RemovedContainers.Should().BeEmpty();
     }
 
     [Fact]

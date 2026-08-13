@@ -33,7 +33,10 @@ public class WincontainerTools
         bool RequiresConfirmation = false,
         string? OperationId = null,
         DateTimeOffset? ExpiresAtUtc = null,
-        string? Message = null);
+        string? Message = null,
+        bool HumanApprovalRequired = false,
+        string? ApprovalStatus = null,
+        string? ApprovalSummary = null);
 
     private static SessionContextPayload BuildSessionContext()
     {
@@ -57,7 +60,10 @@ public class WincontainerTools
         bool requiresConfirmation = false,
         string? operationId = null,
         DateTimeOffset? expiresAtUtc = null,
-        string? message = null)
+        string? message = null,
+        bool humanApprovalRequired = false,
+        string? approvalStatus = null,
+        string? approvalSummary = null)
     {
         var payload = new ToolEnvelope(
             BuildSessionContext(),
@@ -70,13 +76,22 @@ public class WincontainerTools
             requiresConfirmation,
             operationId,
             expiresAtUtc,
-            message);
+            message,
+            humanApprovalRequired,
+            approvalStatus,
+            approvalSummary);
         return JsonSerializer.Serialize(payload, JsonOptions);
     }
 
     private static bool IsWslcError(string response) =>
         response.StartsWith("wslc error (", StringComparison.OrdinalIgnoreCase) ||
         response.StartsWith("Validation error:", StringComparison.OrdinalIgnoreCase);
+
+    private static string SafeDisplayValue(string value)
+    {
+        var sanitized = new string(value.Where(character => !char.IsControl(character)).ToArray()).Trim();
+        return sanitized.Length <= 128 ? sanitized : sanitized[..128] + "…";
+    }
 
     private static string WithSessionWarningPrefixIfNeeded(string tool, string response)
     {
@@ -92,6 +107,7 @@ public class WincontainerTools
         string canonicalArguments,
         bool confirm,
         string? operationId,
+        string displaySummary,
         out string response)
     {
         response = string.Empty;
@@ -103,17 +119,29 @@ public class WincontainerTools
 
         if (!(confirm && !string.IsNullOrWhiteSpace(operationId)))
         {
-            var operation = McpDestructiveConfirmationPolicy.IssueOperation(toolName, canonicalArguments);
+            var session = BuildSessionContext();
+            var operation = McpDestructiveConfirmationPolicy.IssueOperation(
+                toolName,
+                canonicalArguments,
+                displaySummary,
+                session.SessionId,
+                session.SessionName,
+                session.VisibleInUi,
+                session.AdminSession,
+                session.Warning);
             response = Wrap(
                 toolName,
                 false,
-                "Destructive action requires confirmation.",
-                guidance: "Re-run with confirm=true and the returned operationId.",
+                    "Destructive action requires human approval.",
+                    guidance: "Wait for humanApprovalRequired approvalStatus=approved, then re-run with confirm=true and the returned operationId.",
                 failure: new { reason = "confirmation_required" },
                 requiresConfirmation: true,
                 operationId: operation.OperationId,
                 expiresAtUtc: operation.ExpiresAtUtc,
-                message: "Destructive action requires confirmation. Re-run with confirm=true and the returned operationId.");
+                message: "Destructive action requires human approval. After Allow, re-run with confirm=true and the returned operationId.",
+                humanApprovalRequired: true,
+                approvalStatus: McpDestructiveApprovalStatus.Pending.ToString().ToLowerInvariant(),
+                approvalSummary: operation.DisplaySummary);
             return false;
         }
 
@@ -128,7 +156,12 @@ public class WincontainerTools
             "Blocked destructive confirmation.",
             guidance: "Use a fresh confirmation flow for the same tool and arguments.",
             failure: new { reason = rejectReason },
-            message: $"Destructive confirmation rejected: {rejectReason}.");
+            message: $"Destructive confirmation rejected: {rejectReason}.",
+            humanApprovalRequired: true,
+            approvalStatus: rejectReason == "human approval was denied"
+                ? McpDestructiveApprovalStatus.Denied.ToString().ToLowerInvariant()
+                : null,
+            approvalSummary: displaySummary);
         return false;
     }
     // ── Container lifecycle ──────────────────────────────────────────
@@ -227,13 +260,13 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.RenameContainerAsync(id, name, ct);
 
-    [McpServerTool, Description("Remove (delete) a container by ID or name. DESTRUCTIVE: requires a confirmation round trip (confirm=true with the returned operationId) before execution.")]
+    [McpServerTool, Description("Remove (delete) a container by ID or name. DESTRUCTIVE: the first call requests human Allow/Deny approval; only after Allow may the same tool be called with confirm=true and operationId.")]
     public static async Task<string> RemoveContainer(
         [Description("Container ID or name")] string id,
         IWslcDriver driver,
         CancellationToken ct,
         [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false,
-        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Set true only after a human has selected Allow for the pending operation.")] bool confirm = false,
         [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
     {
         if (id.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
@@ -246,7 +279,13 @@ public class WincontainerTools
         }
 
         var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(id);
-        if (!TryHandleDestructiveConfirmation("remove_container", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        if (!TryHandleDestructiveConfirmation(
+                "remove_container",
+                canonicalArguments,
+                confirm,
+                operationId,
+                $"Remove container '{SafeDisplayValue(id)}'.",
+                out var confirmationResponse))
         {
             return confirmationResponse;
         }
@@ -297,16 +336,22 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.PullImageAsync(image, ct);
 
-    [McpServerTool, Description("Remove (delete) a downloaded image by ID or tag. DESTRUCTIVE: requires a confirmation round trip (confirm=true with the returned operationId) before execution.")]
+    [McpServerTool, Description("Remove (delete) a downloaded image by ID or tag. DESTRUCTIVE: the first call requests human Allow/Deny approval; only after Allow may the same tool be called with confirm=true and operationId.")]
     public static async Task<string> RemoveImage(
         [Description("Image ID or tag")] string id,
         IWslcDriver driver,
         CancellationToken ct,
-        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Set true only after a human has selected Allow for the pending operation.")] bool confirm = false,
         [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
     {
         var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(id);
-        if (!TryHandleDestructiveConfirmation("remove_image", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        if (!TryHandleDestructiveConfirmation(
+                "remove_image",
+                canonicalArguments,
+                confirm,
+                operationId,
+                $"Remove image '{SafeDisplayValue(id)}'.",
+                out var confirmationResponse))
         {
             return confirmationResponse;
         }
@@ -367,7 +412,7 @@ public class WincontainerTools
         return Wrap("load_image", !IsWslcError(result), result, guidance: guidance);
     }
 
-    [McpServerTool, Description("Redeploy only the web container. Keeps DB container, network, and app data unchanged. DESTRUCTIVE: stops and removes the web container, then re-creates it; requires a confirmation round trip (confirm=true with the returned operationId).")]
+    [McpServerTool, Description("Redeploy only the web container. Keeps DB container, network, and app data unchanged. DESTRUCTIVE: the first call requests human Allow/Deny approval; only after Allow may the same tool be called with confirm=true and operationId.")]
     public static async Task<string> RedeployWebOnly(
         [Description("Web container id or name")] string webContainerId,
         [Description("Replacement image for web container")] string image,
@@ -378,11 +423,17 @@ public class WincontainerTools
         [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network,
         IWslcDriver driver,
         CancellationToken ct,
-        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Set true only after a human has selected Allow for the pending operation.")] bool confirm = false,
         [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
     {
         var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(webContainerId, image, name ?? string.Empty, ports ?? string.Empty, volumes ?? string.Empty, env ?? string.Empty, network ?? string.Empty);
-        if (!TryHandleDestructiveConfirmation("redeploy_web_only", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        if (!TryHandleDestructiveConfirmation(
+                "redeploy_web_only",
+                canonicalArguments,
+                confirm,
+                operationId,
+                $"Redeploy web container '{SafeDisplayValue(webContainerId)}' with replacement image '{SafeDisplayValue(image)}'.",
+                out var confirmationResponse))
         {
             return confirmationResponse;
         }
@@ -420,13 +471,13 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.CreateVolumeAsync(name, ct);
 
-    [McpServerTool, Description("Remove (delete) a storage volume by name. DESTRUCTIVE: requires a confirmation round trip (confirm=true with the returned operationId) before execution.")]
+    [McpServerTool, Description("Remove (delete) a storage volume by name. DESTRUCTIVE: the first call requests human Allow/Deny approval; only after Allow may the same tool be called with confirm=true and operationId.")]
     public static async Task<string> RemoveVolume(
         [Description("Volume name")] string name,
         IWslcDriver driver,
         CancellationToken ct,
         [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false,
-        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Set true only after a human has selected Allow for the pending operation.")] bool confirm = false,
         [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
     {
         if (name.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
@@ -439,7 +490,13 @@ public class WincontainerTools
         }
 
         var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(name);
-        if (!TryHandleDestructiveConfirmation("remove_volume", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        if (!TryHandleDestructiveConfirmation(
+                "remove_volume",
+                canonicalArguments,
+                confirm,
+                operationId,
+                $"Remove volume '{SafeDisplayValue(name)}'.",
+                out var confirmationResponse))
         {
             return confirmationResponse;
         }
@@ -468,16 +525,22 @@ public class WincontainerTools
         CancellationToken ct)
         => await driver.CreateNetworkAsync(name, ct);
 
-    [McpServerTool, Description("Remove (delete) a container network by name. DESTRUCTIVE: requires a confirmation round trip (confirm=true with the returned operationId) before execution.")]
+    [McpServerTool, Description("Remove (delete) a container network by name. DESTRUCTIVE: the first call requests human Allow/Deny approval; only after Allow may the same tool be called with confirm=true and operationId.")]
     public static async Task<string> RemoveNetwork(
         [Description("Network name")] string name,
         IWslcDriver driver,
         CancellationToken ct,
-        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Set true only after a human has selected Allow for the pending operation.")] bool confirm = false,
         [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
     {
         var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(name);
-        if (!TryHandleDestructiveConfirmation("remove_network", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        if (!TryHandleDestructiveConfirmation(
+                "remove_network",
+                canonicalArguments,
+                confirm,
+                operationId,
+                $"Remove network '{SafeDisplayValue(name)}'.",
+                out var confirmationResponse))
         {
             return confirmationResponse;
         }

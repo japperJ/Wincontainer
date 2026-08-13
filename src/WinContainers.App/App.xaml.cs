@@ -41,6 +41,7 @@ public partial class App : Application
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IDialogService>(sp =>
             new DialogService(() => (_window as MainWindow)?.Content?.XamlRoot));
+        services.AddSingleton<McpDestructiveApprovalCoordinator>();
 
         services.AddHttpClient("WslcApi", (sp, client) =>
         {
@@ -175,6 +176,8 @@ public partial class App : Application
             _window = new MainWindow();
             _window.Activate();
         }
+
+        Services.GetRequiredService<McpDestructiveApprovalCoordinator>().Subscribe(DispatcherQueue!);
     }
 
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)

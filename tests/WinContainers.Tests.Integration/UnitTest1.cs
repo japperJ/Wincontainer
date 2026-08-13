@@ -5,11 +5,51 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using WinContainers.Service.Host;
+using WinContainers.Service.Mcp;
 
 namespace WinContainers.Tests.Integration;
 
 public class UnitTest1
 {
+    [Fact]
+    public void McpDestructiveApproval_ShouldRequireApprovalEventBeforeConsumption()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        McpDestructiveApprovalRequest? request = null;
+        EventHandler<McpDestructiveApprovalRequest> handler = (_, approvalRequest) =>
+        {
+            request = approvalRequest;
+            McpDestructiveConfirmationPolicy.TryApprove(approvalRequest.OperationId).Should().BeTrue();
+        };
+
+        McpDestructiveConfirmationPolicy.ApprovalRequested += handler;
+        try
+        {
+            var operation = McpDestructiveConfirmationPolicy.IssueOperation(
+                "remove_network",
+                McpDestructiveConfirmationPolicy.CanonicalizeArguments("frontend"),
+                "Remove network 'frontend'.",
+                "session-1",
+                "Admin session",
+                true,
+                true);
+
+            request.Should().NotBeNull();
+            request!.DisplaySummary.Should().Be("Remove network 'frontend'.");
+            McpDestructiveConfirmationPolicy.TryConsume(
+                    "remove_network",
+                    operation.OperationId,
+                    McpDestructiveConfirmationPolicy.CanonicalizeArguments("frontend"),
+                    out var reason)
+                .Should().BeTrue();
+            reason.Should().BeEmpty();
+        }
+        finally
+        {
+            McpDestructiveConfirmationPolicy.ApprovalRequested -= handler;
+        }
+    }
+
     private static Uri CreateLoopbackUri(string address)
     {
         var builder = new UriBuilder(address);
