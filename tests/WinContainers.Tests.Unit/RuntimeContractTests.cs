@@ -258,7 +258,9 @@ public class RuntimeContractTests
 
         var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(path, null, driver, CancellationToken.None);
 
-        result.Should().Be(string.Empty);
+        result.Should().Contain("\"tool\":\"load_image\"");
+        result.Should().Contain("\"success\":true");
+        result.Should().Contain("\"result\":\"\"");
         driver.LastLoadImageTarPath.Should().Be(path);
         driver.LastLoadImageTarData.Should().BeNull();
     }
@@ -271,7 +273,9 @@ public class RuntimeContractTests
 
         var result = await WinContainers.Service.Mcp.WincontainerTools.LoadImage(null, data, driver, CancellationToken.None);
 
-        result.Should().Be(string.Empty);
+        result.Should().Contain("\"tool\":\"load_image\"");
+        result.Should().Contain("\"success\":true");
+        result.Should().Contain("\"result\":\"\"");
         driver.LastLoadImageTarPath.Should().BeNull();
         driver.LastLoadImageTarData.Should().Be(data);
     }

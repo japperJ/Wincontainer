@@ -13,6 +13,61 @@ namespace WinContainers.Service.Mcp;
 [McpServerToolType]
 public class WincontainerTools
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private sealed record SessionContextPayload(
+        string SessionId,
+        string SessionName,
+        bool VisibleInUi,
+        bool AdminSession,
+        string? Warning = null);
+
+    private sealed record ToolEnvelope(
+        SessionContextPayload Session,
+        string Tool,
+        bool Success,
+        string? Result = null,
+        string? Guidance = null,
+        object? Validation = null,
+        object? Failure = null);
+
+    private static SessionContextPayload BuildSessionContext()
+    {
+        var sessionId = Environment.GetEnvironmentVariable("COPILOT_SESSION_ID") ?? "unknown";
+        var sessionName = Environment.GetEnvironmentVariable("COPILOT_SESSION_NAME") ?? "unknown";
+        var isAdmin = string.Equals(Environment.GetEnvironmentVariable("WINCONTAINER_ADMIN_SESSION"), "true", StringComparison.OrdinalIgnoreCase);
+        var isVisible = !string.Equals(Environment.GetEnvironmentVariable("WINCONTAINER_HIDDEN_SESSION"), "true", StringComparison.OrdinalIgnoreCase);
+        var warning = !isVisible && !isAdmin
+            ? "Warning: target session is hidden and non-admin. Deploy actions can be easy to miss in this session."
+            : null;
+        return new SessionContextPayload(sessionId, sessionName, isVisible, isAdmin, warning);
+    }
+
+    private static string Wrap(string tool, bool success, string? result = null, string? guidance = null, object? validation = null, object? failure = null)
+    {
+        var payload = new ToolEnvelope(
+            BuildSessionContext(),
+            tool,
+            success,
+            result,
+            guidance,
+            validation,
+            failure);
+        return JsonSerializer.Serialize(payload, JsonOptions);
+    }
+
+    private static bool IsWslcError(string response) =>
+        response.StartsWith("wslc error (", StringComparison.OrdinalIgnoreCase) ||
+        response.StartsWith("Validation error:", StringComparison.OrdinalIgnoreCase);
+
+    private static string WithSessionWarningPrefixIfNeeded(string tool, string response)
+    {
+        var session = BuildSessionContext();
+        if (session.Warning is null)
+            return response;
+
+        return Wrap(tool, !IsWslcError(response), response, session.Warning);
+    }
     // ── Container lifecycle ──────────────────────────────────────────
 
     [McpServerTool, Description("List all containers managed by the runtime. Returns JSON output from wslc.")]
@@ -29,13 +84,56 @@ public class WincontainerTools
         [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network = null,
         IWslcDriver driver = null!,
         CancellationToken ct = default)
-        => await driver.RunContainerAsync(
+    {
+        var volumeList = volumes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var runResult = await driver.RunContainerAsync(
             image, name,
             ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-            volumes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            volumeList,
             env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             ct,
             network);
+
+        if (IsWslcError(runResult))
+        {
+            var errorText = runResult;
+            if (runResult.Contains("mount", StringComparison.OrdinalIgnoreCase) && runResult.Contains("limit", StringComparison.OrdinalIgnoreCase))
+                errorText += " Guidance: host mount limit reached. Remove unused bind mounts or switch to named volumes.";
+            if (runResult.Contains("image", StringComparison.OrdinalIgnoreCase) && runResult.Contains("not found", StringComparison.OrdinalIgnoreCase))
+                errorText += " Guidance: image can be stale or missing. Pull or load the image again, then redeploy.";
+            return WithSessionWarningPrefixIfNeeded("run_container", errorText);
+        }
+
+        var target = string.IsNullOrWhiteSpace(name) ? image : name!;
+        var inspectResult = await driver.InspectContainerAsync(target, ct);
+        var logsResult = await driver.GetContainerLogsAsync(target, 120, ct);
+        var reachable = "unknown";
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var health = await driver.ExecCommandAsync(name!, "wget -qO- http://127.0.0.1/ || curl -fsS http://127.0.0.1/", ct);
+            reachable = IsWslcError(health) ? "unreachable" : "reachable";
+        }
+
+        var validation = new
+        {
+            containerState = inspectResult,
+            portMapping = inspectResult,
+            httpHealth = reachable
+        };
+
+        if (inspectResult.Contains("\"Running\":false", StringComparison.OrdinalIgnoreCase) || reachable == "unreachable")
+        {
+            var failure = new
+            {
+                reason = "Container failed startup validation.",
+                containerToImageMapping = inspectResult,
+                finalLogs = logsResult
+            };
+            return Wrap("run_container", false, runResult, validation: validation, failure: failure);
+        }
+
+        return Wrap("run_container", true, runResult, validation: validation);
+    }
 
     [McpServerTool, Description("Start a stopped container by ID or name.")]
     public static async Task<string> StartContainer(
@@ -70,8 +168,21 @@ public class WincontainerTools
     public static async Task<string> RemoveContainer(
         [Description("Container ID or name")] string id,
         IWslcDriver driver,
-        CancellationToken ct)
-        => await driver.RemoveContainerAsync(id, ct);
+        CancellationToken ct,
+        [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false)
+    {
+        if (id.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
+        {
+            return Wrap(
+                "remove_container",
+                false,
+                "Blocked destructive action on DB-related resource.",
+                guidance: "Re-run with confirmDestructive=true after you confirm this is intended.");
+        }
+
+        var result = await driver.RemoveContainerAsync(id, ct);
+        return WithSessionWarningPrefixIfNeeded("remove_container", result);
+    }
 
     [McpServerTool, Description("Inspect a container and return detailed configuration and status information.")]
     public static async Task<string> InspectContainer(
@@ -165,7 +276,46 @@ public class WincontainerTools
         if (hasPath == hasData)
             return "Validation error: provide exactly one of tarPath or tarData.";
 
-        return await driver.LoadImageAsync(tarPath, tarData, ct);
+        var guidance = "Use tar save/load for portable deploy flow. Avoid bind mounts in admin session; prefer named volumes.";
+        var result = await driver.LoadImageAsync(tarPath, tarData, ct);
+        if (IsWslcError(result) && result.Contains("image", StringComparison.OrdinalIgnoreCase))
+        {
+            result += " Guidance: image metadata looks stale. Re-export the tar from source and load again.";
+        }
+
+        return Wrap("load_image", !IsWslcError(result), result, guidance: guidance);
+    }
+
+    [McpServerTool, Description("Redeploy only the web container. Keeps DB container, network, and app data unchanged.")]
+    public static async Task<string> RedeployWebOnly(
+        [Description("Web container id or name")] string webContainerId,
+        [Description("Replacement image for web container")] string image,
+        [Description("Optional container name")] string? name,
+        [Description("Comma-separated port mappings, e.g. '80:80,8080:80/tcp'")] string? ports,
+        [Description("Comma-separated volume mounts, e.g. '/host:/container,/data:/data'")] string? volumes,
+        [Description("Comma-separated environment variables, e.g. 'KEY1=val1,KEY2=val2'")] string? env,
+        [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network,
+        IWslcDriver driver,
+        CancellationToken ct)
+    {
+        var stop = await driver.StopContainerAsync(webContainerId, ct);
+        if (IsWslcError(stop))
+            return Wrap("redeploy_web_only", false, stop);
+
+        var remove = await driver.RemoveContainerAsync(webContainerId, ct);
+        if (IsWslcError(remove))
+            return Wrap("redeploy_web_only", false, remove);
+
+        var run = await driver.RunContainerAsync(
+            image,
+            name,
+            ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            volumes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            ct,
+            network);
+
+        return WithSessionWarningPrefixIfNeeded("redeploy_web_only", run);
     }
 
     // ── Volumes ──────────────────────────────────────────────────────
@@ -185,8 +335,21 @@ public class WincontainerTools
     public static async Task<string> RemoveVolume(
         [Description("Volume name")] string name,
         IWslcDriver driver,
-        CancellationToken ct)
-        => await driver.RemoveVolumeAsync(name, ct);
+        CancellationToken ct,
+        [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false)
+    {
+        if (name.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
+        {
+            return Wrap(
+                "remove_volume",
+                false,
+                "Blocked destructive action on DB-related resource.",
+                guidance: "Re-run with confirmDestructive=true after you confirm this is intended.");
+        }
+
+        var result = await driver.RemoveVolumeAsync(name, ct);
+        return WithSessionWarningPrefixIfNeeded("remove_volume", result);
+    }
 
     [McpServerTool, Description("Inspect a volume and return detailed information.")]
     public static async Task<string> InspectVolume(
