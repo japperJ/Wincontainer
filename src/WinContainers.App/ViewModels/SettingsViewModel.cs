@@ -227,6 +227,13 @@ public partial class SettingsViewModel : ViewModelBase
         set => SetProperty(ref _aiConfirmDestructiveActions, value);
     }
 
+    private bool _mcpDestructiveConfirmationEnabled = true;
+    public bool McpDestructiveConfirmationEnabled
+    {
+        get => _mcpDestructiveConfirmationEnabled;
+        set => SetProperty(ref _mcpDestructiveConfirmationEnabled, value);
+    }
+
     private string _aiStatusText = "AI assistant settings are stored locally and never leave this machine.";
     public string AiStatusText
     {
@@ -268,6 +275,7 @@ public partial class SettingsViewModel : ViewModelBase
             AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? "gpt-4o-mini" : settings.AiModel;
             AiApiKey = settings.AiApiKey;
             AiConfirmDestructiveActions = settings.AiConfirmDestructiveActions;
+            McpDestructiveConfirmationEnabled = settings.McpDestructiveConfirmationEnabled;
 
             try
             {
@@ -316,6 +324,8 @@ public partial class SettingsViewModel : ViewModelBase
         settings.McpEnabled = _output.McpEnabled;
         settings.McpLoggingEnabled = _output.McpLoggingEnabled;
         settings.AllowRemoteApiAccess = _output.AllowRemoteApiAccess;
+        settings.McpDestructiveConfirmationEnabled = McpDestructiveConfirmationEnabled;
+        WinContainers.Service.Mcp.McpDestructiveConfirmationPolicy.SetEnabled(McpDestructiveConfirmationEnabled);
         _settingsService.Save(settings);
     }
 
@@ -329,6 +339,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.AiModel = string.IsNullOrWhiteSpace(AiModel) ? "gpt-4o-mini" : AiModel.Trim();
         settings.AiApiKey = AiApiKey;
         settings.AiConfirmDestructiveActions = AiConfirmDestructiveActions;
+        settings.McpDestructiveConfirmationEnabled = McpDestructiveConfirmationEnabled;
         _settingsService.Save(settings);
         AiStatusText = "AI assistant settings saved.";
     }

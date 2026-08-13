@@ -33,6 +33,7 @@ public sealed partial class SettingsPage : Page
             AllowRemoteApiToggle.IsOn = _viewModel.AllowRemoteApiAccess;
             McpEnabledToggle.IsOn = _viewModel.McpEnabled;
             McpLoggingToggle.IsOn = _viewModel.McpLoggingEnabled;
+            McpDestructiveConfirmationToggle.IsOn = _viewModel.McpDestructiveConfirmationEnabled;
             AppVersionText.Text = _viewModel.AppVersion;
             UpdateChannelBox.SelectedValue = _viewModel.UpdateChannel;
             AiProviderBox.SelectedValue = _viewModel.AiProviderKind;
@@ -110,6 +111,13 @@ public sealed partial class SettingsPage : Page
     {
         if (_isLoading) return;
         _viewModel.McpLoggingEnabled = McpLoggingToggle.IsOn;
+        _viewModel.SaveLoggingSettings();
+    }
+
+    private void McpDestructiveConfirmationToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+        _viewModel.McpDestructiveConfirmationEnabled = McpDestructiveConfirmationToggle.IsOn;
         _viewModel.SaveLoggingSettings();
     }
 

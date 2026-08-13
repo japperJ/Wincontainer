@@ -38,6 +38,9 @@ public sealed class AppSettings
     /// <summary>When true, destructive AI actions require explicit confirmation.</summary>
     public bool AiConfirmDestructiveActions { get; set; } = true;
 
+    /// <summary>When true, destructive MCP actions require a confirmation round-trip before execution.</summary>
+    public bool McpDestructiveConfirmationEnabled { get; set; } = true;
+
     /// <summary>When true, the global AI assistant panel is pinned to the right side of the app.</summary>
     public bool ShowAiPanel { get; set; }
 

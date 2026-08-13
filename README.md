@@ -72,9 +72,21 @@ The app Settings page provides live toggles (persisted across restarts):
 |---|---|
 | **MCP server** | When off, `/mcp` returns `404` for all clients. The in-app AI chat is not affected. |
 | **MCP request logging** | When on, MCP activity (methods, tool calls, and their results) is written to the Output window. |
+| **Destructive confirmation** | When on, destructive MCP tools require a two-step confirm flow. Default is `true`. |
 | **Allow remote API access** | When off, non-loopback `/api` requests return `403`. Localhost requests always work. |
 
 The environment variables above apply only at startup and are useful for tests or automation; the Settings toggles are the live source of truth. `/api/health` reports the current state in the `mcpEnabled` and `apiRemoteAccessEnabled` fields.
+
+### Destructive tool confirmation
+
+When `McpDestructiveConfirmationEnabled` is on (default), destructive MCP tools such as `remove_container`, `remove_image`, `remove_volume`, and `remove_network` require a confirmation round trip before they execute:
+
+1. Call the tool without `confirm` and without a valid `operationId`.
+2. The server returns `requiresConfirmation: true`, an `operationId`, and `expiresAtUtc`.
+3. Re-run the same tool with `confirm: true` and the returned `operationId`.
+4. The server validates the tool name, normalized arguments, expiry, and single-use check before executing.
+
+The server rejects expired, reused, mismatched, or wrong-tool confirmations without executing the destructive action. The setting can be disabled for legacy one-call behavior, but the DB-special confirm guard rails remain enforced for DB-related operations.
 
 ### Connecting an AI Client
 

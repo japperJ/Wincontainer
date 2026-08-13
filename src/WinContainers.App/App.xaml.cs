@@ -126,6 +126,7 @@ public partial class App : Application
                 OutputService.Instance.McpEnabled = settings.McpEnabled;
                 OutputService.Instance.McpLoggingEnabled = settings.McpLoggingEnabled;
                 OutputService.Instance.AllowRemoteApiAccess = settings.AllowRemoteApiAccess;
+                WinContainers.Service.Mcp.McpDestructiveConfirmationPolicy.SetEnabled(settings.McpDestructiveConfirmationEnabled);
 
                 // Env-var overrides for test/automation deployments. Applied at startup only;
                 // the Settings toggles remain the live source of truth.
@@ -139,6 +140,12 @@ public partial class App : Application
                         Environment.GetEnvironmentVariable("WINCONTAINERS_ALLOW_REMOTE_API"), out var allowRemoteApi))
                 {
                     OutputService.Instance.AllowRemoteApiAccess = allowRemoteApi;
+                }
+
+                if (EnvironmentBooleanParser.TryParse(
+                        Environment.GetEnvironmentVariable("WINCONTAINERS_MCP_DESTRUCTIVE_CONFIRMATION_ENABLED"), out var mcpDestructiveConfirmation))
+                {
+                    WinContainers.Service.Mcp.McpDestructiveConfirmationPolicy.SetEnabled(mcpDestructiveConfirmation);
                 }
 
                 if (!string.IsNullOrWhiteSpace(settings.ApiToken))
