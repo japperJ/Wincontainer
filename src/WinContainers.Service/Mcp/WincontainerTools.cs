@@ -90,7 +90,36 @@ public class WincontainerTools
     private static string SafeDisplayValue(string value)
     {
         var sanitized = new string(value.Where(character => !char.IsControl(character)).ToArray()).Trim();
+        if (sanitized.Length == 0)
+        {
+            return "(not specified)";
+        }
+
         return sanitized.Length <= 128 ? sanitized : sanitized[..128] + "…";
+    }
+
+    private static int CountDelimitedValues(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? 0
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
+
+    private static string BuildRedeployDisplaySummary(
+        string webContainerId,
+        string image,
+        string? name,
+        string? ports,
+        string? volumes,
+        string? env,
+        string? network)
+    {
+        var environmentState = CountDelimitedValues(env) > 0 ? "supplied" : "not supplied";
+        var nameState = string.IsNullOrWhiteSpace(name) ? "not supplied" : "supplied";
+        var networkState = string.IsNullOrWhiteSpace(network) ? "not supplied" : "supplied";
+
+        return
+            $"Redeploy web container '{SafeDisplayValue(webContainerId)}' with replacement image '{SafeDisplayValue(image)}' " +
+            $"(ports: {CountDelimitedValues(ports)}; volumes: {CountDelimitedValues(volumes)}; " +
+            $"environment {environmentState}; name {nameState}; network {networkState}).";
     }
 
     private static string WithSessionWarningPrefixIfNeeded(string tool, string response)
@@ -432,7 +461,7 @@ public class WincontainerTools
                 canonicalArguments,
                 confirm,
                 operationId,
-                $"Redeploy web container '{SafeDisplayValue(webContainerId)}' with replacement image '{SafeDisplayValue(image)}'.",
+                BuildRedeployDisplaySummary(webContainerId, image, name, ports, volumes, env, network),
                 out var confirmationResponse))
         {
             return confirmationResponse;

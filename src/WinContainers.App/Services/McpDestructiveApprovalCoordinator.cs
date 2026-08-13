@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
 using WinContainers.Service.Mcp;
 
 namespace WinContainers_App.Services;
@@ -10,6 +11,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
     private readonly ILogger<McpDestructiveApprovalCoordinator> _logger;
     private readonly object _syncRoot = new();
     private DispatcherQueue? _dispatcherQueue;
+    private Func<XamlRoot?>? _xamlRootProvider;
     private bool _subscribed;
 
     public McpDestructiveApprovalCoordinator(
@@ -20,7 +22,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
         _logger = logger;
     }
 
-    public void Subscribe(DispatcherQueue dispatcherQueue)
+    public void Subscribe(DispatcherQueue? dispatcherQueue, Func<XamlRoot?>? xamlRootProvider)
     {
         lock (_syncRoot)
         {
@@ -30,6 +32,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
             }
 
             _dispatcherQueue = dispatcherQueue;
+            _xamlRootProvider = xamlRootProvider;
             McpDestructiveConfirmationPolicy.ApprovalRequested += OnApprovalRequested;
             _subscribed = true;
         }
@@ -47,6 +50,7 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
             McpDestructiveConfirmationPolicy.ApprovalRequested -= OnApprovalRequested;
             _subscribed = false;
             _dispatcherQueue = null;
+            _xamlRootProvider = null;
         }
     }
 
@@ -71,6 +75,15 @@ public sealed class McpDestructiveApprovalCoordinator : IDisposable
     {
         try
         {
+            if (_xamlRootProvider is null || _xamlRootProvider() is null)
+            {
+                McpDestructiveConfirmationPolicy.TryReject(request.OperationId);
+                _logger.LogWarning(
+                    "Denied MCP destructive operation {OperationId}: XamlRoot is unavailable.",
+                    request.OperationId);
+                return;
+            }
+
             var sessionVisibility = request.SessionVisibleInUi ? "visible" : "hidden";
             var sessionRole = request.SessionIsAdmin ? "administrator" : "non-administrator";
             var content =

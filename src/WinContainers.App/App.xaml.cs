@@ -177,7 +177,9 @@ public partial class App : Application
             _window.Activate();
         }
 
-        Services.GetRequiredService<McpDestructiveApprovalCoordinator>().Subscribe(DispatcherQueue!);
+        Services.GetRequiredService<McpDestructiveApprovalCoordinator>().Subscribe(
+            DispatcherQueue,
+            () => (_window as MainWindow)?.Content?.XamlRoot);
     }
 
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)

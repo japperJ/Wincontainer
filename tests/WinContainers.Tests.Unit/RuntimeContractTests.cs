@@ -401,6 +401,23 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void McpDestructiveConfirmationPolicy_ShouldPreserveArgumentPositionsWhenCanonicalizing()
+    {
+        var first = McpDestructiveConfirmationPolicy.CanonicalizeArguments(
+            "web",
+            "myapp:latest",
+            string.Empty,
+            "80:80");
+        var second = McpDestructiveConfirmationPolicy.CanonicalizeArguments(
+            "web",
+            "myapp:latest",
+            "80:80",
+            string.Empty);
+
+        first.Should().NotBe(second);
+    }
+
+    [Fact]
     public async Task McpTools_RemoveContainer_ShouldRequireConfirmationBeforeExecution()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
@@ -523,6 +540,29 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void McpDestructiveConfirmationPolicy_ShouldTraceMissingApprovalSubscriber()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        using var trace = new StringWriter();
+        using var listener = new TextWriterTraceListener(trace);
+        Trace.Listeners.Add(listener);
+
+        try
+        {
+            McpDestructiveConfirmationPolicy.IssueOperation(
+                "remove_network",
+                "network:no-ui-log");
+
+            Trace.Flush();
+            trace.ToString().Should().Contain("ApprovalRequested has no subscribers");
+        }
+        finally
+        {
+            Trace.Listeners.Remove(listener);
+        }
+    }
+
+    [Fact]
     public void McpDestructiveConfirmationPolicy_ShouldFailClosedAndTraceSubscriberException()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
@@ -625,11 +665,50 @@ public class RuntimeContractTests
         using var document = JsonDocument.Parse(result);
         var summary = document.RootElement.GetProperty("approvalSummary").GetString();
         summary.Should().Contain("web").And.Contain("myapp:latest");
+        summary.Should().Contain("ports:")
+            .And.Contain("volumes:")
+            .And.Contain("environment supplied")
+            .And.Contain("name supplied")
+            .And.Contain("network supplied");
         summary.Should().NotContain("PASSWORD").And.NotContain("do-not-show").And.NotContain("/host/secret");
         document.RootElement.GetProperty("humanApprovalRequired").GetBoolean().Should().BeTrue();
         document.RootElement.GetProperty("approvalStatus").GetString().Should().Be("pending");
         driver.StoppedContainers.Should().BeEmpty();
         driver.RemovedContainers.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task McpTools_DestructiveOperations_ShouldExposeSafeTargetSummaries()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        using var subscription = SubscribeToApprovalRequests(_ => { });
+        var driver = new FakeDriver();
+
+        var results = new[]
+        {
+            await WinContainers.Service.Mcp.WincontainerTools.RemoveContainer(
+                "summary-container", driver, CancellationToken.None),
+            await WinContainers.Service.Mcp.WincontainerTools.RemoveImage(
+                "summary-image", driver, CancellationToken.None),
+            await WinContainers.Service.Mcp.WincontainerTools.RemoveVolume(
+                "summary-volume", driver, CancellationToken.None),
+            await WinContainers.Service.Mcp.WincontainerTools.RemoveNetwork(
+                "summary-network", driver, CancellationToken.None)
+        };
+
+        results.Select(result =>
+        {
+            using var document = JsonDocument.Parse(result);
+            return document.RootElement.GetProperty("approvalSummary").GetString();
+        }).Should().ContainInOrder(
+            "Remove container 'summary-container'.",
+            "Remove image 'summary-image'.",
+            "Remove volume 'summary-volume'.",
+            "Remove network 'summary-network'.");
+        driver.RemovedContainers.Should().BeEmpty();
+        driver.RemovedImages.Should().BeEmpty();
+        driver.RemovedVolumes.Should().BeEmpty();
+        driver.RemovedNetworks.Should().BeEmpty();
     }
 
     [Fact]

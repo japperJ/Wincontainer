@@ -98,7 +98,7 @@ Add the server to your AI client's MCP configuration. A ready-made `.github/copi
 {
   "mcpServers": {
     "wincontainer": {
-      "description": "Wincontainer container management — run, stop, inspect containers, images, volumes, and networks via wslc.",
+      "description": "Wincontainer container management via wslc. Destructive tools require a real human Allow/Deny decision followed by the exact same call with confirm=true and operationId; pending, denied, expired, mismatched, and reused approvals fail closed.",
       "url": "http://localhost:5123/mcp",
       "headers": {
         "Authorization": "******"
@@ -128,22 +128,22 @@ skills can use it when working in a Wincontainer project.
 | `StopContainer` | Stop a running container |
 | `RestartContainer` | Restart a container |
 | `RenameContainer` | Rename a container |
-| `RemoveContainer` | Delete a container |
+| `RemoveContainer` | Delete a container — requires human Allow/Deny approval plus the confirmation token |
 | `InspectContainer` | Get detailed container configuration and status |
 | `ExecCommand` | Execute a command inside a running container |
 | `GetContainerLogs` | Retrieve recent container logs |
 | `ListImages` | List downloaded images |
 | `PullImage` | Pull an image from a registry |
-| `RemoveImage` | Delete an image |
+| `RemoveImage` | Delete an image — requires human Allow/Deny approval plus the confirmation token |
 | `InspectImage` | Get detailed image metadata |
 | `ListVolumes` | List storage volumes |
 | `CreateVolume` | Create a volume |
-| `RemoveVolume` | Delete a volume |
+| `RemoveVolume` | Delete a volume — requires human Allow/Deny approval plus the confirmation token |
 | `InspectVolume` | Get detailed volume information |
 | `ListNetworks` | List container networks |
 | `CreateNetwork` | Create a network |
-| `RemoveNetwork` | Delete a network |
-| `RedeployWebOnly` | Redeploy the web container (stops, removes, and re-creates it) — destructive, requires confirmation |
+| `RemoveNetwork` | Delete a network — requires human Allow/Deny approval plus the confirmation token |
+| `RedeployWebOnly` | Redeploy the web container (stops, removes, and re-creates it) — requires human Allow/Deny approval plus the confirmation token |
 | `HealthCheck` | Check whether the wslc runtime is available |
 | `GetVersion` | Get the wslc runtime version |
 | `LoadImage` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |

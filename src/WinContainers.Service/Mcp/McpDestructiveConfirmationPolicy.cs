@@ -73,15 +73,18 @@ public static class McpDestructiveConfirmationPolicy
 
     public static string CanonicalizeArguments(params string[] values)
     {
-        var normalized = values
-            .Select(value => value ?? string.Empty)
-            .Select(value => value.Trim())
-            .Where(value => !string.IsNullOrEmpty(value))
-            .ToArray();
+        using var stream = new MemoryStream();
+        using (var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
+        {
+            writer.Write(values.Length);
+            foreach (var value in values)
+            {
+                writer.Write(value?.Trim() ?? string.Empty);
+            }
+        }
 
-        var input = string.Join("|", normalized.Select((value, index) => $"{index}:{value}"));
         using var sha = SHA256.Create();
-        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
+        var bytes = sha.ComputeHash(stream.ToArray());
         return Convert.ToHexString(bytes);
     }
 
@@ -131,6 +134,12 @@ public static class McpDestructiveConfirmationPolicy
 
         DispatchApprovalRequest(approvalSubscribers, request, record);
 
+        McpDestructiveApprovalStatus approvalStatus;
+        lock (record.SyncRoot)
+        {
+            approvalStatus = record.ApprovalStatus;
+        }
+
         return new DestructiveConfirmationOperation(
             operationId,
             expiresAtUtc,
@@ -140,7 +149,8 @@ public static class McpDestructiveConfirmationPolicy
             record.SessionName,
             record.SessionVisibleInUi,
             record.SessionIsAdmin,
-            record.SessionWarning);
+            record.SessionWarning,
+            approvalStatus);
     }
 
     private static void DispatchApprovalRequest(
@@ -167,6 +177,12 @@ public static class McpDestructiveConfirmationPolicy
                         ex);
                 }
             }
+        }
+        else
+        {
+            Trace.TraceWarning(
+                "ApprovalRequested has no subscribers for operation {0}; approval is unavailable.",
+                request.OperationId);
         }
 
         lock (record.SyncRoot)
