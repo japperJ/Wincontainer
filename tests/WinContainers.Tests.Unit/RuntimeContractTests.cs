@@ -5,6 +5,7 @@ using WinContainers.Core;
 using WinContainers.Core.Models;
 using WinContainers.Runtime;
 using WinContainers.Runtime.Models;
+using WinContainers.Service.Mcp;
 using WinContainers.Tests.Unit.Ai;
 
 namespace WinContainers.Tests.Unit;
@@ -278,6 +279,72 @@ public class RuntimeContractTests
         result.Should().Contain("\"result\":\"\"");
         driver.LastLoadImageTarPath.Should().BeNull();
         driver.LastLoadImageTarData.Should().Be(data);
+    }
+
+    [Fact]
+    public void McpDestructiveConfirmationPolicy_ShouldIssueAndConsumeOnce()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+
+        var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_container", "containers:alpha");
+        McpDestructiveConfirmationPolicy.TryConsume("remove_container", operation.OperationId, "containers:alpha", out var reason).Should().BeTrue();
+        reason.Should().BeEmpty();
+
+        McpDestructiveConfirmationPolicy.TryConsume("remove_container", operation.OperationId, "containers:alpha", out var secondReason).Should().BeFalse();
+        secondReason.Should().Be("operation id already used");
+    }
+
+    [Fact]
+    public void McpDestructiveConfirmationPolicy_ShouldRejectWrongToolAndArgs()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_volume", "volume:alpha");
+
+        McpDestructiveConfirmationPolicy.TryConsume("remove_container", operation.OperationId, "volume:alpha", out var toolReason).Should().BeFalse();
+        toolReason.Should().Be("tool name does not match issued operation");
+
+        McpDestructiveConfirmationPolicy.TryConsume("remove_volume", operation.OperationId, "volume:beta", out var argsReason).Should().BeFalse();
+        argsReason.Should().Be("normalized arguments do not match issued operation");
+    }
+
+    [Fact]
+    public async Task McpTools_RemoveContainer_ShouldRequireConfirmationBeforeExecution()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        var driver = new FakeDriver();
+
+        var result = await WinContainers.Service.Mcp.WincontainerTools.RemoveContainer("web-app", driver, CancellationToken.None);
+
+        result.Should().Contain("\"requiresConfirmation\":true");
+        result.Should().Contain("\"operationId\":");
+        driver.RemovedContainers.Should().BeEmpty();
+
+        using var doc = JsonDocument.Parse(result);
+        var operationId = doc.RootElement.GetProperty("operationId").GetString();
+        operationId.Should().NotBeNullOrEmpty();
+
+        var confirmResult = await WinContainers.Service.Mcp.WincontainerTools.RemoveContainer("web-app", driver, CancellationToken.None, confirm: true, operationId: operationId);
+        confirmResult.Should().Contain("web-app")
+            .And.NotContain("requiresConfirmation");
+        driver.RemovedContainers.Should().ContainSingle().Which.Should().Be("web-app");
+    }
+
+    [Fact]
+    public async Task McpTools_RemoveContainer_ShouldAllowLegacyOneCallWhenToggleDisabled()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(false);
+        try
+        {
+            var driver = new FakeDriver();
+            var result = await WinContainers.Service.Mcp.WincontainerTools.RemoveContainer("legacy-app", driver, CancellationToken.None);
+
+            result.Should().NotContain("requiresConfirmation");
+            driver.RemovedContainers.Should().ContainSingle().Which.Should().Be("legacy-app");
+        }
+        finally
+        {
+            McpDestructiveConfirmationPolicy.SetEnabled(true);
+        }
     }
 
     [Fact]

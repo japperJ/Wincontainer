@@ -29,7 +29,11 @@ public class WincontainerTools
         string? Result = null,
         string? Guidance = null,
         object? Validation = null,
-        object? Failure = null);
+        object? Failure = null,
+        bool RequiresConfirmation = false,
+        string? OperationId = null,
+        DateTimeOffset? ExpiresAtUtc = null,
+        string? Message = null);
 
     private static SessionContextPayload BuildSessionContext()
     {
@@ -43,7 +47,17 @@ public class WincontainerTools
         return new SessionContextPayload(sessionId, sessionName, isVisible, isAdmin, warning);
     }
 
-    private static string Wrap(string tool, bool success, string? result = null, string? guidance = null, object? validation = null, object? failure = null)
+    private static string Wrap(
+        string tool,
+        bool success,
+        string? result = null,
+        string? guidance = null,
+        object? validation = null,
+        object? failure = null,
+        bool requiresConfirmation = false,
+        string? operationId = null,
+        DateTimeOffset? expiresAtUtc = null,
+        string? message = null)
     {
         var payload = new ToolEnvelope(
             BuildSessionContext(),
@@ -52,7 +66,11 @@ public class WincontainerTools
             result,
             guidance,
             validation,
-            failure);
+            failure,
+            requiresConfirmation,
+            operationId,
+            expiresAtUtc,
+            message);
         return JsonSerializer.Serialize(payload, JsonOptions);
     }
 
@@ -67,6 +85,51 @@ public class WincontainerTools
             return response;
 
         return Wrap(tool, !IsWslcError(response), response, session.Warning);
+    }
+
+    private static bool TryHandleDestructiveConfirmation(
+        string toolName,
+        string canonicalArguments,
+        bool confirm,
+        string? operationId,
+        out string response)
+    {
+        response = string.Empty;
+
+        if (!McpDestructiveConfirmationPolicy.Enabled)
+        {
+            return true;
+        }
+
+        if (!(confirm && !string.IsNullOrWhiteSpace(operationId)))
+        {
+            var operation = McpDestructiveConfirmationPolicy.IssueOperation(toolName, canonicalArguments);
+            response = Wrap(
+                toolName,
+                false,
+                "Destructive action requires confirmation.",
+                guidance: "Re-run with confirm=true and the returned operationId.",
+                failure: new { reason = "confirmation_required" },
+                requiresConfirmation: true,
+                operationId: operation.OperationId,
+                expiresAtUtc: operation.ExpiresAtUtc,
+                message: "Destructive action requires confirmation. Re-run with confirm=true and the returned operationId.");
+            return false;
+        }
+
+        if (McpDestructiveConfirmationPolicy.TryConsume(toolName, operationId!, canonicalArguments, out var rejectReason))
+        {
+            return true;
+        }
+
+        response = Wrap(
+            toolName,
+            false,
+            "Blocked destructive confirmation.",
+            guidance: "Use a fresh confirmation flow for the same tool and arguments.",
+            failure: new { reason = rejectReason },
+            message: $"Destructive confirmation rejected: {rejectReason}.");
+        return false;
     }
     // ── Container lifecycle ──────────────────────────────────────────
 
@@ -169,7 +232,9 @@ public class WincontainerTools
         [Description("Container ID or name")] string id,
         IWslcDriver driver,
         CancellationToken ct,
-        [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false)
+        [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false,
+        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
     {
         if (id.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
         {
@@ -178,6 +243,12 @@ public class WincontainerTools
                 false,
                 "Blocked destructive action on DB-related resource.",
                 guidance: "Re-run with confirmDestructive=true after you confirm this is intended.");
+        }
+
+        var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(id);
+        if (!TryHandleDestructiveConfirmation("remove_container", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        {
+            return confirmationResponse;
         }
 
         var result = await driver.RemoveContainerAsync(id, ct);
@@ -230,8 +301,18 @@ public class WincontainerTools
     public static async Task<string> RemoveImage(
         [Description("Image ID or tag")] string id,
         IWslcDriver driver,
-        CancellationToken ct)
-        => await driver.RemoveImageAsync(id, ct);
+        CancellationToken ct,
+        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
+    {
+        var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(id);
+        if (!TryHandleDestructiveConfirmation("remove_image", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        {
+            return confirmationResponse;
+        }
+
+        return await driver.RemoveImageAsync(id, ct);
+    }
 
     [McpServerTool, Description("Inspect an image and return detailed metadata.")]
     public static async Task<string> InspectImage(
@@ -296,8 +377,16 @@ public class WincontainerTools
         [Description("Comma-separated environment variables, e.g. 'KEY1=val1,KEY2=val2'")] string? env,
         [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network,
         IWslcDriver driver,
-        CancellationToken ct)
+        CancellationToken ct,
+        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
     {
+        var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(webContainerId, image, name ?? string.Empty, ports ?? string.Empty, volumes ?? string.Empty, env ?? string.Empty, network ?? string.Empty);
+        if (!TryHandleDestructiveConfirmation("redeploy_web_only", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        {
+            return confirmationResponse;
+        }
+
         var stop = await driver.StopContainerAsync(webContainerId, ct);
         if (IsWslcError(stop))
             return Wrap("redeploy_web_only", false, stop);
@@ -336,7 +425,9 @@ public class WincontainerTools
         [Description("Volume name")] string name,
         IWslcDriver driver,
         CancellationToken ct,
-        [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false)
+        [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false,
+        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
     {
         if (name.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
         {
@@ -345,6 +436,12 @@ public class WincontainerTools
                 false,
                 "Blocked destructive action on DB-related resource.",
                 guidance: "Re-run with confirmDestructive=true after you confirm this is intended.");
+        }
+
+        var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(name);
+        if (!TryHandleDestructiveConfirmation("remove_volume", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        {
+            return confirmationResponse;
         }
 
         var result = await driver.RemoveVolumeAsync(name, ct);
@@ -375,8 +472,18 @@ public class WincontainerTools
     public static async Task<string> RemoveNetwork(
         [Description("Network name")] string name,
         IWslcDriver driver,
-        CancellationToken ct)
-        => await driver.RemoveNetworkAsync(name, ct);
+        CancellationToken ct,
+        [Description("Set true to confirm the destructive action after a prior round-trip request.")] bool confirm = false,
+        [Description("Confirmation operationId returned by the prior destructive call.")] string? operationId = null)
+    {
+        var canonicalArguments = McpDestructiveConfirmationPolicy.CanonicalizeArguments(name);
+        if (!TryHandleDestructiveConfirmation("remove_network", canonicalArguments, confirm, operationId, out var confirmationResponse))
+        {
+            return confirmationResponse;
+        }
+
+        return await driver.RemoveNetworkAsync(name, ct);
+    }
 
     // ── System ───────────────────────────────────────────────────────
 

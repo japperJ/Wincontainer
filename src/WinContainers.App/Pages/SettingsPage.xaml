@@ -74,6 +74,18 @@
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <ToggleSwitch x:Name="McpDestructiveConfirmationToggle"
+                                     Header="Require confirmation for destructive MCP actions"
+                                     OffContent="Off"
+                                     OnContent="On"
+                                     Toggled="McpDestructiveConfirmationToggle_Toggled" />
+                        <TextBlock Text="When enabled, remove_container, remove_volume, remove_network, remove_image, and similar delete actions require a confirmation round-trip before execution."
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
