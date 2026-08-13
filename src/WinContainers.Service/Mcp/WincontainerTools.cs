@@ -123,7 +123,7 @@ public class WincontainerTools
             return (true, null);
         }
 
-        if (server.ClientCapabilities?.Elicitation is null)
+        if (server.ClientCapabilities?.Elicitation?.Form is null)
         {
             return (false, Wrap(
                 toolName,
@@ -169,7 +169,8 @@ public class WincontainerTools
             if (string.Equals(result.Action, "accept", StringComparison.Ordinal) &&
                 result.Content is not null &&
                 result.Content.TryGetValue("Allow", out var allowValue) &&
-                string.Equals(allowValue.ToString(), "allow", StringComparison.Ordinal))
+                allowValue.ValueKind == JsonValueKind.String &&
+                string.Equals(allowValue.GetString(), "allow", StringComparison.Ordinal))
             {
                 return (true, null);
             }

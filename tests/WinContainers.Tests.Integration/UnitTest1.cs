@@ -117,6 +117,7 @@ public class UnitTest1
     [InlineData("decline")]
     [InlineData("cancel")]
     [InlineData("wrong-allow")]
+    [InlineData("non-string-allow")]
     [InlineData("missing-content")]
     [InlineData("handler-failure")]
     public async Task ServiceHost_ShouldBlockEveryNonAllowMcpElicitationOutcome(string outcome)
@@ -163,8 +164,10 @@ public class UnitTest1
                                     ? null
                                     : new Dictionary<string, JsonElement>
                                     {
-                                        ["Allow"] = JsonSerializer.SerializeToElement(
-                                            outcome == "wrong-allow" ? "deny" : "allow")
+                                        ["Allow"] = outcome == "non-string-allow"
+                                            ? JsonSerializer.SerializeToElement(1)
+                                            : JsonSerializer.SerializeToElement(
+                                                outcome == "wrong-allow" ? "deny" : "allow")
                                     }
                             });
                         }
@@ -178,6 +181,83 @@ public class UnitTest1
 
             result.IsError.Should().NotBeTrue();
             driver.RemoveContainerCalls.Should().Be(0);
+        }
+        finally
+        {
+            await app.StopAsync();
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", originalPort);
+            Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", originalToken);
+        }
+    }
+
+    [Fact]
+    public async Task ServiceHost_ShouldKeepRedeployApprovalPromptFreeOfSensitiveArguments()
+    {
+        var originalPort = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT");
+        var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
+        var driver = new IntegrationRecordingDriver();
+        string? elicitationMessage = null;
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
+        Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        var app = ServiceHost.Build(Array.Empty<string>(), null, driver);
+
+        try
+        {
+            await app.StartAsync();
+            var endpoint = CreateLoopbackUri(app.Urls.First()).ToString().TrimEnd('/');
+            using var httpClient = new HttpClient();
+            var transport = new HttpClientTransport(
+                new HttpClientTransportOptions { Endpoint = new Uri($"{endpoint}/mcp") },
+                httpClient,
+                NullLoggerFactory.Instance,
+                ownsHttpClient: false);
+            await using var client = await McpClient.CreateAsync(
+                transport,
+                new McpClientOptions
+                {
+                    ProtocolVersion = "2025-11-25",
+                    ClientInfo = new Implementation { Name = "WinContainers.Tests", Version = "1.0" },
+                    Capabilities = new ClientCapabilities
+                    {
+                        Elicitation = new ElicitationCapability { Form = new FormElicitationCapability() }
+                    },
+                    Handlers = new McpClientHandlers
+                    {
+                        ElicitationHandler = (request, _) =>
+                        {
+                            elicitationMessage = request?.Message ?? string.Empty;
+                            return ValueTask.FromResult(new ElicitResult
+                            {
+                                Action = "accept",
+                                Content = new Dictionary<string, JsonElement>
+                                {
+                                    ["Allow"] = JsonSerializer.SerializeToElement("allow")
+                                }
+                            });
+                        }
+                    }
+                },
+                NullLoggerFactory.Instance);
+
+            var result = await client.CallToolAsync(
+                "redeploy_web_only",
+                new Dictionary<string, object?>
+                {
+                    ["webContainerId"] = "web",
+                    ["image"] = "replacement:image",
+                    ["name"] = "replacement",
+                    ["ports"] = "80:80",
+                    ["volumes"] = "/secret/host:/secret/container",
+                    ["env"] = "SECRET_TOKEN=do-not-expose",
+                    ["network"] = "app-network"
+                });
+
+            result.IsError.Should().NotBeTrue();
+            elicitationMessage.Should().NotBeNull();
+            elicitationMessage.Should().NotContain("do-not-expose");
+            elicitationMessage.Should().NotContain("/secret/host:/secret/container");
+            driver.RemoveContainerCalls.Should().Be(1);
         }
         finally
         {
