@@ -646,6 +646,61 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public async Task McpDestructiveConfirmationPolicy_ShouldSerializeConcurrentApprovalAndRejection()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        using var subscription = SubscribeToApprovalRequests(_ => { });
+        var operation = McpDestructiveConfirmationPolicy.IssueOperation(
+            "remove_network",
+            "network:approval-race");
+        using var start = new ManualResetEventSlim();
+
+        var approval = Task.Run(() =>
+        {
+            start.Wait();
+            return McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId);
+        });
+        var rejection = Task.Run(() =>
+        {
+            start.Wait();
+            return McpDestructiveConfirmationPolicy.TryReject(operation.OperationId);
+        });
+
+        start.Set();
+        var results = await Task.WhenAll(approval, rejection);
+
+        results.Count(result => result).Should().Be(1);
+        McpDestructiveConfirmationPolicy.TryGetApprovalStatus(
+                operation.OperationId,
+                out var status,
+                out var statusReason)
+            .Should().BeTrue();
+        statusReason.Should().BeEmpty();
+
+        if (status == McpDestructiveApprovalStatus.Approved)
+        {
+            McpDestructiveConfirmationPolicy.TryConsume(
+                    "remove_network",
+                    operation.OperationId,
+                    "network:approval-race",
+                    out var consumeReason)
+                .Should().BeTrue();
+            consumeReason.Should().BeEmpty();
+        }
+        else
+        {
+            status.Should().Be(McpDestructiveApprovalStatus.Denied);
+            McpDestructiveConfirmationPolicy.TryConsume(
+                    "remove_network",
+                    operation.OperationId,
+                    "network:approval-race",
+                    out var deniedReason)
+                .Should().BeFalse();
+            deniedReason.Should().Be("human approval was denied");
+        }
+    }
+
+    [Fact]
     public async Task McpTools_RedeployWebOnly_ShouldUseSafeApprovalSummary()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
