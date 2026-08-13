@@ -197,6 +197,7 @@ public class UnitTest1
         var originalToken = Environment.GetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN");
         var driver = new IntegrationRecordingDriver();
         string? elicitationMessage = null;
+        const string tarDataSentinel = "dGFyLXNlY3JldC1wYXlsb2Fk";
         Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_PORT", "0");
         Environment.SetEnvironmentVariable("WINCONTAINERS_SERVICE_TOKEN", string.Empty);
         McpDestructiveConfirmationPolicy.SetEnabled(true);
@@ -249,13 +250,14 @@ public class UnitTest1
                     ["name"] = "replacement",
                     ["ports"] = "80:80",
                     ["volumes"] = "/secret/host:/secret/container",
-                    ["env"] = "SECRET_TOKEN=do-not-expose",
+                    ["env"] = $"SECRET_TOKEN=do-not-expose,TAR_DATA={tarDataSentinel}",
                     ["network"] = "app-network"
                 });
 
             result.IsError.Should().NotBeTrue();
             elicitationMessage.Should().NotBeNull();
             elicitationMessage.Should().NotContain("do-not-expose");
+            elicitationMessage.Should().NotContain(tarDataSentinel);
             elicitationMessage.Should().NotContain("/secret/host:/secret/container");
             driver.RemoveContainerCalls.Should().Be(1);
         }
