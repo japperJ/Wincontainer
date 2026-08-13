@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Diagnostics;
 
 namespace WinContainers.Service.Mcp;
 
@@ -22,22 +23,47 @@ public sealed record DestructiveConfirmationOperation(
     string? SessionWarning = null,
     McpDestructiveApprovalStatus ApprovalStatus = McpDestructiveApprovalStatus.Pending);
 
-public sealed record McpDestructiveApprovalRequest(
-    string OperationId,
-    string ToolName,
-    string DisplaySummary,
-    DateTimeOffset ExpiresAtUtc,
-    string SessionId,
-    string SessionName,
-    bool SessionVisibleInUi,
-    bool SessionIsAdmin,
-    string? SessionWarning);
+public sealed class McpDestructiveApprovalRequest : EventArgs
+{
+    public McpDestructiveApprovalRequest(
+        string operationId,
+        string toolName,
+        string displaySummary,
+        DateTimeOffset expiresAtUtc,
+        string sessionId,
+        string sessionName,
+        bool sessionVisibleInUi,
+        bool sessionIsAdmin,
+        string? sessionWarning)
+    {
+        OperationId = operationId;
+        ToolName = toolName;
+        DisplaySummary = displaySummary;
+        ExpiresAtUtc = expiresAtUtc;
+        SessionId = sessionId;
+        SessionName = sessionName;
+        SessionVisibleInUi = sessionVisibleInUi;
+        SessionIsAdmin = sessionIsAdmin;
+        SessionWarning = sessionWarning;
+    }
+
+    public string OperationId { get; }
+    public string ToolName { get; }
+    public string DisplaySummary { get; }
+    public DateTimeOffset ExpiresAtUtc { get; }
+    public string SessionId { get; }
+    public string SessionName { get; }
+    public bool SessionVisibleInUi { get; }
+    public bool SessionIsAdmin { get; }
+    public string? SessionWarning { get; }
+}
 
 public static class McpDestructiveConfirmationPolicy
 {
     private static readonly Dictionary<string, DestructiveConfirmationRecord> Operations = new(StringComparer.Ordinal);
     private static readonly object OperationsSyncRoot = new();
     private static readonly TimeSpan DefaultTtl = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan ExpiredRecordRetention = TimeSpan.FromMinutes(3);
 
     public static bool Enabled { get; private set; } = true;
 
@@ -72,6 +98,7 @@ public static class McpDestructiveConfirmationPolicy
         var nowUtc = DateTimeOffset.UtcNow;
         CleanupExpired(nowUtc);
 
+        var approvalSubscribers = ApprovalRequested;
         var operationId = Convert.ToHexString(Guid.NewGuid().ToByteArray());
         var expiresAtUtc = nowUtc.Add(DefaultTtl);
         var record = new DestructiveConfirmationRecord(
@@ -83,7 +110,8 @@ public static class McpDestructiveConfirmationPolicy
             sessionName ?? "unknown",
             sessionVisibleInUi,
             sessionIsAdmin,
-            sessionWarning);
+            sessionWarning,
+            approvalSubscribers is null);
 
         lock (OperationsSyncRoot)
         {
@@ -101,15 +129,7 @@ public static class McpDestructiveConfirmationPolicy
             record.SessionIsAdmin,
             record.SessionWarning);
 
-        try
-        {
-            ApprovalRequested?.Invoke(null, request);
-        }
-        catch
-        {
-            // A failing subscriber cannot approve an operation. It remains pending
-            // and therefore fails closed until it expires.
-        }
+        DispatchApprovalRequest(approvalSubscribers, request, record);
 
         return new DestructiveConfirmationOperation(
             operationId,
@@ -123,11 +143,86 @@ public static class McpDestructiveConfirmationPolicy
             record.SessionWarning);
     }
 
+    private static void DispatchApprovalRequest(
+        EventHandler<McpDestructiveApprovalRequest>? subscribers,
+        McpDestructiveApprovalRequest request,
+        DestructiveConfirmationRecord record)
+    {
+        var subscriberFailed = false;
+
+        if (subscribers is not null)
+        {
+            foreach (EventHandler<McpDestructiveApprovalRequest> subscriber in subscribers.GetInvocationList())
+            {
+                try
+                {
+                    subscriber(null, request);
+                }
+                catch (Exception ex)
+                {
+                    subscriberFailed = true;
+                    Trace.TraceError(
+                        "ApprovalRequested subscriber failed for operation {0}: {1}",
+                        request.OperationId,
+                        ex);
+                }
+            }
+        }
+
+        lock (record.SyncRoot)
+        {
+            record.ApprovalRequestDispatching = false;
+            if (subscriberFailed)
+            {
+                record.ApprovalUnavailable = true;
+                record.ApprovalStatus = McpDestructiveApprovalStatus.Denied;
+            }
+        }
+    }
+
     public static bool TryApprove(string operationId, DateTimeOffset? nowUtc = null)
         => TrySetApproval(operationId, McpDestructiveApprovalStatus.Approved, nowUtc);
 
+    public static bool TryApprove(string operationId, out string reason, DateTimeOffset? nowUtc = null)
+        => TrySetApproval(operationId, McpDestructiveApprovalStatus.Approved, out reason, nowUtc);
+
     public static bool TryReject(string operationId, DateTimeOffset? nowUtc = null)
         => TrySetApproval(operationId, McpDestructiveApprovalStatus.Denied, nowUtc);
+
+    public static bool TryReject(string operationId, out string reason, DateTimeOffset? nowUtc = null)
+        => TrySetApproval(operationId, McpDestructiveApprovalStatus.Denied, out reason, nowUtc);
+
+    public static bool TryGetApprovalStatus(
+        string operationId,
+        out McpDestructiveApprovalStatus status,
+        out string reason)
+    {
+        status = McpDestructiveApprovalStatus.Pending;
+        reason = string.Empty;
+
+        DestructiveConfirmationRecord? record;
+        lock (OperationsSyncRoot)
+        {
+            Operations.TryGetValue(operationId, out record);
+        }
+
+        if (record is null)
+        {
+            reason = "unknown operation id";
+            return false;
+        }
+
+        lock (record.SyncRoot)
+        {
+            status = record.ApprovalStatus;
+            if (record.IsExpired)
+            {
+                reason = "operation expired";
+                return false;
+            }
+            return true;
+        }
+    }
 
     public static bool TryConsume(
         string toolName,
@@ -161,7 +256,7 @@ public static class McpDestructiveConfirmationPolicy
         {
             if (record.ExpiresAtUtc <= utcNow)
             {
-                RemoveOperation(operationId, record);
+                record.IsExpired = true;
                 reason = "operation expired";
                 return false;
             }
@@ -175,6 +270,18 @@ public static class McpDestructiveConfirmationPolicy
             if (!string.Equals(record.CanonicalArguments, canonicalArguments, StringComparison.Ordinal))
             {
                 reason = "normalized arguments do not match issued operation";
+                return false;
+            }
+
+            if (record.ApprovalRequestDispatching)
+            {
+                reason = "human approval is still pending";
+                return false;
+            }
+
+            if (record.ApprovalUnavailable)
+            {
+                reason = "human approval UI is unavailable";
                 return false;
             }
 
@@ -206,6 +313,16 @@ public static class McpDestructiveConfirmationPolicy
         McpDestructiveApprovalStatus approvalStatus,
         DateTimeOffset? nowUtc)
     {
+        return TrySetApproval(operationId, approvalStatus, out _, nowUtc);
+    }
+
+    private static bool TrySetApproval(
+        string operationId,
+        McpDestructiveApprovalStatus approvalStatus,
+        out string reason,
+        DateTimeOffset? nowUtc)
+    {
+        reason = string.Empty;
         var utcNow = nowUtc ?? DateTimeOffset.UtcNow;
         DestructiveConfirmationRecord? record;
         lock (OperationsSyncRoot)
@@ -215,16 +332,40 @@ public static class McpDestructiveConfirmationPolicy
 
         if (record is null)
         {
+            reason = "unknown operation id";
             return false;
         }
 
         lock (record.SyncRoot)
         {
-            if (record.ExpiresAtUtc <= utcNow ||
-                record.Consumed ||
-                record.ApprovalStatus != McpDestructiveApprovalStatus.Pending)
+            if (record.ExpiresAtUtc <= utcNow || record.IsExpired)
             {
-                RemoveOperation(operationId, record);
+                record.IsExpired = true;
+                reason = "operation expired";
+                return false;
+            }
+
+            if (record.ApprovalUnavailable)
+            {
+                reason = "human approval UI is unavailable";
+                return false;
+            }
+
+            if (record.Consumed)
+            {
+                reason = "operation id already used";
+                return false;
+            }
+
+            if (record.ApprovalStatus == McpDestructiveApprovalStatus.Denied)
+            {
+                reason = "human approval was already denied";
+                return false;
+            }
+
+            if (record.ApprovalStatus == McpDestructiveApprovalStatus.Approved)
+            {
+                reason = "human approval was already approved";
                 return false;
             }
 
@@ -247,7 +388,12 @@ public static class McpDestructiveConfirmationPolicy
             {
                 if (pair.Value.ExpiresAtUtc <= nowUtc)
                 {
-                    RemoveOperation(pair.Key, pair.Value);
+                    pair.Value.IsExpired = true;
+
+                    if (pair.Value.ExpiresAtUtc.Add(ExpiredRecordRetention) <= nowUtc)
+                    {
+                        RemoveOperation(pair.Key, pair.Value);
+                    }
                 }
             }
         }
@@ -276,7 +422,8 @@ public static class McpDestructiveConfirmationPolicy
             string sessionName,
             bool sessionVisibleInUi,
             bool sessionIsAdmin,
-            string? sessionWarning)
+            string? sessionWarning,
+            bool approvalUnavailable)
         {
             ToolName = toolName;
             CanonicalArguments = canonicalArguments;
@@ -287,6 +434,8 @@ public static class McpDestructiveConfirmationPolicy
             SessionVisibleInUi = sessionVisibleInUi;
             SessionIsAdmin = sessionIsAdmin;
             SessionWarning = sessionWarning;
+            ApprovalUnavailable = approvalUnavailable;
+            ApprovalRequestDispatching = !approvalUnavailable;
         }
 
         public string ToolName { get; }
@@ -299,6 +448,9 @@ public static class McpDestructiveConfirmationPolicy
         public bool SessionIsAdmin { get; }
         public string? SessionWarning { get; }
         public McpDestructiveApprovalStatus ApprovalStatus { get; set; }
+        public bool ApprovalUnavailable { get; set; }
+        public bool ApprovalRequestDispatching { get; set; }
+        public bool IsExpired { get; set; }
         public bool Consumed { get; set; }
         public object SyncRoot { get; } = new();
     }

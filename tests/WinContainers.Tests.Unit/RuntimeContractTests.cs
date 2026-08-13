@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -281,37 +282,129 @@ public class RuntimeContractTests
         driver.LastLoadImageTarData.Should().Be(data);
     }
 
+    private static IDisposable SubscribeToApprovalRequests(Action<McpDestructiveApprovalRequest> onRequest)
+    {
+        EventHandler<McpDestructiveApprovalRequest> handler = (_, request) => onRequest(request);
+        McpDestructiveConfirmationPolicy.ApprovalRequested += handler;
+        return new DelegateDisposable(() =>
+            McpDestructiveConfirmationPolicy.ApprovalRequested -= handler);
+    }
+
+    private sealed class DelegateDisposable(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
+    }
+
     [Fact]
-    public void McpDestructiveConfirmationPolicy_ShouldIssueAndConsumeOnce()
+    public void McpDestructiveConfirmationPolicy_ShouldRequireApprovalAndConsumeOnlyOnce()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
+        McpDestructiveApprovalRequest? request = null;
+        using var subscription = SubscribeToApprovalRequests(value => request = value);
 
-        var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_container", "containers:alpha");
-        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId).Should().BeTrue();
-        McpDestructiveConfirmationPolicy.TryConsume("remove_container", operation.OperationId, "containers:alpha", out var reason).Should().BeTrue();
+        var operation = McpDestructiveConfirmationPolicy.IssueOperation(
+            "remove_container",
+            "containers:alpha",
+            "Remove container 'alpha'.",
+            "session-1",
+            "Test session",
+            true,
+            true,
+            "Administrator session");
+
+        operation.ApprovalStatus.Should().Be(McpDestructiveApprovalStatus.Pending);
+        request.Should().NotBeNull();
+        request.Should().BeAssignableTo<EventArgs>();
+        request!.OperationId.Should().Be(operation.OperationId);
+        request.ToolName.Should().Be("remove_container");
+        request.DisplaySummary.Should().Be("Remove container 'alpha'.");
+        request.SessionId.Should().Be("session-1");
+        request.SessionName.Should().Be("Test session");
+        request.SessionVisibleInUi.Should().BeTrue();
+        request.SessionIsAdmin.Should().BeTrue();
+        request.SessionWarning.Should().Be("Administrator session");
+
+        McpDestructiveConfirmationPolicy.TryGetApprovalStatus(
+                operation.OperationId,
+                out var pendingStatus,
+                out var statusReason)
+            .Should().BeTrue();
+        pendingStatus.Should().Be(McpDestructiveApprovalStatus.Pending);
+        statusReason.Should().BeEmpty();
+
+        McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_container",
+                operation.OperationId,
+                "containers:alpha",
+                out var pendingReason)
+            .Should().BeFalse();
+        pendingReason.Should().Be("human approval is still pending");
+
+        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, out var approvalReason)
+            .Should().BeTrue();
+        approvalReason.Should().BeEmpty();
+        McpDestructiveConfirmationPolicy.TryGetApprovalStatus(
+                operation.OperationId,
+                out var approvedStatus,
+                out statusReason)
+            .Should().BeTrue();
+        approvedStatus.Should().Be(McpDestructiveApprovalStatus.Approved);
+        statusReason.Should().BeEmpty();
+
+        McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_container",
+                operation.OperationId,
+                "containers:alpha",
+                out var reason)
+            .Should().BeTrue();
         reason.Should().BeEmpty();
 
-        McpDestructiveConfirmationPolicy.TryConsume("remove_container", operation.OperationId, "containers:alpha", out var secondReason).Should().BeFalse();
+        McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_container",
+                operation.OperationId,
+                "containers:alpha",
+                out var secondReason)
+            .Should().BeFalse();
         secondReason.Should().Be("operation id already used");
     }
 
     [Fact]
-    public void McpDestructiveConfirmationPolicy_ShouldRejectWrongToolAndArgs()
+    public void McpDestructiveConfirmationPolicy_ShouldRejectWrongToolAndArguments()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
+        using var subscription = SubscribeToApprovalRequests(_ => { });
         var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_volume", "volume:alpha");
 
-        McpDestructiveConfirmationPolicy.TryConsume("remove_container", operation.OperationId, "volume:alpha", out var toolReason).Should().BeFalse();
+        McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_container",
+                operation.OperationId,
+                "volume:alpha",
+                out var toolReason)
+            .Should().BeFalse();
         toolReason.Should().Be("tool name does not match issued operation");
 
-        McpDestructiveConfirmationPolicy.TryConsume("remove_volume", operation.OperationId, "volume:beta", out var argsReason).Should().BeFalse();
+        McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_volume",
+                operation.OperationId,
+                "volume:beta",
+                out var argsReason)
+            .Should().BeFalse();
         argsReason.Should().Be("normalized arguments do not match issued operation");
+
+        McpDestructiveConfirmationPolicy.TryGetApprovalStatus(
+                operation.OperationId,
+                out var status,
+                out var statusReason)
+            .Should().BeTrue();
+        status.Should().Be(McpDestructiveApprovalStatus.Pending);
+        statusReason.Should().BeEmpty();
     }
 
     [Fact]
     public async Task McpTools_RemoveContainer_ShouldRequireConfirmationBeforeExecution()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
+        using var subscription = SubscribeToApprovalRequests(_ => { });
         var driver = new FakeDriver();
 
         var result = await WinContainers.Service.Mcp.WincontainerTools.RemoveContainer("web-app", driver, CancellationToken.None);
@@ -350,55 +443,166 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public void McpDestructiveConfirmationPolicy_ShouldRejectPendingAndDeniedOperations()
+    public void McpDestructiveConfirmationPolicy_ShouldRejectDeniedOperation()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
-
-        var pending = McpDestructiveConfirmationPolicy.IssueOperation("remove_image", "image:pending");
-        McpDestructiveConfirmationPolicy.TryConsume("remove_image", pending.OperationId, "image:pending", out var pendingReason)
-            .Should().BeFalse();
-        pendingReason.Should().Be("human approval is still pending");
+        using var subscription = SubscribeToApprovalRequests(_ => { });
 
         var denied = McpDestructiveConfirmationPolicy.IssueOperation("remove_image", "image:denied");
-        McpDestructiveConfirmationPolicy.TryReject(denied.OperationId).Should().BeTrue();
+        McpDestructiveConfirmationPolicy.TryReject(denied.OperationId, out var rejectionReason)
+            .Should().BeTrue();
+        rejectionReason.Should().BeEmpty();
+        McpDestructiveConfirmationPolicy.TryGetApprovalStatus(
+                denied.OperationId,
+                out var deniedStatus,
+                out var statusReason)
+            .Should().BeTrue();
+        deniedStatus.Should().Be(McpDestructiveApprovalStatus.Denied);
+        statusReason.Should().BeEmpty();
         McpDestructiveConfirmationPolicy.TryConsume("remove_image", denied.OperationId, "image:denied", out var deniedReason)
             .Should().BeFalse();
         deniedReason.Should().Be("human approval was denied");
+        McpDestructiveConfirmationPolicy.TryApprove(denied.OperationId, out var approvalReason)
+            .Should().BeFalse();
+        approvalReason.Should().Be("human approval was already denied");
     }
 
     [Fact]
-    public void McpDestructiveConfirmationPolicy_ShouldRejectExpiredApproval()
+    public void McpDestructiveConfirmationPolicy_ShouldKeepUsefulExpiredReason()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
+        using var subscription = SubscribeToApprovalRequests(_ => { });
         var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_volume", "volume:expired");
+        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, out var approvalReason)
+            .Should().BeTrue();
+        approvalReason.Should().BeEmpty();
 
+        var expiredAt = operation.ExpiresAtUtc.AddSeconds(1);
         McpDestructiveConfirmationPolicy.TryConsume(
                 "remove_volume",
                 operation.OperationId,
                 "volume:expired",
-                out var reason,
-                operation.ExpiresAtUtc.AddSeconds(1))
+                out var expiredReason,
+                expiredAt)
             .Should().BeFalse();
-        reason.Should().Be("operation expired");
-        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, operation.ExpiresAtUtc.AddSeconds(1))
+        expiredReason.Should().Be("operation expired");
+        McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_volume",
+                operation.OperationId,
+                "volume:expired",
+                out var repeatedReason,
+                expiredAt)
             .Should().BeFalse();
+        repeatedReason.Should().Be("operation expired");
+        McpDestructiveConfirmationPolicy.TryApprove(
+                operation.OperationId,
+                out var lateApprovalReason,
+                expiredAt)
+            .Should().BeFalse();
+        lateApprovalReason.Should().Be("operation expired");
     }
 
     [Fact]
-    public async Task McpDestructiveConfirmationPolicy_ShouldAllowOnlyOneConcurrentConsumption()
+    public void McpDestructiveConfirmationPolicy_ShouldFailClosedWithoutSubscriber()
     {
         McpDestructiveConfirmationPolicy.SetEnabled(true);
-        var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_network", "network:concurrent");
-        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId).Should().BeTrue();
+        var operation = McpDestructiveConfirmationPolicy.IssueOperation(
+            "remove_network",
+            "network:no-ui");
 
-        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_index => Task.Run(() =>
-            McpDestructiveConfirmationPolicy.TryConsume(
+        McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, out var reason)
+            .Should().BeFalse();
+        reason.Should().Be("human approval UI is unavailable");
+        McpDestructiveConfirmationPolicy.TryGetApprovalStatus(
+                operation.OperationId,
+                out var status,
+                out var statusReason)
+            .Should().BeTrue();
+        status.Should().Be(McpDestructiveApprovalStatus.Pending);
+        statusReason.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void McpDestructiveConfirmationPolicy_ShouldFailClosedAndTraceSubscriberException()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        using var trace = new StringWriter();
+        using var listener = new TextWriterTraceListener(trace);
+        Trace.Listeners.Add(listener);
+        using var subscription = SubscribeToApprovalRequests(_ =>
+            throw new InvalidOperationException("approval handler failed"));
+
+        try
+        {
+            var operation = McpDestructiveConfirmationPolicy.IssueOperation(
+                "remove_image",
+                "image:handler-failure");
+
+            McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, out var reason)
+                .Should().BeFalse();
+            reason.Should().Be("human approval UI is unavailable");
+            Trace.Flush();
+            trace.ToString().Should().Contain("ApprovalRequested subscriber failed")
+                .And.Contain("approval handler failed");
+        }
+        finally
+        {
+            Trace.Listeners.Remove(listener);
+        }
+    }
+
+    [Fact]
+    public async Task McpDestructiveConfirmationPolicy_ShouldSynchronizeConcurrentApprovalAndConsumption()
+    {
+        McpDestructiveConfirmationPolicy.SetEnabled(true);
+        using var subscription = SubscribeToApprovalRequests(_ => { });
+        var operation = McpDestructiveConfirmationPolicy.IssueOperation("remove_network", "network:concurrent");
+        using var start = new ManualResetEventSlim();
+
+        var approval = Task.Run(() =>
+        {
+            start.Wait();
+            return McpDestructiveConfirmationPolicy.TryApprove(operation.OperationId, out var reason)
+                ? reason
+                : null;
+        });
+        var consumptions = Enumerable.Range(0, 16).Select(_index => Task.Run(() =>
+        {
+            start.Wait();
+            var success = McpDestructiveConfirmationPolicy.TryConsume(
                 "remove_network",
                 operation.OperationId,
                 "network:concurrent",
-                out var reason))));
+                out var reason);
+            return (success, reason);
+        })).ToArray();
 
-        results.Count(result => result).Should().Be(1);
+        start.Set();
+        (await approval).Should().BeEmpty();
+        var results = await Task.WhenAll(consumptions);
+
+        if (results.All(result => !result.success))
+        {
+            McpDestructiveConfirmationPolicy.TryConsume(
+                    "remove_network",
+                    operation.OperationId,
+                    "network:concurrent",
+                    out var finalReason)
+                .Should().BeTrue();
+            finalReason.Should().BeEmpty();
+        }
+        else
+        {
+            results.Count(result => result.success).Should().Be(1);
+        }
+
+        McpDestructiveConfirmationPolicy.TryConsume(
+                "remove_network",
+                operation.OperationId,
+                "network:concurrent",
+                out var reusedReason)
+            .Should().BeFalse();
+        reusedReason.Should().Be("operation id already used");
     }
 
     [Fact]
