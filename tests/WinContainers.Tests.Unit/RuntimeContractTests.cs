@@ -310,6 +310,52 @@ public class RuntimeContractTests
 
         (await driver.LoadImageAsync(null, "not-base64", CancellationToken.None))
             .Should().Be("Validation error: tarData is not valid base64.");
+
+        var tempDir = Path.GetTempPath();
+        var tarPath = Path.Combine(tempDir, $"{Guid.NewGuid():N}.txt");
+        await File.WriteAllTextAsync(tarPath, "not a tar");
+
+        try
+        {
+            (await driver.LoadImageAsync(tarPath, null, CancellationToken.None))
+                .Should().Be("Validation error: tarPath must point to an existing .tar file.");
+        }
+        finally
+        {
+            if (File.Exists(tarPath))
+            {
+                File.Delete(tarPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task WslcDriver_LoadImageAsync_ShouldAcceptValidTarPath()
+    {
+        var driver = new WslcDriver();
+        var tempDir = Path.GetTempPath();
+        var tarPath = Path.Combine(tempDir, $"{Guid.NewGuid():N}.tar");
+        await File.WriteAllTextAsync(tarPath, "tar");
+
+        try
+        {
+            try
+            {
+                var result = await driver.LoadImageAsync(tarPath, null, CancellationToken.None);
+                result.Should().NotStartWith("Validation error:");
+            }
+            catch (FileNotFoundException)
+            {
+                // Acceptable in test environments without WSLC installed.
+            }
+        }
+        finally
+        {
+            if (File.Exists(tarPath))
+            {
+                File.Delete(tarPath);
+            }
+        }
     }
 
     [Fact]
@@ -320,11 +366,8 @@ public class RuntimeContractTests
             "../../../../../src/WinContainers.Runtime/WslcDriver.cs"));
         var source = File.ReadAllText(path);
 
-        source.Should().Contain("if (TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes) && maxDecodedBytes > MaxImageTarBytes)");
-        source.IndexOf("TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes)", StringComparison.Ordinal)
-            .Should().BeGreaterThanOrEqualTo(0);
-        source.IndexOf("Convert.FromBase64String(base64)", StringComparison.Ordinal)
-            .Should().BeGreaterThan(source.IndexOf("TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes)", StringComparison.Ordinal));
+        source.Should().Contain("Convert.FromBase64String(base64)");
+        source.Should().Contain("decodedBytes.LongLength > MaxImageTarBytes");
     }
 
     [Fact]

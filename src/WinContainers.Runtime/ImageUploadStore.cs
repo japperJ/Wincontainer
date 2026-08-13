@@ -426,11 +426,6 @@ public sealed class ImageUploadStore
             }
         }
 
-        return TryGetMaximumDecodedBytes(contentLength, CountBase64PaddingChars(base64), out maxDecodedBytes);
-    }
-
-    private static int CountBase64PaddingChars(string base64)
-    {
         var padding = 0;
         for (var i = base64.Length - 1; i >= 0; i--)
         {
@@ -452,16 +447,11 @@ public sealed class ImageUploadStore
             }
         }
 
-        return padding;
-    }
-
-    private static bool TryGetMaximumDecodedBytes(int base64ContentLength, int paddingChars, out long maxDecodedBytes)
-    {
-        var fullGroups = base64ContentLength / 4;
-        var remainder = base64ContentLength % 4;
+        var fullGroups = contentLength / 4;
+        var remainder = contentLength % 4;
         maxDecodedBytes = remainder switch
         {
-            0 => fullGroups * 3L - Math.Min(paddingChars, 2),
+            0 => fullGroups * 3L - Math.Min(padding, 2),
             2 => fullGroups * 3L + 1,
             3 => fullGroups * 3L + 2,
             _ => 0
