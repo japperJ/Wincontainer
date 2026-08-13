@@ -122,6 +122,7 @@ skills can use it when working in a Wincontainer project.
 | `PullImage` | Pull an image from a registry |
 | `RemoveImage` | Delete an image |
 | `InspectImage` | Get detailed image metadata |
+| `LoadImage` | Load a local .tar image archive or base64 tar data into WSLC |
 | `ListVolumes` | List storage volumes |
 | `CreateVolume` | Create a volume |
 | `RemoveVolume` | Delete a volume |
@@ -131,7 +132,10 @@ skills can use it when working in a Wincontainer project.
 | `RemoveNetwork` | Delete a network |
 | `HealthCheck` | Check whether the wslc runtime is available |
 | `GetVersion` | Get the wslc runtime version |
-| `load_image` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |
+| `LoadImage` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |
+| `StartImageUpload` | Start a chunked image upload and return the upload ID |
+| `UploadImageChunk` | Append a chunk to a chunked image upload |
+| `FinishImageUpload` | Finish a chunked image upload and load it into WSLC |
 
 
 Chunked image upload workflow (new):

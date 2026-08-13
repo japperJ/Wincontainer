@@ -67,15 +67,19 @@ on a named WSLC network. Create or list the network first with the network MCP t
 
 ## MCP image import
 
-Use `load_image` for a tar file on the Wincontainer host:
+Use `load_image` for a tar file on the Wincontainer host, or for base64 tar data:
 
 ```text
 load_image(tarPath="C:\\Users\\me\\AppData\\Local\\Temp\\my-site.tar")
 ```
 
-The path is read by the Wincontainer host, not the MCP client. It must exist and end
-with `.tar`. `tarData` is also supported, but large base64 arguments can exceed the
-Copilot tool-call JSON limit.
+```text
+load_image(tarData="<base64 tar data>")
+```
+
+Exactly one input is required. The path is read by the Wincontainer host, not the MCP
+client. It must exist and end with `.tar`. Base64 `tarData` is limited to 512 MB after
+decoding.
 
 For large archives, use the chunked workflow:
 

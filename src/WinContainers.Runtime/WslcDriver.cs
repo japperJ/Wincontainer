@@ -82,11 +82,6 @@ public sealed class WslcDriver : IWslcDriver
         }
 
         var base64 = tarData!;
-        if (TryGetMaximumDecodedBytes(base64, out var maxDecodedBytes) && maxDecodedBytes > MaxImageTarBytes)
-        {
-            return "Validation error: tarData exceeds 512 MB after decoding.";
-        }
-
         byte[] decodedBytes;
         try
         {
@@ -217,61 +212,6 @@ public sealed class WslcDriver : IWslcDriver
 
     private static bool IsValidTarPath(string tarPath) =>
         File.Exists(tarPath) && string.Equals(Path.GetExtension(tarPath), ".tar", StringComparison.OrdinalIgnoreCase);
-
-    private static bool TryGetMaximumDecodedBytes(string base64, out long maxDecodedBytes)
-    {
-        var contentLength = 0;
-        for (var i = 0; i < base64.Length; i++)
-        {
-            if (!char.IsWhiteSpace(base64[i]))
-            {
-                contentLength++;
-            }
-        }
-
-        return TryGetMaximumDecodedBytes(contentLength, CountBase64PaddingChars(base64), out maxDecodedBytes);
-    }
-
-    private static int CountBase64PaddingChars(string base64)
-    {
-        var padding = 0;
-        for (var i = base64.Length - 1; i >= 0; i--)
-        {
-            var c = base64[i];
-            if (char.IsWhiteSpace(c))
-            {
-                continue;
-            }
-
-            if (c != '=')
-            {
-                break;
-            }
-
-            padding++;
-            if (padding == 2)
-            {
-                break;
-            }
-        }
-
-        return padding;
-    }
-
-    private static bool TryGetMaximumDecodedBytes(int base64ContentLength, int paddingChars, out long maxDecodedBytes)
-    {
-        var fullGroups = base64ContentLength / 4;
-        var remainder = base64ContentLength % 4;
-        maxDecodedBytes = remainder switch
-        {
-            0 => fullGroups * 3L - Math.Min(paddingChars, 2),
-            2 => fullGroups * 3L + 1,
-            3 => fullGroups * 3L + 2,
-            _ => 0
-        };
-
-        return remainder is 0 or 2 or 3;
-    }
 
     private static void TryDeleteFile(string path)
     {
