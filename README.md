@@ -36,6 +36,13 @@ Download the latest installer or portable ZIP from [GitHub Releases](https://git
 
 The installed application lives under `%LOCALAPPDATA%\WinContainers`. Portable builds can be extracted to any folder.
 
+## How-to Guides
+
+- [Set up WinContainers on a VM](https://lnkd.in/eVErFsqc)
+- [Update WinContainers](https://lnkd.in/eKiJAU-w)
+- [MCP server demo](https://lnkd.in/eU4utZxG)
+- [AI in WinContainers](https://lnkd.in/ehwurC3p)
+
 ## Build From Source
 
 ```powershell
