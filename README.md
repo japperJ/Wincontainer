@@ -24,6 +24,12 @@ A focused Windows desktop manager for containers running through Microsoft's WSL
 
 The onboarding screen checks prerequisites and provides installation actions where possible.
 
+When running WinContainers inside a Hyper-V virtual machine, enable nested virtualization on the Hyper-V host:
+
+```powershell
+Set-VMProcessor -VMName "yourVM" -ExposeVirtualizationExtensions $true
+```
+
 ## Download
 
 Download the latest installer or portable ZIP from [GitHub Releases](https://github.com/japperJ/Wincontainer/releases).
