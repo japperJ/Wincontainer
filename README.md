@@ -38,10 +38,10 @@ The installed application lives under `%LOCALAPPDATA%\WinContainers`. Portable b
 
 ## How-to Guides
 
-- [Set up WinContainers on a VM](https://youtu.be/r2td0mPynyw))
-- [Update WinContainers](https://www.linkedin.com/safety/go/?url=https%3A%2F%2Flnkd%2Ein%2FeKiJAU-w&urlhash=APYV&mt=eiUuwXAvRes-K7xJnVdpyuly1fdUSX_22g7j_QJ_LBZ1uqxp-n1ulmgLD8KUWBWNzOsyD5opgXSdbyKkrvR3AqYVpY-A614hC6Q-83jGRH6qSEcyFoufb_o8&isSdui=true)
-- [MCP server demo](https://www.linkedin.com/safety/go/?url=https%3A%2F%2Flnkd%2Ein%2FeU4utZxG&urlhash=tVw5&mt=rPEarXiRHMIZyZM7YR7sRu0xZUaKk1YZylijghAxTu3zRaUZhTUajprWYIkXbXN1Vn8-37IzgYC9eMVPGqebS25PMVaqhHFJzBdED3Qm4FoZEyR2pDb0glUg&isSdui=true)
-- [AI in WinContainers](https://www.linkedin.com/safety/go/?url=https%3A%2F%2Flnkd%2Ein%2FehwurC3p&urlhash=ENTq&mt=V8bmCBfJmII6A4g89TMG8513Ka3aKT_uNHhznxOA9-uvx3Dtd_BA37szXZLyE0SQaezCofN1z2QWZBdOilAWYY28ToBPElAF3NpC7GUbulHWg6O0LThF_EFT&isSdui=true)
+- [Set up WinContainers on a VM](https://youtu.be/r2td0mPynyw)
+- [Update WinContainers](https://youtu.be/H5HmRPLBMhA)
+- [MCP server demo](https://youtu.be/YuFkDVEwS4M)
+- [AI in WinContainers](https://youtu.be/XMDfWeGzbmk)
 
 ## Build From Source
 
