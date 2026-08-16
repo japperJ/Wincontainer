@@ -141,11 +141,6 @@ public sealed partial class MainWindow : Window
     {
         if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
         {
-            if (tag == "AI")
-            {
-                SetAiPanelOpen(true);
-            }
-
             NavigateTo(tag);
         }
     }
