@@ -141,8 +141,7 @@ public static class PortBindingConverter
     }
 
     private static bool IsSupportedHostAddress(string address) =>
-        string.IsNullOrWhiteSpace(address)
-        || address == "127.0.0.1"
+        address == "127.0.0.1"
         || address == "0.0.0.0";
 
     private static PortBindingConversionResult Failure(string error) =>
