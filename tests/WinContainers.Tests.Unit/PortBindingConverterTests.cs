@@ -39,6 +39,7 @@ public sealed class PortBindingConverterTests
     [InlineData("70000:80/tcp")]
     [InlineData("8080:0/tcp")]
     [InlineData("192.168.1.5:8080->80/tcp")]
+    [InlineData(":8080:80")]
     public void Convert_ShouldRejectInvalidBindings(string binding)
     {
         var result = PortBindingConverter.Convert(binding, allowLocalNetworkAccess: true);

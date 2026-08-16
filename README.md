@@ -156,6 +156,20 @@ skills can use it when working in a Wincontainer project.
 | `UploadImageChunk` | Append a chunk to a chunked image upload |
 | `FinishImageUpload` | Finish a chunked image upload and load it into WSLC |
 
+### Container LAN access
+
+Published ports are local-only by default and bind to `127.0.0.1`. On the container
+detail page, use the LAN access toggle to recreate a container with published ports
+bound to `0.0.0.0`, so devices on the local network can reach them. The toggle keeps
+the image, ports, volumes, environment variables, and network settings. Enabling LAN
+access requires confirmation; disabling it does not.
+
+The toggle requires saved container creation configuration. Containers created from
+templates, through MCP, or through the AI Assistant save this configuration for later
+access changes. MCP saves named-container configuration after WSLC creation and before
+the optional HTTP health probe. Some images, such as `nginx:alpine`, do not include
+`wget` or `curl`; for these images the MCP result reports `httpHealth: "unavailable"`
+while a running container is still treated as successfully created.
 
 Chunked image upload workflow (new):
 

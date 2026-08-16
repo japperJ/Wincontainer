@@ -147,7 +147,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
     private bool _canChangeAccess;
     public bool CanChangeAccess
     {
-        get => _canChangeAccess;
+        get => _canChangeAccess && !IsAccessChangeRunning;
         private set => SetProperty(ref _canChangeAccess, value);
     }
 
@@ -399,7 +399,7 @@ public partial class ContainerDetailViewModel : ViewModelBase
                 AccessEndpoints.Add(endpoint);
         }
 
-        CanChangeAccess = hasConfig && hasPorts && !IsAccessChangeRunning;
+        CanChangeAccess = hasConfig && hasPorts;
         AccessStatusText = !hasConfig
             ? "Saved container configuration unavailable."
             : !hasPorts
