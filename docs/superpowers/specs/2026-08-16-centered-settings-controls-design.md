@@ -2,12 +2,12 @@
 
 ## Goal
 
-Restore the layout fix from merged PR #127 so settings buttons and toggles align to the left and size to their content.
+Document the layout fix merged in PR #127, which makes settings buttons and toggles align to the left and size to their content.
 
 ## Scope
 
-- Modify only `src/WinContainers.App/Pages/SettingsPage.xaml`.
-- Add `HorizontalAlignment="Left"` to the settings action buttons and toggles changed by PR #127.
+- Record the completed changes to `src/WinContainers.App/Pages/SettingsPage.xaml`.
+- The settings action buttons and toggles changed by PR #127 have `HorizontalAlignment="Left"`.
 - Do not change event handlers, view models, behavior, or other pages.
 
 ## Validation

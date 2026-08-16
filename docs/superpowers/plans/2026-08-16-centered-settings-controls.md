@@ -2,22 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restore the merged PR #127 XAML layout fix so settings controls align left and size to their content.
+**Goal:** Document the merged PR #127 XAML layout fix, which makes settings controls align left and size to their content.
 
-**Architecture:** Make one surgical change in the existing WinUI settings page. Add `HorizontalAlignment="Left"` to the two action buttons and eight settings toggles changed by PR #127; preserve all event wiring and behavior.
+**Architecture:** Document one surgical change in the existing WinUI settings page: `HorizontalAlignment="Left"` was added to the three action buttons and seven settings toggles changed by PR #127; all event wiring and behavior remain unchanged.
 
 **Tech Stack:** WinUI 3 XAML, .NET 10, MSBuild.
 
 ---
 
-### Task 1: Restore settings control alignment
+### Task 1: Record restored settings control alignment
 
 **Files:**
 - Modify: `src/WinContainers.App/Pages/SettingsPage.xaml:17-116`
 
-- [ ] **Step 1: Add left alignment to the settings buttons and toggles**
+- [ ] **Step 1: Record left alignment on the settings buttons and toggles**
 
-Apply these exact attributes to the existing controls:
+The required change is adding `HorizontalAlignment="Left"` to the listed existing controls:
 
 ```xml
 <Button Content="Apply" Click="ApplyPortButton_Click" HorizontalAlignment="Left" />
