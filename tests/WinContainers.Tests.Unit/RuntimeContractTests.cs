@@ -1026,8 +1026,11 @@ public class RuntimeContractTests
 
         xaml.Should().Contain("x:Name=\"TitleBar\"");
         xaml.Should().Contain("x:Name=\"TitleBarDragRegion\"");
-        xaml.IndexOf("x:Name=\"ToggleAiPanelButton\"", StringComparison.Ordinal)
-            .Should().BeLessThan(xaml.IndexOf("x:Name=\"RootNavigation\"", StringComparison.Ordinal));
+        var toggleButtonIndex = xaml.IndexOf("x:Name=\"ToggleAiPanelButton\"", StringComparison.Ordinal);
+        var rootNavigationIndex = xaml.IndexOf("x:Name=\"RootNavigation\"", StringComparison.Ordinal);
+        toggleButtonIndex.Should().BeGreaterThanOrEqualTo(0);
+        rootNavigationIndex.Should().BeGreaterThanOrEqualTo(0);
+        toggleButtonIndex.Should().BeLessThan(rootNavigationIndex);
         codeBehind.Should().Contain("ExtendsContentIntoTitleBar = true");
         codeBehind.Should().Contain("SetTitleBar(TitleBarDragRegion)");
     }
