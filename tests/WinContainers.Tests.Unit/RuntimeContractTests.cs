@@ -48,6 +48,18 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void MainWindow_ShouldRenderOnlyBoundWindowTitleInTitleBar()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("Text=\"{x:Bind Title, Mode=OneWay}\"");
+        source.Should().NotContain("<TextBlock Text=\"WinContainers\"");
+    }
+
+    [Fact]
     public void ContainerDetailPage_ShouldUnsubscribeInspectPropertyChangedHandler()
     {
         var path = Path.GetFullPath(Path.Combine(
@@ -998,6 +1010,29 @@ public class RuntimeContractTests
 
         File.ReadAllText(projectPath).Should().Contain("<ApplicationIcon>Assets\\AppIcon.ico</ApplicationIcon>");
         File.ReadAllText(windowPath).Should().Contain("AppWindow.SetIcon(\"Assets/AppIcon.ico\")");
+    }
+
+    [Fact]
+    public void AiToggle_ShouldBeInTheTitleBarInsteadOfPageContent()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml"));
+        var codeBehindPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml.cs"));
+        var xaml = File.ReadAllText(xamlPath);
+        var codeBehind = File.ReadAllText(codeBehindPath);
+
+        xaml.Should().Contain("x:Name=\"TitleBar\"");
+        xaml.Should().Contain("x:Name=\"TitleBarDragRegion\"");
+        var toggleButtonIndex = xaml.IndexOf("x:Name=\"ToggleAiPanelButton\"", StringComparison.Ordinal);
+        var rootNavigationIndex = xaml.IndexOf("x:Name=\"RootNavigation\"", StringComparison.Ordinal);
+        toggleButtonIndex.Should().BeGreaterThanOrEqualTo(0);
+        rootNavigationIndex.Should().BeGreaterThanOrEqualTo(0);
+        toggleButtonIndex.Should().BeLessThan(rootNavigationIndex);
+        codeBehind.Should().Contain("ExtendsContentIntoTitleBar = true");
+        codeBehind.Should().Contain("SetTitleBar(TitleBarDragRegion)");
     }
 
     [Fact]
