@@ -186,11 +186,13 @@ public partial class ImagesViewModel : ViewModelBase
 
                 await _serviceClient.RemoveContainerAsync(c.Id);
 
-                var ports = c.Ports is not null && c.Ports != "No ports"
-                    ? c.Ports.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                        .Select(p => p.Replace("->", ":"))
-                        .ToList()
-                    : null;
+                var ports = savedConfig?.Ports.Count > 0
+                    ? savedConfig.Ports.ToList()
+                    : c.Ports is not null && c.Ports != "No ports"
+                        ? c.Ports.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                            .Select(p => p.Replace("->", ":"))
+                            .ToList()
+                        : null;
 
                 // Prefer inspect mounts (full details) over ps-output mounts
                 var volumes = inspectMounts?.Count > 0
@@ -204,7 +206,7 @@ public partial class ImagesViewModel : ViewModelBase
 
                 _output.Write($"Forwarding: {ports?.Count ?? 0} ports, {volumes?.Count ?? 0} volumes, {env?.Count ?? 0} env vars");
 
-                await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes, env);
+                await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes, env, savedConfig?.Network);
                 _output.Write($"Recreated container '{c.Name}' with updated image {image.FullTag}");
 
                 // Save config for future updates — WSLC inspect is unreliable for mounts/env,
@@ -214,7 +216,9 @@ public partial class ImagesViewModel : ViewModelBase
                     Image = image.FullTag,
                     Ports = ports ?? [],
                     Volumes = volumes ?? [],
-                    Env = env ?? []
+                    Env = env ?? [],
+                    Network = savedConfig?.Network,
+                    AllowLocalNetworkAccess = savedConfig?.AllowLocalNetworkAccess ?? false
                 };
                 ContainerConfigStore.SaveConfig(c.Name, recreateConfig);
                 _output.Write($"Saved recreated config for '{c.Name}' ({recreateConfig.Volumes.Count} volumes, {recreateConfig.Env.Count} env vars)");

@@ -236,6 +236,21 @@ public class WincontainerTools
             return WithSessionWarningPrefixIfNeeded("run_container", errorText);
         }
 
+        // Persist the recreation data immediately after WSLC creates the container.
+        // The optional in-container health probe can fail when the image has no wget or curl.
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            ContainerConfigStore.SaveConfig(name!, new ContainerRunConfig
+            {
+                Image = image,
+                Ports = ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [],
+                Volumes = volumeList?.ToList() ?? [],
+                Env = env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [],
+                Network = network,
+                AllowLocalNetworkAccess = false
+            });
+        }
+
         var target = string.IsNullOrWhiteSpace(name) ? image : name!;
         var inspectResult = await driver.InspectContainerAsync(target, ct);
         var logsResult = await driver.GetContainerLogsAsync(target, 120, ct);
@@ -243,7 +258,7 @@ public class WincontainerTools
         if (!string.IsNullOrWhiteSpace(name))
         {
             var health = await driver.ExecCommandAsync(name!, "wget -qO- http://127.0.0.1/ || curl -fsS http://127.0.0.1/", ct);
-            reachable = IsWslcError(health) ? "unreachable" : "reachable";
+            reachable = IsWslcError(health) ? "unavailable" : "reachable";
         }
 
         var validation = new
@@ -253,7 +268,7 @@ public class WincontainerTools
             httpHealth = reachable
         };
 
-        if (inspectResult.Contains("\"Running\":false", StringComparison.OrdinalIgnoreCase) || reachable == "unreachable")
+        if (inspectResult.Contains("\"Running\":false", StringComparison.OrdinalIgnoreCase))
         {
             var failure = new
             {
