@@ -64,7 +64,6 @@
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Dashboard" Tag="Dashboard" Icon="Home" AutomationProperties.Name="Dashboard" />
                 <NavigationViewItem Content="Terminal" Tag="Terminal" Icon="Document" AutomationProperties.Name="Terminal" AutomationProperties.AutomationId="TerminalNavItem" />
-                <NavigationViewItem Content="Settings" Tag="Settings" Icon="Setting" AutomationProperties.Name="Settings" />
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>
