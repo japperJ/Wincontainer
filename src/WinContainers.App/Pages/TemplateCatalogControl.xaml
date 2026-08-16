@@ -78,7 +78,7 @@
                         <TextBlock Text="Browse templates" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
                         <Button x:Name="RefreshCatalogButton" Content="↻ Refresh" MinWidth="80" Height="28" CornerRadius="14" Click="RefreshCatalogButton_Click" FontSize="12" AutomationProperties.Name="Refresh template catalog" />
                     </StackPanel>
-                    <RadioButtons ItemsSource="{Binding Categories}" SelectedItem="{x:Bind _viewModel.SelectedCategory, Mode=TwoWay}" MaxColumns="20" IsTabStop="False" />
+                    <ComboBox Header="Category" ItemsSource="{Binding Categories}" SelectedItem="{x:Bind _viewModel.SelectedCategory, Mode=TwoWay}" MinWidth="220" IsTabStop="False" AutomationProperties.Name="Template category" />
                     <TextBox Header="Search templates" PlaceholderText="Filter by name, category, image..." Text="{Binding TemplateCatalogSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search template catalog" />
                     <InfoBar x:Name="MetadataInfoBar" Severity="Informational" IsOpen="False" IsClosable="True" Margin="0,0,0,8" />
                     <ListView x:Name="TemplateCatalogList" ItemsSource="{Binding TemplateCatalog}" Height="360" SelectionMode="Single" SelectionChanged="TemplateCatalogList_SelectionChanged" ScrollViewer.VerticalScrollBarVisibility="Auto">

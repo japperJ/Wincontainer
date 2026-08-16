@@ -13,6 +13,19 @@ namespace WinContainers.Tests.Unit;
 
 public class RuntimeContractTests
 {
+    [Fact]
+    public void TemplateCatalog_ShouldUseCategoryDropdown()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/TemplateCatalogControl.xaml"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("<ComboBox");
+        source.Should().Contain("SelectedItem=\"{x:Bind _viewModel.SelectedCategory, Mode=TwoWay}\"");
+        source.Should().NotContain("<RadioButtons");
+    }
+
     [Theory]
     [InlineData("1", true)]
     [InlineData("true", true)]
