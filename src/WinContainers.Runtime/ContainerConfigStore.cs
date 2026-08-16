@@ -67,4 +67,6 @@ public sealed record ContainerRunConfig
     public List<string> Ports { get; init; } = [];
     public List<string> Volumes { get; init; } = [];
     public List<string> Env { get; init; } = [];
+    public string? Network { get; init; }
+    public bool AllowLocalNetworkAccess { get; init; }
 }

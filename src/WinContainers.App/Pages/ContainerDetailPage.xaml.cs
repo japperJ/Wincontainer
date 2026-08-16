@@ -21,6 +21,7 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
     private WebView2? _inspectWebView;
     private List<string> _fileNavigationHistory = [];
     private string _activeTab = "Logs";
+    private bool _suppressAccessToggle;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -105,6 +106,7 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
     {
         base.OnNavigatedFrom(e);
         DetachInspectPropertyChangedHandler();
+        _viewModel?.CancelPendingAccessChange();
         StopLogsTimer();
     }
 
@@ -588,5 +590,52 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
     private void ActionErrorInfoBar_CloseButtonClick(Microsoft.UI.Xaml.Controls.InfoBar sender, object args)
     {
         _viewModel?.DismissActionError();
+    }
+
+    private async void AccessToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressAccessToggle || _viewModel is null || sender is not ToggleSwitch toggle)
+            return;
+
+        var requested = toggle.IsOn;
+        var changed = await _viewModel.SetAccessAsync(
+            requested,
+            requested ? ConfirmLocalNetworkAccessAsync : null);
+
+        if (!changed)
+        {
+            _suppressAccessToggle = true;
+            toggle.IsOn = _viewModel.AllowLocalNetworkAccess;
+            _suppressAccessToggle = false;
+        }
+    }
+
+    private async Task<bool> ConfirmLocalNetworkAccessAsync()
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "Enable local-network access?",
+            Content = "Other devices on your local network will be able to reach this container's published ports. If recreation fails after removal, recovery may be required.",
+            PrimaryButtonText = "Enable",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    private void CopyAccessEndpointButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
+            return;
+
+        var endpoint = button.Tag as string;
+        if (string.IsNullOrWhiteSpace(endpoint))
+            return;
+
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(endpoint);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
     }
 }

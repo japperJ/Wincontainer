@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using WinContainers.Core;
 using WinContainers.Core.Models;
+using WinContainers.Runtime;
 
 namespace WinContainers_App.Services;
 
@@ -119,13 +120,45 @@ public sealed class WslcServiceClient : IWslcServiceClient
         return ExtractField(json, "output") ?? json;
     }
 
-    public async Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null)
+    public async Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? network = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/containers/run");
         ApplyAuth(request);
-        request.Content = JsonContent.Create(new { image, name, ports, volumes, env });
+        request.Content = JsonContent.Create(new { image, name, ports, volumes, env, network });
         var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
+    }
+
+    public async Task<ContainerAccessResult> SetContainerAccessAsync(
+        string containerId,
+        bool allowLocalNetworkAccess,
+        string? containerName = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/containers/{Uri.EscapeDataString(containerId)}/access");
+        ApplyAuth(request);
+        request.Content = JsonContent.Create(new
+        {
+            containerId,
+            containerName,
+            allowLocalNetworkAccess
+        });
+
+        var (json, isSuccessStatusCode) = await SendAndReadBodyAsync(request);
+        try
+        {
+            var result = JsonSerializer.Deserialize<ContainerAccessResult>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (result is not null)
+                return result;
+        }
+        catch (JsonException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WslcServiceClient] Access response parse failed: {ex.Message}");
+        }
+
+        return ContainerAccessResult.Failure(
+            isSuccessStatusCode ? "The service returned an invalid access response." : ExtractField(json, "error") ?? json);
     }
 
     public async Task<string> RemoveImageAsync(string id)

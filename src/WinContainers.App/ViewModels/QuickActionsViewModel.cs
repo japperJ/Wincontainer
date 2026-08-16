@@ -710,7 +710,9 @@ public partial class QuickActionsViewModel : ViewModelBase
                 Image = svc.Image,
                 Ports = ports,
                 Volumes = volumes,
-                Env = env
+                Env = env,
+                Network = null,
+                AllowLocalNetworkAccess = false
             };
             ContainerConfigStore.SaveConfig(svc.ContainerName, config);
             _output.Write($"Saved container config for '{svc.ContainerName}' ({config.Volumes.Count} volumes, {config.Env.Count} env vars)");
@@ -1294,7 +1296,9 @@ public partial class QuickActionsViewModel : ViewModelBase
             Image = image,
             Ports = ports,
             Volumes = volumes,
-            Env = env
+            Env = env,
+            Network = null,
+            AllowLocalNetworkAccess = false
         };
         ContainerConfigStore.SaveConfig(name, config);
         _output.Write($"Saved container config for '{name}' ({config.Volumes.Count} volumes, {config.Env.Count} env vars)");

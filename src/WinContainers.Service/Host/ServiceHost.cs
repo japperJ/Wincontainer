@@ -51,6 +51,7 @@ public static class ServiceHost
         });
 
         builder.Services.AddSingleton<IWslcDriver>(_ => driverOverride ?? new WslcDriver());
+        builder.Services.AddSingleton<ContainerAccessService>();
         builder.Services.AddSingleton<ImageUploadStore>();
 
         builder.Services.Configure<FormOptions>(o =>
@@ -172,6 +173,26 @@ public static class ServiceHost
 
         app.MapPost("/api/containers/run", async (RunContainerRequest request, CancellationToken ct) =>
             Results.Ok(new { output = await driver.RunContainerAsync(request.Image, request.Name, request.Ports, request.Volumes, request.Env, ct, request.Network) }));
+
+        app.MapPost("/api/containers/{id}/access", async (
+            string id,
+            ContainerAccessRequest request,
+            ContainerAccessService accessService,
+            CancellationToken ct) =>
+        {
+            if (!string.Equals(id, request.ContainerId, StringComparison.Ordinal))
+                return Results.BadRequest(new { error = "ContainerId must match the route container ID." });
+
+            var result = await accessService.SetAccessAsync(
+                request.ContainerId,
+                request.AllowLocalNetworkAccess,
+                request.ContainerName,
+                ct);
+
+            return result.Success
+                ? Results.Ok(result)
+                : Results.BadRequest(result);
+        });
 
         app.MapPost("/api/containers/{id}/start", async (string id, CancellationToken ct) =>
             Results.Ok(new { output = await driver.StartContainerAsync(id, ct) }));
@@ -533,6 +554,7 @@ public static class ServiceHost
 
 public sealed record PullImageRequest(string Image);
 public sealed record RunContainerRequest(string Image, string? Name, List<string>? Ports, List<string>? Volumes, List<string>? Env, string? Network = null);
+public sealed record ContainerAccessRequest(string ContainerId, bool AllowLocalNetworkAccess, string? ContainerName = null);
 public sealed record RenameContainerRequest(string Name);
 public sealed record CreateVolumeRequest(string Name);
 public sealed record CreateNetworkRequest(string Name);

@@ -1,3 +1,6 @@
+using System.Collections.ObjectModel;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.Json;
 using WinContainers.Core;
@@ -19,6 +22,9 @@ public partial class ContainerDetailViewModel : ViewModelBase
     private readonly IDialogService _dialog;
     private readonly INavigationService _navigation;
     private readonly IWslcServiceClient _serviceClient;
+    private readonly Func<IEnumerable<IPAddress>> _addressProvider;
+    private int _accessOperationVersion;
+    private ContainerRunConfig? _accessConfig;
     #endregion
 
     #region Observable Properties
@@ -119,6 +125,40 @@ public partial class ContainerDetailViewModel : ViewModelBase
         ActionError = "";
         HasActionError = false;
     }
+
+    private bool _allowLocalNetworkAccess;
+    public bool AllowLocalNetworkAccess
+    {
+        get => _allowLocalNetworkAccess;
+        set => SetProperty(ref _allowLocalNetworkAccess, value);
+    }
+
+    private bool _isAccessChangeRunning;
+    public bool IsAccessChangeRunning
+    {
+        get => _isAccessChangeRunning;
+        set
+        {
+            if (SetProperty(ref _isAccessChangeRunning, value))
+                OnPropertyChanged(nameof(CanChangeAccess));
+        }
+    }
+
+    private bool _canChangeAccess;
+    public bool CanChangeAccess
+    {
+        get => _canChangeAccess;
+        private set => SetProperty(ref _canChangeAccess, value);
+    }
+
+    private string _accessStatusText = "";
+    public string AccessStatusText
+    {
+        get => _accessStatusText;
+        private set => SetProperty(ref _accessStatusText, value);
+    }
+
+    public ObservableCollection<string> AccessEndpoints { get; } = [];
 
     // Logs
     private string? _logsContent;
@@ -313,16 +353,21 @@ public partial class ContainerDetailViewModel : ViewModelBase
         IOutputService output,
         IDialogService dialog,
         INavigationService navigation,
-        IWslcServiceClient serviceClient)
+        IWslcServiceClient serviceClient,
+        Func<IEnumerable<IPAddress>>? addressProvider = null)
     {
         _output = output;
         _dialog = dialog;
         _navigation = navigation;
         _serviceClient = serviceClient;
+        _addressProvider = addressProvider ?? GetUsableIpv4Addresses;
     }
 
     public void LoadContainer(ContainerViewModel data)
     {
+        _accessConfig = null;
+        _accessOperationVersion++;
+        IsAccessChangeRunning = false;
         ContainerId = data.Id;
         ContainerName = data.Name;
         ContainerStatus = data.Status;
@@ -334,6 +379,164 @@ public partial class ContainerDetailViewModel : ViewModelBase
         DismissActionError();
         UpdateHeaderState();
         UpdateContainerInfo();
+        InitializeAccessState();
+    }
+
+    public void InitializeAccessState(ContainerRunConfig? config = null)
+    {
+        config ??= string.IsNullOrWhiteSpace(ContainerName)
+            ? _accessConfig
+            : ContainerConfigStore.LoadConfig(ContainerName) ?? _accessConfig;
+        _accessConfig = config;
+
+        var hasPorts = config?.Ports.Count > 0;
+        var hasConfig = config is not null;
+        AllowLocalNetworkAccess = config?.AllowLocalNetworkAccess ?? false;
+        AccessEndpoints.Clear();
+        if (hasPorts)
+        {
+            foreach (var endpoint in BuildAccessEndpoints(config!.Ports, _addressProvider()))
+                AccessEndpoints.Add(endpoint);
+        }
+
+        CanChangeAccess = hasConfig && hasPorts && !IsAccessChangeRunning;
+        AccessStatusText = !hasConfig
+            ? "Saved container configuration unavailable."
+            : !hasPorts
+                ? "No published ports"
+                : AllowLocalNetworkAccess
+                    ? "Local-network access enabled"
+                    : "Local-only access";
+    }
+
+    public async Task<bool> SetAccessAsync(bool allowLocalNetworkAccess, Func<Task<bool>>? confirmEnable = null)
+    {
+        if (!CanChangeAccess || IsAccessChangeRunning || allowLocalNetworkAccess == AllowLocalNetworkAccess)
+            return false;
+
+        if (allowLocalNetworkAccess && (confirmEnable is null || !await confirmEnable()))
+            return false;
+
+        var version = ++_accessOperationVersion;
+        var previous = AllowLocalNetworkAccess;
+        DismissActionError();
+        AllowLocalNetworkAccess = allowLocalNetworkAccess;
+        IsAccessChangeRunning = true;
+        AccessStatusText = "Recreating container...";
+
+        try
+        {
+            var result = await _serviceClient.SetContainerAccessAsync(
+                ContainerId ?? "",
+                allowLocalNetworkAccess,
+                ContainerName);
+            if (version != _accessOperationVersion)
+                return false;
+
+            if (!result.Success)
+            {
+                AllowLocalNetworkAccess = previous;
+                AccessStatusText = result.Message;
+                ActionError = result.Message;
+                HasActionError = true;
+                return false;
+            }
+
+            AccessStatusText = result.Message;
+            if (_accessConfig is not null)
+            {
+                _accessConfig = _accessConfig with
+                {
+                    Ports = result.Ports.ToList(),
+                    AllowLocalNetworkAccess = result.AllowLocalNetworkAccess
+                };
+            }
+            await RefreshContainerStateAsync();
+            InitializeAccessState();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (version == _accessOperationVersion)
+            {
+                AllowLocalNetworkAccess = previous;
+                AccessStatusText = $"Access change failed: {ex.Message}";
+                ActionError = AccessStatusText;
+                HasActionError = true;
+            }
+            return false;
+        }
+        finally
+        {
+            if (version == _accessOperationVersion)
+            {
+                IsAccessChangeRunning = false;
+            }
+        }
+    }
+
+    public void CancelPendingAccessChange()
+    {
+        ++_accessOperationVersion;
+        IsAccessChangeRunning = false;
+    }
+
+    public static IReadOnlyList<IPAddress> GetUsableIpv4Addresses()
+    {
+        var addresses = new List<IPAddress>();
+        try
+        {
+            foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (networkInterface.OperationalStatus != OperationalStatus.Up)
+                    continue;
+
+                foreach (var address in networkInterface.GetIPProperties().UnicastAddresses.Select(a => a.Address))
+                {
+                    var bytes = address.GetAddressBytes();
+                    if (address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork
+                        || IPAddress.IsLoopback(address)
+                        || bytes is [169, 254, ..])
+                        continue;
+
+                    if (!addresses.Contains(address))
+                        addresses.Add(address);
+                }
+            }
+        }
+        catch (NetworkInformationException)
+        {
+        }
+
+        return addresses;
+    }
+
+    public static IReadOnlyList<string> BuildAccessEndpoints(
+        IEnumerable<string> bindings,
+        IEnumerable<IPAddress> addresses)
+    {
+        var endpoints = new List<string>();
+        foreach (var binding in bindings)
+        {
+            if (!PortBindingConverter.TryParse(binding, out var hostPort, out _, out var protocol, out _))
+                continue;
+
+            foreach (var address in addresses)
+            {
+                var bytes = address.GetAddressBytes();
+                if (address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork
+                    || IPAddress.IsLoopback(address)
+                    || bytes is [169, 254, ..])
+                    continue;
+
+                var prefix = string.Equals(protocol, "http", StringComparison.OrdinalIgnoreCase)
+                    ? "http://"
+                    : "";
+                endpoints.Add($"{prefix}{address}:{hostPort}");
+            }
+        }
+
+        return endpoints.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private void UpdateContainerInfo()
