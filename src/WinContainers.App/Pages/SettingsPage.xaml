@@ -14,18 +14,20 @@
                     <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
 
                     <TextBox x:Name="PortBox" Header="API Port" PlaceholderText="5123" Width="200" />
-                    <Button Content="Apply" Click="ApplyPortButton_Click" />
+                    <Button Content="Apply" Click="ApplyPortButton_Click" HorizontalAlignment="Left" />
 
                     <TextBox x:Name="TokenBox" Header="API Bearer Token" PlaceholderText="Leave empty to disable auth" Width="300" />
-                    <Button Content="Apply Token" Click="ApplyTokenButton_Click" />
+                    <Button Content="Apply Token" Click="ApplyTokenButton_Click" HorizontalAlignment="Left" />
 
                     <ToggleSwitch x:Name="ApiLoggingToggle"
+                                  HorizontalAlignment="Left"
                                   Header="API request logging"
                                   OffContent="Off"
                                   OnContent="On"
                                   Toggled="ApiLoggingToggle_Toggled" />
 
                     <ToggleSwitch x:Name="RemoteApiLoggingToggle"
+                                  HorizontalAlignment="Left"
                                   Header="Remote API calls only"
                                   OffContent="All"
                                   OnContent="Remote"
@@ -33,6 +35,7 @@
 
                     <StackPanel Spacing="4">
                         <ToggleSwitch x:Name="AllowRemoteApiToggle"
+                                      HorizontalAlignment="Left"
                                       Header="Allow remote API access"
                                       OffContent="Blocked"
                                       OnContent="Allowed"
@@ -53,6 +56,7 @@
 
                     <StackPanel Spacing="4">
                         <ToggleSwitch x:Name="McpEnabledToggle"
+                                      HorizontalAlignment="Left"
                                       Header="MCP server"
                                       OffContent="Off"
                                       OnContent="On"
@@ -65,6 +69,7 @@
 
                     <StackPanel Spacing="4">
                         <ToggleSwitch x:Name="McpLoggingToggle"
+                                      HorizontalAlignment="Left"
                                       Header="MCP request logging"
                                       OffContent="Off"
                                       OnContent="On"
@@ -77,6 +82,7 @@
 
                     <StackPanel Spacing="4">
                         <ToggleSwitch x:Name="McpDestructiveConfirmationToggle"
+                                     HorizontalAlignment="Left"
                                      Header="Require confirmation for destructive MCP actions"
                                      OffContent="Off"
                                      OnContent="On"
@@ -102,11 +108,12 @@
                     <PasswordBox x:Name="AiKeyBox" Header="API key" PlaceholderText="sk-... (leave empty for Ollama)" Width="380" />
 
                     <ToggleSwitch x:Name="AiConfirmToggle"
+                                  HorizontalAlignment="Left"
                                   Header="Require confirmation for destructive actions"
                                   OffContent="Off"
                                   OnContent="On" />
 
-                    <Button Content="Save AI settings" Click="SaveAiSettingsButton_Click" />
+                    <Button Content="Save AI settings" Click="SaveAiSettingsButton_Click" HorizontalAlignment="Left" />
                     <TextBlock x:Name="AiStatusText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
             </Border>
