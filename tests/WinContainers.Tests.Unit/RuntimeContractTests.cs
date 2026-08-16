@@ -1001,6 +1001,26 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void AiToggle_ShouldBeInTheTitleBarInsteadOfPageContent()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml"));
+        var codeBehindPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml.cs"));
+        var xaml = File.ReadAllText(xamlPath);
+        var codeBehind = File.ReadAllText(codeBehindPath);
+
+        xaml.Should().Contain("x:Name=\"TitleBar\"");
+        xaml.Should().Contain("x:Name=\"TitleBarDragRegion\"");
+        xaml.IndexOf("x:Name=\"ToggleAiPanelButton\"", StringComparison.Ordinal)
+            .Should().BeLessThan(xaml.IndexOf("x:Name=\"RootNavigation\"", StringComparison.Ordinal));
+        codeBehind.Should().Contain("ExtendsContentIntoTitleBar = true");
+        codeBehind.Should().Contain("SetTitleBar(TitleBarDragRegion)");
+    }
+
+    [Fact]
     public void PortLinkClick_ShouldStopTheEventBeforeLaunchingTheBrowser()
     {
         var xamlPath = Path.GetFullPath(Path.Combine(
