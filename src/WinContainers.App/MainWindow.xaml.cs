@@ -47,7 +47,7 @@ public sealed partial class MainWindow : Window
         Title = $"WinContainers v{UpdateService.CurrentVersion}";
         Instance = this;
         ExtendsContentIntoTitleBar = true;
-        SetTitleBar(TitleBarDragRegion);
+        SetTitleBar(TitleBar);
 
         var identity = WindowsIdentity.GetCurrent();
         var principal = new WindowsPrincipal(identity);

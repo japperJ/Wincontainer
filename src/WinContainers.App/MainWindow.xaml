@@ -26,18 +26,6 @@
             <StackPanel x:Name="TitleBarDragRegion" Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock Text="{x:Bind Title, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
             </StackPanel>
-            <Button Grid.Column="1"
-                    x:Name="ToggleAiPanelButton"
-                    HorizontalAlignment="Center"
-                    Padding="12,8"
-                    Click="ToggleAiPanelButton_Click"
-                    ToolTipService.ToolTip="Toggle AI assistant panel"
-                    AutomationProperties.Name="Toggle AI assistant panel">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE8BD;" />
-                    <TextBlock x:Name="AiPanelToggleText" Text="AI" />
-                </StackPanel>
-            </Button>
         </Grid>
 
         <Grid Grid.Row="1">
@@ -80,7 +68,20 @@
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>
-                <Button x:Name="HelpButton" Content="Help &amp; Diagnostics" Click="HelpButton_Click" HorizontalAlignment="Stretch" AutomationProperties.Name="Help and Diagnostics" />
+                <StackPanel Orientation="Vertical" Spacing="8" Margin="8,8,8,8">
+                    <Button x:Name="ToggleAiPanelButton"
+                            HorizontalAlignment="Stretch"
+                            Padding="12,8"
+                            Click="ToggleAiPanelButton_Click"
+                            ToolTipService.ToolTip="Toggle AI assistant panel"
+                            AutomationProperties.Name="Toggle AI assistant panel">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8BD;" />
+                            <TextBlock x:Name="AiPanelToggleText" Text="AI" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="HelpButton" Content="Help &amp; Diagnostics" Click="HelpButton_Click" HorizontalAlignment="Stretch" AutomationProperties.Name="Help and Diagnostics" />
+                </StackPanel>
             </NavigationView.PaneFooter>
 
             <Grid>

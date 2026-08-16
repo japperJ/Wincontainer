@@ -1026,7 +1026,7 @@ public class RuntimeContractTests
     }
 
     [Fact]
-    public void AiToggle_ShouldBeInTheTitleBarInsteadOfPageContent()
+    public void AiToggle_ShouldBeInTheLeftPanelInsteadOfPageContent()
     {
         var xamlPath = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
@@ -1037,15 +1037,20 @@ public class RuntimeContractTests
         var xaml = File.ReadAllText(xamlPath);
         var codeBehind = File.ReadAllText(codeBehindPath);
 
-        xaml.Should().Contain("x:Name=\"TitleBar\"");
-        xaml.Should().Contain("x:Name=\"TitleBarDragRegion\"");
+        xaml.Should().Contain("x:Name=\"RootNavigation\"");
+        xaml.Should().Contain("NavigationView.PaneFooter");
         var toggleButtonIndex = xaml.IndexOf("x:Name=\"ToggleAiPanelButton\"", StringComparison.Ordinal);
         var rootNavigationIndex = xaml.IndexOf("x:Name=\"RootNavigation\"", StringComparison.Ordinal);
+        var paneFooterIndex = xaml.IndexOf("NavigationView.PaneFooter", StringComparison.Ordinal);
         toggleButtonIndex.Should().BeGreaterThanOrEqualTo(0);
         rootNavigationIndex.Should().BeGreaterThanOrEqualTo(0);
-        toggleButtonIndex.Should().BeLessThan(rootNavigationIndex);
+        paneFooterIndex.Should().BeGreaterThanOrEqualTo(0);
+        // The AI toggle lives inside the left NavigationView panel's footer,
+        // not in page content, so it appears after the NavigationView is declared.
+        toggleButtonIndex.Should().BeGreaterThan(rootNavigationIndex);
+        toggleButtonIndex.Should().BeGreaterThan(paneFooterIndex);
         codeBehind.Should().Contain("ExtendsContentIntoTitleBar = true");
-        codeBehind.Should().Contain("SetTitleBar(TitleBarDragRegion)");
+        codeBehind.Should().Contain("SetTitleBar(TitleBar)");
     }
 
     [Fact]
