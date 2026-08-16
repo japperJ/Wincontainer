@@ -144,13 +144,28 @@ public sealed class ToolImplementations
         [Description("Comma-separated environment variables, e.g. 'KEY1=value1,KEY2=value2'")] string? env = null,
         [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network = null,
         CancellationToken ct = default)
-        => await _driver.RunContainerAsync(
-            image, name,
-            ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-            volumes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-            env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-            ct,
-            network);
+    {
+        var portList = ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
+        var volumeList = volumes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
+        var envList = env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
+        var result = await _driver.RunContainerAsync(image, name, portList, volumeList, envList, ct, network);
+        if (!string.IsNullOrWhiteSpace(name)
+            && !result.TrimStart().StartsWith("wslc error (", StringComparison.OrdinalIgnoreCase)
+            && !result.TrimStart().StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+        {
+            ContainerConfigStore.SaveConfig(name!, new ContainerRunConfig
+            {
+                Image = image,
+                Ports = portList,
+                Volumes = volumeList,
+                Env = envList,
+                Network = network,
+                AllowLocalNetworkAccess = false
+            });
+        }
+
+        return result;
+    }
 
     [Description("Execute a command inside a running container and return its output.")]
     public async Task<string> exec_command(

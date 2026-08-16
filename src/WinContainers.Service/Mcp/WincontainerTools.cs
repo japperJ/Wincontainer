@@ -264,6 +264,19 @@ public class WincontainerTools
             return Wrap("run_container", false, runResult, validation: validation, failure: failure);
         }
 
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            ContainerConfigStore.SaveConfig(name!, new ContainerRunConfig
+            {
+                Image = image,
+                Ports = ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [],
+                Volumes = volumeList?.ToList() ?? [],
+                Env = env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [],
+                Network = network,
+                AllowLocalNetworkAccess = false
+            });
+        }
+
         return Wrap("run_container", true, runResult, validation: validation);
     }
 
