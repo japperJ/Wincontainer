@@ -48,6 +48,18 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void MainWindow_ShouldRenderOnlyBoundWindowTitleInTitleBar()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("Text=\"{x:Bind Title, Mode=OneWay}\"");
+        source.Should().NotContain("<TextBlock Text=\"WinContainers\"");
+    }
+
+    [Fact]
     public void ContainerDetailPage_ShouldUnsubscribeInspectPropertyChangedHandler()
     {
         var path = Path.GetFullPath(Path.Combine(
