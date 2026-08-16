@@ -6,63 +6,6 @@
     xmlns:converters="using:WinContainers_App.Converters">
     <UserControl.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-        <Style TargetType="RadioButton">
-            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-            <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
-            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="16" />
-            <Setter Property="MinWidth" Value="60" />
-            <Setter Property="Height" Value="32" />
-            <Setter Property="Padding" Value="12,0" />
-            <Setter Property="UseSystemFocusVisuals" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Grid x:Name="RootGrid"
-                              Background="{TemplateBinding Background}"
-                              CornerRadius="{TemplateBinding CornerRadius}"
-                              BorderBrush="{TemplateBinding BorderBrush}"
-                              BorderThickness="{TemplateBinding BorderThickness}">
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Normal" />
-                                    <VisualState x:Name="PointerOver">
-                                        <VisualState.Setters>
-                                            <Setter Target="RootGrid.Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="Pressed" />
-                                    <VisualState x:Name="Disabled" />
-                                </VisualStateGroup>
-                                <VisualStateGroup x:Name="CheckStates">
-                                    <VisualState x:Name="Checked">
-                                        <VisualState.Setters>
-                                            <Setter Target="RootGrid.Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
-                                            <Setter Target="RootGrid.BorderBrush" Value="Transparent" />
-                                            <Setter Target="ContentPresenter.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="Unchecked" />
-                                    <VisualState x:Name="Indeterminate" />
-                                </VisualStateGroup>
-                                <VisualStateGroup x:Name="FocusStates">
-                                    <VisualState x:Name="Focused" />
-                                    <VisualState x:Name="Unfocused" />
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
-                            <ContentPresenter x:Name="ContentPresenter"
-                                              Content="{TemplateBinding Content}"
-                                              ContentTemplate="{TemplateBinding ContentTemplate}"
-                                              Foreground="{TemplateBinding Foreground}"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Padding="{TemplateBinding Padding}" />
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </UserControl.Resources>
     <Grid>
         <ScrollViewer x:Name="CatalogScrollViewer">
@@ -78,7 +21,7 @@
                         <TextBlock Text="Browse templates" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
                         <Button x:Name="RefreshCatalogButton" Content="↻ Refresh" MinWidth="80" Height="28" CornerRadius="14" Click="RefreshCatalogButton_Click" FontSize="12" AutomationProperties.Name="Refresh template catalog" />
                     </StackPanel>
-                    <RadioButtons ItemsSource="{Binding Categories}" SelectedItem="{x:Bind _viewModel.SelectedCategory, Mode=TwoWay}" MaxColumns="20" IsTabStop="False" />
+                    <ComboBox Header="Category" ItemsSource="{Binding Categories}" SelectedItem="{x:Bind _viewModel.SelectedCategory, Mode=TwoWay}" MinWidth="220" AutomationProperties.Name="Template category" />
                     <TextBox Header="Search templates" PlaceholderText="Filter by name, category, image..." Text="{Binding TemplateCatalogSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search template catalog" />
                     <InfoBar x:Name="MetadataInfoBar" Severity="Informational" IsOpen="False" IsClosable="True" Margin="0,0,0,8" />
                     <ListView x:Name="TemplateCatalogList" ItemsSource="{Binding TemplateCatalog}" Height="360" SelectionMode="Single" SelectionChanged="TemplateCatalogList_SelectionChanged" ScrollViewer.VerticalScrollBarVisibility="Auto">
