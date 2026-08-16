@@ -15,7 +15,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition x:Name="AiPanelSplitterColumn" Width="0" />
-            <ColumnDefinition x:Name="AiPanelColumn" Width="0" MinWidth="220" />
+            <ColumnDefinition x:Name="AiPanelColumn" Width="0" MinWidth="0" />
         </Grid.ColumnDefinitions>
 
         <Grid.RowDefinitions>
