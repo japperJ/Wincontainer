@@ -1054,6 +1054,25 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void TerminalNavigation_ShouldClearTheRootSelectionBeforeNavigating()
+    {
+        var codeBehindPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml.cs"));
+        var source = File.ReadAllText(codeBehindPath);
+        var handlerStart = source.IndexOf("private void TerminalNavItem_Tapped", StringComparison.Ordinal);
+        var handlerEnd = source.IndexOf("\n    }", handlerStart, StringComparison.Ordinal);
+
+        handlerStart.Should().BeGreaterThanOrEqualTo(0);
+        handlerEnd.Should().BeGreaterThan(handlerStart);
+
+        var handlerSource = source.Substring(handlerStart, handlerEnd - handlerStart);
+        handlerSource.Should().Contain("RootNavigation.SelectedItem = null;");
+        handlerSource.IndexOf("RootNavigation.SelectedItem = null;", StringComparison.Ordinal)
+            .Should().BeLessThan(handlerSource.IndexOf("NavigateTo(\"Terminal\");", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void PortLinkClick_ShouldStopTheEventBeforeLaunchingTheBrowser()
     {
         var xamlPath = Path.GetFullPath(Path.Combine(
