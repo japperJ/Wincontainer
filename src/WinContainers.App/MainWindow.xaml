@@ -63,6 +63,13 @@
             SelectionChanged="RootNavigation_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Dashboard" Tag="Dashboard" Icon="Home" AutomationProperties.Name="Dashboard" />
+                <NavigationViewItem Content="Containers" Tag="Containers" Icon="AllApps" AutomationProperties.Name="Containers" />
+                <NavigationViewItem Content="Images" Tag="Images" Icon="Pictures" AutomationProperties.Name="Images" />
+                <NavigationViewItem Content="Create Container" Tag="CreateContainer" Icon="Add" AutomationProperties.Name="Create Container" />
+                <NavigationViewItem Content="Template Catalog" Tag="TemplateCatalog" Icon="Library" AutomationProperties.Name="Template Catalog" />
+                <NavigationViewItem Content="Compose" Tag="Compose" Icon="Copy" AutomationProperties.Name="Compose" />
+                <NavigationViewItem Content="Volumes" Tag="Volumes" Icon="Folder" AutomationProperties.Name="Volumes" />
+                <NavigationViewItem Content="Networks" Tag="Networks" Icon="Globe" AutomationProperties.Name="Networks" />
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>

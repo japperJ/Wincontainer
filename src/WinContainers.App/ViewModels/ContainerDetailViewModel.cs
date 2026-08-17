@@ -986,7 +986,6 @@ public partial class ContainerDetailViewModel : ViewModelBase
 
     public void NavigateBack()
     {
-        MainWindow.ReturnToPivotIndex = 1; // Containers tab
         _navigation.GoBack();
     }
 

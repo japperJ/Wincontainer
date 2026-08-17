@@ -29,8 +29,6 @@ public sealed partial class MainWindow : Window
 
     public static MainWindow? Instance { get; private set; }
 
-    public static int ReturnToPivotIndex { get; set; } = -1;
-
     public Pages.DashboardPage? DashboardPageInstance { get; set; }
 
     private readonly INavigationService _navigation;
@@ -254,10 +252,9 @@ public sealed partial class MainWindow : Window
     {
         Type pageType = tag switch
         {
-            "Dashboard" => typeof(DashboardPage),
+            "Dashboard" or "Overview" or "Containers" or "Images" or "CreateContainer" or "TemplateCatalog" or "Compose" or "Volumes" or "Networks" => typeof(DashboardPage),
             "AI" => typeof(AiPage),
             "Terminal" => typeof(TerminalPage),
-            "Images" => typeof(ImagesPage),
             "Settings" => typeof(SettingsPage),
             _ => typeof(DashboardPage)
         };
@@ -270,6 +267,10 @@ public sealed partial class MainWindow : Window
         try
         {
             RootFrame.Navigate(pageType);
+            if (pageType == typeof(DashboardPage) && DashboardPageInstance is { } dashboard)
+            {
+                dashboard.ShowSection(tag == "Dashboard" ? "Overview" : tag);
+            }
         }
         catch (Exception ex)
         {

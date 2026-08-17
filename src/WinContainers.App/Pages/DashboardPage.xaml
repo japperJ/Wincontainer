@@ -45,59 +45,18 @@
             </Grid>
         </Border>
 
-        <!-- Side nav + content area -->
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <!-- Left: Side navigation panel -->
-            <Border Grid.Column="0" Background="{ThemeResource LayerFillColorAltBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
-                <Grid RowSpacing="0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Text="Navigate" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="16,20,16,8" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-
-                    <ListView Grid.Row="1" x:Name="SideNavList" SelectionMode="Single" SelectionChanged="SideNavList_SelectionChanged" BorderThickness="0" Background="Transparent" Padding="0">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="4,0,4,2" />
-                                <Setter Property="BorderThickness" Value="0" />
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="CornerRadius" Value="8" />
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="local:DashboardNavItem">
-                                <Grid Padding="12,10">
-                                    <TextBlock Text="{x:Bind Header}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Grid>
-            </Border>
-
-            <!-- Right: Content panels -->
-            <Border Grid.Column="1" Padding="24,16,24,0">
-                <Grid>
-                    <local:OverviewControl x:Name="OverviewContent" Visibility="Visible" />
-                    <local:ContainersControl x:Name="ContainersContent" Visibility="Collapsed" />
-                    <local:ImagesPage x:Name="ImagesContent" Visibility="Collapsed" />
-                    <local:QuickActionsControl x:Name="QuickActionsContent" Visibility="Collapsed" />
-                    <local:TemplateCatalogControl x:Name="TemplateCatalogContent" Visibility="Collapsed" />
-                    <local:ComposeControl x:Name="ComposeContent" Visibility="Collapsed" />
-                    <local:ResourcesControl x:Name="VolumesContent" Visibility="Collapsed" ResourceType="Volumes" />
-                    <local:ResourcesControl x:Name="NetworksContent" Visibility="Collapsed" ResourceType="Networks" />
-                    <ContentControl x:Name="DetailContent" Visibility="Collapsed" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-                </Grid>
-            </Border>
-        </Grid>
+        <Border Grid.Row="1" Padding="24,16,24,0">
+            <Grid>
+                <local:OverviewControl x:Name="OverviewContent" Visibility="Visible" />
+                <local:ContainersControl x:Name="ContainersContent" Visibility="Collapsed" />
+                <local:ImagesPage x:Name="ImagesContent" Visibility="Collapsed" />
+                <local:QuickActionsControl x:Name="QuickActionsContent" Visibility="Collapsed" />
+                <local:TemplateCatalogControl x:Name="TemplateCatalogContent" Visibility="Collapsed" />
+                <local:ComposeControl x:Name="ComposeContent" Visibility="Collapsed" />
+                <local:ResourcesControl x:Name="VolumesContent" Visibility="Collapsed" ResourceType="Volumes" />
+                <local:ResourcesControl x:Name="NetworksContent" Visibility="Collapsed" ResourceType="Networks" />
+                <ContentControl x:Name="DetailContent" Visibility="Collapsed" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+            </Grid>
+        </Border>
     </Grid>
 </Page>
