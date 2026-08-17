@@ -266,11 +266,25 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            RootFrame.Navigate(pageType);
-            if (pageType == typeof(DashboardPage) && DashboardPageInstance is { } dashboard)
+            if (pageType == typeof(DashboardPage))
             {
-                dashboard.ShowSection(tag == "Dashboard" ? "Overview" : tag);
+                var dashboardSection = NormalizeDashboardSection(tag);
+                if (RootFrame.Content is DashboardPage currentDashboard)
+                {
+                    currentDashboard.ShowSection(dashboardSection);
+                    return;
+                }
+
+                RootFrame.Navigate(pageType);
+                if (RootFrame.Content is DashboardPage dashboard)
+                {
+                    dashboard.ShowSection(dashboardSection);
+                }
+
+                return;
             }
+
+            RootFrame.Navigate(pageType);
         }
         catch (Exception ex)
         {
@@ -280,6 +294,14 @@ public sealed partial class MainWindow : Window
             throw;
         }
     }
+
+    private static string NormalizeDashboardSection(string tag)
+        => tag switch
+        {
+            "Dashboard" or "Overview" => "Overview",
+            "Containers" or "Images" or "CreateContainer" or "TemplateCatalog" or "Compose" or "Volumes" or "Networks" => tag,
+            _ => "Overview"
+        };
 
     public void NavigateToPage(Type pageType, object? parameter = null)
         => RootFrame.Navigate(pageType, parameter);

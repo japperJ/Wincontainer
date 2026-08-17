@@ -1103,6 +1103,19 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void DashboardNavigation_ShouldReuseTheCurrentPageAndNormalizeUnknownSections()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("if (RootFrame.Content is DashboardPage currentDashboard)");
+        source.Should().Contain("currentDashboard.ShowSection(dashboardSection)");
+        source.Should().Contain("_ => \"Overview\"");
+    }
+
+    [Fact]
     public void ContainerDetails_ShouldSwitchDashboardContentToDetailSection()
     {
         var path = Path.GetFullPath(Path.Combine(
