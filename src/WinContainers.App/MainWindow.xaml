@@ -63,7 +63,6 @@
             SelectionChanged="RootNavigation_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Dashboard" Tag="Dashboard" Icon="Home" AutomationProperties.Name="Dashboard" />
-                <NavigationViewItem Content="Terminal" Tag="Terminal" Icon="Document" AutomationProperties.Name="Terminal" AutomationProperties.AutomationId="TerminalNavItem" />
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>
@@ -79,6 +78,7 @@
                             <TextBlock x:Name="AiPanelToggleText" Text="AI" />
                         </StackPanel>
                     </Button>
+                    <NavigationViewItem Content="Terminal" Tag="Terminal" Icon="Document" AutomationProperties.Name="Terminal" AutomationProperties.AutomationId="TerminalNavItem" HorizontalAlignment="Stretch" />
                     <Button x:Name="HelpButton" Content="Help &amp; Diagnostics" Click="HelpButton_Click" HorizontalAlignment="Stretch" AutomationProperties.Name="Help and Diagnostics" />
                 </StackPanel>
             </NavigationView.PaneFooter>
