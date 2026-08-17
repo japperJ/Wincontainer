@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using WinContainers.Core;
 using WinContainers.Core.Models;
@@ -1102,6 +1103,19 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void DashboardNavigation_ShouldReuseTheCurrentPageAndNormalizeUnknownSections()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("if (RootFrame.Content is DashboardPage currentDashboard)");
+        source.Should().Contain("currentDashboard.ShowSection(dashboardSection)");
+        source.Should().Contain("_ => \"Overview\"");
+    }
+
+    [Fact]
     public void ContainerDetails_ShouldSwitchDashboardContentToDetailSection()
     {
         var path = Path.GetFullPath(Path.Combine(
@@ -1110,7 +1124,11 @@ public class RuntimeContractTests
         var source = File.ReadAllText(path);
 
         var detailStart = source.IndexOf("public void ShowContainerDetail", StringComparison.Ordinal);
-        var detailEnd = source.IndexOf("\n    public void RemoveContainerDetail", detailStart, StringComparison.Ordinal);
+        var detailEndMatch = Regex.Match(
+            source[detailStart..],
+            @"(?m)^\s*(?:[\w<>,\[\].?]+\s+)+RemoveContainerDetail\s*\(\s*\)\s*(?:\{|=>)",
+            RegexOptions.None);
+        var detailEnd = detailEndMatch.Success ? detailStart + detailEndMatch.Index : -1;
 
         detailStart.Should().BeGreaterThanOrEqualTo(0);
         detailEnd.Should().BeGreaterThan(detailStart);
