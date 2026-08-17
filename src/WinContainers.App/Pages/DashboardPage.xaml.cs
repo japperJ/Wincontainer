@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -7,21 +6,10 @@ using WinContainers_App.ViewModels;
 
 namespace WinContainers_App.Pages;
 
-/// <summary>
-/// Represents an item in the dashboard side navigation panel.
-/// </summary>
-public class DashboardNavItem
-{
-    public required string Header { get; init; }
-    public required string Tag { get; init; }
-}
-
 public sealed partial class DashboardPage : Page
 {
-    private const int ContainersTabIndex = 1;
-    private readonly ObservableCollection<DashboardNavItem> _navItems = [];
-    private DashboardNavItem? _detailNavItem;
     private ContainerDetailPage? _activeDetailPage;
+    private string _selectedSection = "Overview";
 
     public DashboardPage()
     {
@@ -29,70 +17,28 @@ public sealed partial class DashboardPage : Page
         if (MainWindow.Instance is { } main)
             main.DashboardPageInstance = this;
 
-        _navItems =
-        [
-            new() { Header = "Overview", Tag = "Overview" },
-            new() { Header = "Containers", Tag = "Containers" },
-            new() { Header = "Images", Tag = "Images" },
-            new() { Header = "Create Container", Tag = "CreateContainer" },
-            new() { Header = "Template Catalog", Tag = "TemplateCatalog" },
-            new() { Header = "Compose", Tag = "Compose" },
-            new() { Header = "Volumes", Tag = "Volumes" },
-            new() { Header = "Networks", Tag = "Networks" },
-        ];
-        SideNavList.ItemsSource = _navItems;
-        SideNavList.SelectedIndex = 0;
-
-        TemplateCatalogContent.UseTemplateRequested += (_, _) => SelectNavItemByTag("CreateContainer");
+        TemplateCatalogContent.UseTemplateRequested += (_, _) => ShowSection("CreateContainer");
     }
 
-    private void SelectNavItemByTag(string tag)
-    {
-        var item = _navItems.FirstOrDefault(n => n.Tag == tag);
-        if (item is not null)
-            SideNavList.SelectedItem = item;
-    }
+    public string SelectedSection => _selectedSection;
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
 
-        var index = MainWindow.ReturnToPivotIndex;
-        if (index >= 0 && index < _navItems.Count)
-        {
-            SideNavList.SelectedIndex = index;
-            MainWindow.ReturnToPivotIndex = -1;
-        }
-
+        ShowSection(_selectedSection);
         OverviewContent.UpdateServiceStatus();
     }
 
-    /// <summary>
-    /// Gets the index of the currently selected content tab (excluding container detail).
-    /// Used to return to the right tab after navigating away and back.
-    /// </summary>
-    public int SelectedTabIndex
+    public void ShowSection(string tag)
     {
-        get
+        if (_activeDetailPage is not null && tag != "ContainerDetail")
         {
-            if (SideNavList.SelectedItem is DashboardNavItem item)
-            {
-                var idx = _navItems.IndexOf(item);
-                return idx >= 0 ? idx : 0;
-            }
-            return 0;
+            DetailContent.Content = null;
+            _activeDetailPage = null;
         }
-    }
 
-    private void SideNavList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (SideNavList.SelectedItem is DashboardNavItem item)
-            ShowContent(item.Tag);
-    }
-
-    private void ShowContent(string tag)
-    {
-        // Hide all content panels
+        _selectedSection = tag;
         OverviewContent.Visibility = Visibility.Collapsed;
         ContainersContent.Visibility = Visibility.Collapsed;
         ImagesContent.Visibility = Visibility.Collapsed;
@@ -103,10 +49,9 @@ public sealed partial class DashboardPage : Page
         NetworksContent.Visibility = Visibility.Collapsed;
         DetailContent.Visibility = Visibility.Collapsed;
 
-        var isDetailTab = tag == "ContainerDetail";
-        ContainerActionsBar.Visibility = isDetailTab ? Visibility.Visible : Visibility.Collapsed;
-
-        if (isDetailTab)
+        var isDetail = tag == "ContainerDetail" && _activeDetailPage is not null;
+        ContainerActionsBar.Visibility = isDetail ? Visibility.Visible : Visibility.Collapsed;
+        if (isDetail)
         {
             DetailContent.Visibility = Visibility.Visible;
             if (_activeDetailPage?.ViewModel is { } vm)
@@ -132,40 +77,19 @@ public sealed partial class DashboardPage : Page
     {
         RemoveContainerDetail();
 
-        _detailNavItem = new DashboardNavItem
-        {
-            Header = entry.Name,
-            Tag = "ContainerDetail"
-        };
-
+        _selectedSection = "ContainerDetail";
         _activeDetailPage = new ContainerDetailPage { IsEmbedded = true };
         _activeDetailPage.LoadContainer(entry);
         DetailContent.Content = _activeDetailPage;
-
-        _navItems.Add(_detailNavItem);
-        SideNavList.SelectedItem = _detailNavItem;
-
-        UpdateDetailBar(_activeDetailPage);
+        ShowSection("ContainerDetail");
     }
 
     public void RemoveContainerDetail()
     {
         DetailContent.Content = null;
         _activeDetailPage = null;
-
-        if (_detailNavItem is not null)
-        {
-            _navItems.Remove(_detailNavItem);
-            _detailNavItem = null;
-        }
-
         ContainerActionsBar.Visibility = Visibility.Collapsed;
-
-        if (SideNavList.SelectedIndex < 0 ||
-            SideNavList.SelectedItem is DashboardNavItem { Tag: "ContainerDetail" })
-        {
-            SelectNavItemByTag("Containers");
-        }
+        ShowSection("Containers");
     }
 
     private void UpdateDetailBar(ContainerDetailViewModel vm)

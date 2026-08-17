@@ -1073,6 +1073,52 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void DashboardSections_ShouldBeDirectRootNavigationItems()
+    {
+        var mainWindowPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml"));
+        var dashboardPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/DashboardPage.xaml"));
+        var mainWindowCodePath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/MainWindow.xaml.cs"));
+
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var dashboard = File.ReadAllText(dashboardPath);
+        var mainWindowCode = File.ReadAllText(mainWindowCodePath);
+
+        foreach (var tag in new[] { "Containers", "Images", "CreateContainer", "TemplateCatalog", "Compose", "Volumes", "Networks" })
+        {
+            mainWindow.Should().Contain($"Tag=\"{tag}\"");
+            mainWindowCode.Should().Contain($"\"{tag}\"");
+        }
+
+        mainWindow.Should().Contain("Content=\"Dashboard\" Tag=\"Dashboard\"");
+        mainWindow.Should().NotContain("Content=\"Overview\" Tag=\"Overview\"");
+        dashboard.Should().NotContain("SideNavList");
+        mainWindowCode.Should().Contain("dashboard.ShowSection");
+    }
+
+    [Fact]
+    public void ContainerDetails_ShouldSwitchDashboardContentToDetailSection()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Pages/DashboardPage.xaml.cs"));
+        var source = File.ReadAllText(path);
+
+        var detailStart = source.IndexOf("public void ShowContainerDetail", StringComparison.Ordinal);
+        var detailEnd = source.IndexOf("\n    public void RemoveContainerDetail", detailStart, StringComparison.Ordinal);
+
+        detailStart.Should().BeGreaterThanOrEqualTo(0);
+        detailEnd.Should().BeGreaterThan(detailStart);
+        source.Substring(detailStart, detailEnd - detailStart)
+            .Should().Contain("ShowSection(\"ContainerDetail\")");
+    }
+
+    [Fact]
     public void PortLinkClick_ShouldStopTheEventBeforeLaunchingTheBrowser()
     {
         var xamlPath = Path.GetFullPath(Path.Combine(
