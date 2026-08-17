@@ -158,6 +158,14 @@ public sealed partial class MainWindow : Window
         SetAiPanelOpen(!_settings.ShowAiPanel);
     }
 
+    // The Terminal item lives in the NavigationView pane footer as raw content, so it is
+    // outside the NavigationView selection model. Wire its Tapped handler directly so it
+    // still navigates to TerminalPage.
+    private void TerminalNavItem_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        NavigateTo("Terminal");
+    }
+
     private void SetAiPanelOpen(bool isOpen)
     {
         ApplyAiPanelState(isOpen, persist: true);

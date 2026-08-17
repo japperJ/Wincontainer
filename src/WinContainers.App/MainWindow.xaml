@@ -78,7 +78,7 @@
                             <TextBlock x:Name="AiPanelToggleText" Text="AI" />
                         </StackPanel>
                     </Button>
-                    <NavigationViewItem Content="Terminal" Tag="Terminal" Icon="Document" AutomationProperties.Name="Terminal" AutomationProperties.AutomationId="TerminalNavItem" HorizontalAlignment="Stretch" />
+                    <NavigationViewItem x:Name="TerminalNavItem" Content="Terminal" Tag="Terminal" Icon="Document" AutomationProperties.Name="Terminal" AutomationProperties.AutomationId="TerminalNavItem" HorizontalAlignment="Stretch" Tapped="TerminalNavItem_Tapped" />
                     <Button x:Name="HelpButton" Content="Help &amp; Diagnostics" Click="HelpButton_Click" HorizontalAlignment="Stretch" AutomationProperties.Name="Help and Diagnostics" />
                 </StackPanel>
             </NavigationView.PaneFooter>
