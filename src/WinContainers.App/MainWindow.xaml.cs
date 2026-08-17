@@ -160,9 +160,12 @@ public sealed partial class MainWindow : Window
 
     // The Terminal item lives in the NavigationView pane footer as raw content, so it is
     // outside the NavigationView selection model. Wire its Tapped handler directly so it
-    // still navigates to TerminalPage.
+    // still navigates to TerminalPage. Clear the root selection so that returning to the
+    // Dashboard menu item re-fires SelectionChanged and restores the Dashboard (otherwise
+    // the frame would stay on TerminalPage and the dashboard side nav would not reappear).
     private void TerminalNavItem_Tapped(object sender, TappedRoutedEventArgs e)
     {
+        RootNavigation.SelectedItem = null;
         NavigateTo("Terminal");
     }
 
