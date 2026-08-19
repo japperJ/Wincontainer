@@ -14,13 +14,13 @@ not run when you chat with the in-app assistant.
 
 | Part | File | Role |
 |------|------|------|
-| `ContainerAgent` | `WinContainers.AI/ContainerAgent.cs` | Runs one chat turn. Calls the model and the tools. |
-| `AgentToolRegistry` | `WinContainers.AI/AgentToolRegistry.cs` | Builds the list of tools the model can use. |
-| `ContainerSnapshotBuilder` | `WinContainers.AI/ContainerSnapshotBuilder.cs` | Reads live container and image state. |
-| `ChatClientFactory` | `WinContainers.AI/ChatClientFactory.cs` | Creates the model client (OpenAI or local Ollama). |
-| `AgentTextCleaner` | `WinContainers.AI/AgentTextCleaner.cs` | Cleans model output and recovers tool calls. |
-| `AiChatService` | `WinContainers.App/Services/AiChatService.cs` | Builds the agent from settings. Installs Ollama. |
-| `AiViewModel` | `WinContainers.App/ViewModels/AiViewModel.cs` | Drives the chat page. Streams text. Shows step cards. |
+| `ContainerAgent` | `src/WinContainers.AI/ContainerAgent.cs` | Runs one chat turn. Calls the model and the tools. |
+| `AgentToolRegistry` | `src/WinContainers.AI/AgentToolRegistry.cs` | Builds the list of tools the model can use. |
+| `ContainerSnapshotBuilder` | `src/WinContainers.AI/ContainerSnapshotBuilder.cs` | Reads live container and image state. |
+| `ChatClientFactory` | `src/WinContainers.AI/ChatClientFactory.cs` | Creates the model client (OpenAI or local Ollama). |
+| `AgentTextCleaner` | `src/WinContainers.AI/AgentTextCleaner.cs` | Cleans model output and recovers tool calls. |
+| `AiChatService` | `src/WinContainers.App/Services/AiChatService.cs` | Builds the agent from settings. Installs Ollama. |
+| `AiViewModel` | `src/WinContainers.App/ViewModels/AiViewModel.cs` | Drives the chat page. Streams text. Shows step cards. |
 
 ---
 
@@ -174,7 +174,8 @@ this action. Explain this to the user."
    If that gives no text, it shows `MaxStepsMessage`.
 
 Tool output is trimmed to `MaxStepOutputChars = 8000` characters. Longer output
-ends with "... (output truncated)".
+ends with a newline and the suffix `… (output truncated)` (an ellipsis character,
+not three dots).
 
 ---
 
