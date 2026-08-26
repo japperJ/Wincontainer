@@ -12,7 +12,8 @@ public static class WslcCommands
 
     public static string ContainerRename(string id, string name) => $"container rename {Quote(id)} {Quote(name)}";
 
-    public static string ContainerRemove(string id) => $"container rm {Quote(id)}";
+    public static string ContainerRemove(string id, bool force = false) =>
+        $"container rm {(force ? "--force " : string.Empty)}{Quote(id)}";
 
     public static string ContainerKill(string id) => $"container kill {Quote(id)}";
 
@@ -78,7 +79,14 @@ public static class WslcCommands
             sb.Append($" --entrypoint {Quote(entrypoint)}");
         sb.Append($" {Quote(image)}");
         if (!string.IsNullOrWhiteSpace(command))
-            sb.Append($" {Quote(command)}");
+        {
+            // wslc run accepts the command as separate argv tokens, not a single
+            // quoted string. Splitting on whitespace lets callers pass "sleep 300"
+            // and have it exec as [sleep, 300] instead of a single nonexistent
+            // executable named "sleep 300".
+            foreach (var token in command.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                sb.Append($" {Quote(token)}");
+        }
         return sb.ToString();
     }
 

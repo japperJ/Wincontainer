@@ -32,7 +32,7 @@ public class McpSurfaceTests
         public Task<string> StartContainerAsync(string id, CancellationToken ct) => _inner.StartContainerAsync(id, ct);
         public Task<string> StopContainerAsync(string id, CancellationToken ct) => _inner.StopContainerAsync(id, ct);
         public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => _inner.RenameContainerAsync(id, name, ct);
-        public Task<string> RemoveContainerAsync(string id, CancellationToken ct) => _inner.RemoveContainerAsync(id, ct);
+        public Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default) => _inner.RemoveContainerAsync(id, force, ct);
         public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult(ContainerInspect);
         public Task<string> GetContainerLogsAsync(string id, int tail, CancellationToken ct) => _inner.GetContainerLogsAsync(id, tail, ct);
         public Task<string> GetImagesAsync(CancellationToken ct) => _inner.GetImagesAsync(ct);

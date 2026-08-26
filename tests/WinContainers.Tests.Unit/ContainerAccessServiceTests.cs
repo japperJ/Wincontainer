@@ -97,7 +97,7 @@ public sealed class ContainerAccessServiceTests
             return Task.FromResult(FailingOperation == "stop" ? "wslc error (1): stop failed" : "ok");
         }
         public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult("ok");
-        public Task<string> RemoveContainerAsync(string id, CancellationToken ct)
+        public Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default)
         {
             calls.Add($"remove:{id}");
             return Task.FromResult(FailingOperation == "remove" ? "wslc error (1): remove failed" : "ok");

@@ -43,8 +43,8 @@ public sealed class WslcDriver : IWslcDriver
     public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) =>
         RunAndCaptureAsync(WslcCommands.ContainerRename(id, name), DefaultTimeoutMs, ct);
 
-    public Task<string> RemoveContainerAsync(string id, CancellationToken ct) =>
-        RunAndCaptureAsync(WslcCommands.ContainerRemove(id), DefaultTimeoutMs, ct);
+    public Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default) =>
+        RunAndCaptureAsync(WslcCommands.ContainerRemove(id, force), DefaultTimeoutMs, ct);
 
     public Task<string> InspectContainerAsync(string id, CancellationToken ct) =>
         RunAndCaptureAsync(WslcCommands.ContainerInspect(id), DefaultTimeoutMs, ct);

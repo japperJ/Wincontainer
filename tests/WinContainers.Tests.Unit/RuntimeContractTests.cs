@@ -980,6 +980,29 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void WslcCommands_Run_ShouldSplitCommandIntoArgvTokens()
+    {
+        var command = WslcCommands.Run("alpine:latest", "probe", command: "sleep 300");
+
+        command.Should().Be("run --detach --name probe alpine:latest sleep 300");
+    }
+
+    [Fact]
+    public void WslcCommands_Run_ShouldSplitMultiArgumentCommand()
+    {
+        var command = WslcCommands.Run("alpine:latest", command: "sh -c \"echo hi\"");
+
+        command.Should().Be("run --detach alpine:latest sh -c \"echo hi\"");
+    }
+
+    [Fact]
+    public void WslcCommands_ContainerRemove_ShouldAppendForceFlag()
+    {
+        WslcCommands.ContainerRemove("c1", force: true).Should().Be("container rm --force c1");
+        WslcCommands.ContainerRemove("c1").Should().Be("container rm c1");
+    }
+
+    [Fact]
     public void QuickActions_ShouldNotExposeUnsupportedRestartPolicyConfiguration()
     {
         var xamlPath = Path.GetFullPath(Path.Combine(
@@ -1487,7 +1510,7 @@ public class RuntimeContractTests
         public Task<string> StartContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> StopContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult(string.Empty);
-        public Task<string> RemoveContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default) => Task.FromResult(string.Empty);
         public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> GetContainerLogsAsync(string id, int tail, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> GetImagesAsync(CancellationToken ct) => Task.FromResult(string.Empty);

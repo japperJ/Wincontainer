@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -274,8 +275,38 @@ public class WincontainerTools
         }
 
         var target = string.IsNullOrWhiteSpace(name) ? image : name!;
-        var inspectResult = await driver.InspectContainerAsync(target, ct);
+        // Poll the real container state until it settles. A freshly started
+        // short-lived container (e.g. node:20) can report Running:true at the
+        // instant of inspection and then exit a moment later, so wait until the
+        // state stops transitioning before reporting Status/Running/ExitCode.
+        var inspectResult = string.Empty;
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            await Task.Delay(attempt == 0 ? 0 : 300, ct);
+            inspectResult = await driver.InspectContainerAsync(target, ct);
+            if (IsWslcError(inspectResult))
+                break;
+
+            var state = TryGetContainerState(inspectResult);
+            if (state.HasState && !state.Running)
+            {
+                // Container has exited or stopped — state is final.
+                break;
+            }
+
+            if (state.HasState && state.Running && attempt >= 5)
+            {
+                // Running now and still running after the probe window — a
+                // genuinely long-lived container (e.g. sleep 300). State is stable.
+                break;
+            }
+        }
+
         var logsResult = await driver.GetContainerLogsAsync(target, 120, ct);
+
+        // WSLC inspect omits Mounts even when the volume is attached; inject the
+        // real mounts recorded at creation time so the response reflects reality.
+        inspectResult = EnrichInspectWithMounts(inspectResult);
         var reachable = "unknown";
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -303,11 +334,12 @@ public class WincontainerTools
             httpHealth = reachable
         };
 
-        if (inspectResult.Contains("\"Running\":false", StringComparison.OrdinalIgnoreCase))
+        var finalState = TryGetContainerState(inspectResult);
+        if (finalState.HasState && !finalState.Running)
         {
             var failure = new
             {
-                reason = "Container failed startup validation.",
+                reason = "Container exited during startup validation.",
                 containerToImageMapping = inspectParsed,
                 finalLogs = logsResult
             };
@@ -315,6 +347,42 @@ public class WincontainerTools
         }
 
         return Wrap("run_container", true, runResult, validation: validation);
+    }
+
+    private static (bool HasState, bool Running, string? Status, int? ExitCode) TryGetContainerState(string inspectJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(inspectJson);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                if (root.GetArrayLength() == 0)
+                    return (false, false, null, null);
+                root = root[0];
+            }
+
+            if (!root.TryGetProperty("State", out var state) || state.ValueKind != JsonValueKind.Object)
+                return (false, false, null, null);
+
+            var running = false;
+            if (state.TryGetProperty("Running", out var runningProp) && runningProp.ValueKind == JsonValueKind.True)
+                running = true;
+
+            string? status = null;
+            if (state.TryGetProperty("Status", out var statusProp) && statusProp.ValueKind == JsonValueKind.String)
+                status = statusProp.GetString();
+
+            int? exitCode = null;
+            if (state.TryGetProperty("ExitCode", out var exitProp) && exitProp.ValueKind == JsonValueKind.Number)
+                exitCode = exitProp.GetInt32();
+
+            return (true, running, status, exitCode);
+        }
+        catch (JsonException)
+        {
+            return (false, false, null, null);
+        }
     }
 
     [McpServerTool, Description("Start a stopped container by ID or name.")]
@@ -337,25 +405,14 @@ public class WincontainerTools
         return await driver.StopContainerAsync(id, ct);
     }
 
-    [McpServerTool, Description("Rename an existing container.")]
-    public static async Task<string> RenameContainer(
-        [Description("Container ID or name")] string id,
-        [Description("New container name")] string name,
-        IWslcDriver driver,
-        CancellationToken ct)
-    {
-        RequireNonEmpty(id, "container id");
-        RequireNonEmpty(name, "container name");
-        return await driver.RenameContainerAsync(id, name, ct);
-    }
-
     [McpServerTool, Description("Remove (delete) a container by ID or name. DESTRUCTIVE: requires an in-request human Allow/Deny elicitation before execution.")]
     public static async Task<string> RemoveContainer(
         [Description("Container ID or name")] string id,
         IWslcDriver driver,
         McpServer server,
         CancellationToken ct,
-        [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false)
+        [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false,
+        [Description("Set true to force-remove a running container (stops it, then removes it).")] bool force = false)
     {
         RequireNonEmpty(id, "container id");
         if (id.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
@@ -369,7 +426,7 @@ public class WincontainerTools
 
         var confirmation = await RequestHumanApprovalAsync(
             "remove_container",
-            $"Remove container '{SafeDisplayValue(id)}'.",
+            $"Remove container '{SafeDisplayValue(id)}'{(force ? " (force)" : string.Empty)}.",
             server,
             ct);
         if (!confirmation.Allowed)
@@ -378,7 +435,7 @@ public class WincontainerTools
         }
 
         ct.ThrowIfCancellationRequested();
-        var result = await driver.RemoveContainerAsync(id, ct);
+        var result = await driver.RemoveContainerAsync(id, force, ct);
         return WithSessionWarningPrefixIfNeeded("remove_container", result);
     }
 
@@ -389,7 +446,82 @@ public class WincontainerTools
         CancellationToken ct)
     {
         RequireNonEmpty(id, "container id");
-        return await driver.InspectContainerAsync(id, ct);
+        var inspect = await driver.InspectContainerAsync(id, ct);
+        return EnrichInspectWithMounts(inspect);
+    }
+
+    /// <summary>
+    /// WSLC's <c>container inspect</c> does not populate <c>Mounts</c> even though
+    /// the volume is genuinely attached (data persists across container recreation).
+    /// We recover the real mounts from <see cref="ContainerConfigStore"/>, which
+    /// records them at creation time, and inject them so callers can see what is
+    /// actually mounted. We only enrich when WSLC returned no mounts of its own.
+    /// </summary>
+    private static string EnrichInspectWithMounts(string inspectJson)
+    {
+        if (string.IsNullOrWhiteSpace(inspectJson) || IsWslcError(inspectJson))
+            return inspectJson;
+
+        JsonNode? root;
+        try
+        {
+            root = JsonNode.Parse(inspectJson);
+        }
+        catch (JsonException)
+        {
+            return inspectJson;
+        }
+
+        if (root is null)
+            return inspectJson;
+
+        JsonNode containerNode = root;
+        if (root is JsonArray array)
+        {
+            if (array.Count == 0)
+                return inspectJson;
+            containerNode = array[0]!;
+        }
+
+        var nameNode = containerNode["Name"];
+        var name = nameNode?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(name))
+            return inspectJson;
+        name = name.TrimStart('/');
+
+        var config = ContainerConfigStore.LoadConfig(name);
+        if (config?.Volumes is null || config.Volumes.Count == 0)
+            return inspectJson;
+
+        // Leave WSLC's own mounts untouched when present.
+        if (containerNode["Mounts"] is JsonArray existing && existing.Count > 0)
+            return inspectJson;
+
+        var mounts = new JsonArray();
+        foreach (var entry in config.Volumes)
+        {
+            var parts = entry.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length < 2)
+                continue;
+
+            var source = parts[0];
+            var target = parts[1];
+            var mode = parts.Length >= 3 ? parts[2] : string.Empty;
+            var isBind = source.Contains('/') || (source.Contains(':', StringComparison.Ordinal) && !source.EndsWith(':'));
+            var readOnly = string.Equals(mode, "ro", StringComparison.OrdinalIgnoreCase);
+
+            mounts.Add(new JsonObject
+            {
+                ["Type"] = isBind ? "bind" : "volume",
+                ["Source"] = source,
+                ["Target"] = target,
+                ["ReadOnly"] = readOnly,
+                ["Mode"] = mode
+            });
+        }
+
+        containerNode["Mounts"] = mounts;
+        return root.ToJsonString();
     }
 
     [McpServerTool, Description("Execute a command inside a running container and return its output.")]
@@ -542,7 +674,7 @@ public class WincontainerTools
             return Wrap("redeploy_web_only", false, stop);
 
         ct.ThrowIfCancellationRequested();
-        var remove = await driver.RemoveContainerAsync(webContainerId, ct);
+        var remove = await driver.RemoveContainerAsync(webContainerId, ct: ct);
         if (IsWslcError(remove))
             return Wrap("redeploy_web_only", false, remove);
 

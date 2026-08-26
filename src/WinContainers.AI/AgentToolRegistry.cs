@@ -123,13 +123,6 @@ public sealed class ToolImplementations
     public async Task<string> stop_container([Description("Container ID or name")] string id, CancellationToken ct)
         => await _driver.StopContainerAsync(id, ct);
 
-    [Description("Rename an existing container.")]
-    public async Task<string> rename_container(
-        [Description("Container ID or name")] string id,
-        [Description("New container name")] string name,
-        CancellationToken ct)
-        => await _driver.RenameContainerAsync(id, name, ct);
-
     [Description("Run (create and start) a new container from an image, optionally attached to a named network.")]
     public async Task<string> run_container(
         [Description("Image name, e.g. 'nginx:latest' or 'myapp:1.0'")] string image,
@@ -212,9 +205,9 @@ public sealed class ToolImplementations
     public async Task<string> remove_network([Description("Network name")] string name, CancellationToken ct)
         => await _driver.RemoveNetworkAsync(name, ct);
 
-    [Description("Delete a container by ID or name. This is destructive and cannot be undone.")]
-    public async Task<string> remove_container([Description("Container ID or name")] string id, CancellationToken ct)
-        => await _driver.RemoveContainerAsync(id, ct);
+    [Description("Delete a container by ID or name. This is destructive and cannot be undone. Pass force=true to remove a running container.")]
+    public async Task<string> remove_container([Description("Container ID or name")] string id, [Description("Force removal of a running container")] bool force = false, CancellationToken ct = default)
+        => await _driver.RemoveContainerAsync(id, force, ct);
 
     [Description("Save a docker-compose YAML file to disk and return the file path. Use this when the user asks for a multi-service setup or wants to keep a compose file.")]
     public async Task<string> save_compose_file(

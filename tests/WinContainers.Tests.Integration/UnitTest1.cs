@@ -737,10 +737,10 @@ internal sealed class IntegrationRecordingDriver : IWslcDriver
     public Task<string> StopContainerAsync(string id, CancellationToken ct) => Task.FromResult($"stopped {id}");
     public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult($"renamed {id}");
 
-    public Task<string> RemoveContainerAsync(string id, CancellationToken ct)
+    public Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default)
     {
         RemoveContainerCalls++;
-        return Task.FromResult($"removed {id}");
+        return Task.FromResult($"removed {id}{(force ? " (force)" : string.Empty)}");
     }
 
     public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult("{}");

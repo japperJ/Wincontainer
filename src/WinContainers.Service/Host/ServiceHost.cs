@@ -208,7 +208,7 @@ public static class ServiceHost
             Results.Ok(new { output = await driver.RenameContainerAsync(id, request.Name, ct) }));
 
         app.MapDelete("/api/containers/{id}", async (string id, CancellationToken ct) =>
-            Results.Ok(new { output = await driver.RemoveContainerAsync(id, ct) }));
+            Results.Ok(new { output = await driver.RemoveContainerAsync(id, ct: ct) }));
 
         app.MapGet("/api/containers/{id}/inspect", async (string id, CancellationToken ct) =>
             Results.Ok(new { output = await driver.InspectContainerAsync(id, ct) }));

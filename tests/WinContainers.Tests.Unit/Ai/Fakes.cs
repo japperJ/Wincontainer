@@ -94,6 +94,7 @@ public class FakeDriver : IWslcDriver
     public List<string> StartedContainers { get; } = [];
     public List<string> StoppedContainers { get; } = [];
     public List<string> RemovedContainers { get; } = [];
+    public List<(string Id, bool Force)> RemovedContainerCalls { get; } = [];
     public List<string> RemovedImages { get; } = [];
     public List<string> RemovedVolumes { get; } = [];
     public List<string> RemovedNetworks { get; } = [];
@@ -129,10 +130,11 @@ public class FakeDriver : IWslcDriver
 
     public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult($"renamed {id}");
 
-    public Task<string> RemoveContainerAsync(string id, CancellationToken ct)
+    public Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default)
     {
         RemovedContainers.Add(id);
-        return Task.FromResult($"removed {id}");
+        RemovedContainerCalls.Add((id, force));
+        return Task.FromResult($"removed {id}{(force ? " (force)" : string.Empty)}");
     }
 
     public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult("{}");

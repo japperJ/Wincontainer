@@ -8,7 +8,7 @@ public interface IWslcDriver
     Task<string> StartContainerAsync(string id, CancellationToken ct);
     Task<string> StopContainerAsync(string id, CancellationToken ct);
     Task<string> RenameContainerAsync(string id, string name, CancellationToken ct);
-    Task<string> RemoveContainerAsync(string id, CancellationToken ct);
+    Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default);
     Task<string> InspectContainerAsync(string id, CancellationToken ct);
     Task<string> GetContainerLogsAsync(string id, int tail, CancellationToken ct);
     Task<string> GetImagesAsync(CancellationToken ct);
