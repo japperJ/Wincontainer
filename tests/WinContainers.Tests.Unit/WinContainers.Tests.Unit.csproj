@@ -4,6 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);MCPEXP002;MCP9005</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

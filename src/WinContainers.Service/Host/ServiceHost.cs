@@ -73,7 +73,11 @@ public static class ServiceHost
                 // so the transport must retain the MCP session.
                 options.Stateless = false;
             })
-.WithTools<global::WinContainers.Service.Mcp.WincontainerTools>(jsonOptions);
+           .WithTools<global::WinContainers.Service.Mcp.WincontainerTools>(jsonOptions)
+           .WithPrompts<global::WinContainers.Service.Mcp.WincontainerPrompts>()
+           .WithListResourcesHandler(global::WinContainers.Service.Mcp.WincontainerResources.ListResourcesAsync)
+           .WithReadResourceHandler(global::WinContainers.Service.Mcp.WincontainerResources.ReadResourceAsync)
+           .WithListResourceTemplatesHandler(global::WinContainers.Service.Mcp.WincontainerResources.ListResourceTemplatesAsync);
 
         var app = builder.Build();
 
