@@ -94,13 +94,14 @@ public class FakeDriver : IWslcDriver
     public List<string> StartedContainers { get; } = [];
     public List<string> StoppedContainers { get; } = [];
     public List<string> RemovedContainers { get; } = [];
+    public List<(string Id, bool Force)> RemovedContainerCalls { get; } = [];
     public List<string> RemovedImages { get; } = [];
     public List<string> RemovedVolumes { get; } = [];
     public List<string> RemovedNetworks { get; } = [];
     public List<string> CreatedVolumes { get; } = [];
     public List<string> CreatedNetworks { get; } = [];
     public List<string> PulledImages { get; } = [];
-    public List<(string Image, string? Name, string? Ports, string? Volumes, string? Env, string? Network)> RanContainers { get; } = [];
+    public List<(string Image, string? Name, string? Ports, string? Volumes, string? Env, string? Network, string? Entrypoint, string? Command)> RanContainers { get; } = [];
     public List<(string Id, string Command)> ExecCommands { get; } = [];
     public string? LastLoadImageTarPath { get; private set; }
     public string? LastLoadImageTarData { get; private set; }
@@ -127,14 +128,13 @@ public class FakeDriver : IWslcDriver
         return Task.FromResult($"stopped {id}");
     }
 
-    public Task<string> RestartContainerAsync(string id, CancellationToken ct) => Task.FromResult($"restarted {id}");
-
     public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult($"renamed {id}");
 
-    public Task<string> RemoveContainerAsync(string id, CancellationToken ct)
+    public Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default)
     {
         RemovedContainers.Add(id);
-        return Task.FromResult($"removed {id}");
+        RemovedContainerCalls.Add((id, force));
+        return Task.FromResult($"removed {id}{(force ? " (force)" : string.Empty)}");
     }
 
     public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult("{}");
@@ -182,6 +182,8 @@ public class FakeDriver : IWslcDriver
 
     public Task<string> GetNetworksAsync(CancellationToken ct) => Task.FromResult(NetworksJson);
 
+    public Task<string> InspectNetworkAsync(string name, CancellationToken ct) => Task.FromResult("[]");
+
     public Task<string> CreateNetworkAsync(string name, CancellationToken ct)
     {
         CreatedNetworks.Add(name);
@@ -201,11 +203,13 @@ public class FakeDriver : IWslcDriver
         IEnumerable<string>? volumes = null,
         IEnumerable<string>? env = null,
         CancellationToken ct = default,
-        string? network = null)
+        string? network = null,
+        string? entrypoint = null,
+        string? command = null)
     {
         RanContainers.Add((image, name, ports is null ? null : string.Join(",", ports),
             volumes is null ? null : string.Join(",", volumes),
-            env is null ? null : string.Join(",", env), network));
+            env is null ? null : string.Join(",", env), network, entrypoint, command));
         return Task.FromResult($"ran {image}");
     }
 

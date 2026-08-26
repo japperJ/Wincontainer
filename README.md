@@ -6,7 +6,7 @@ A focused Windows desktop manager for containers running through Microsoft's WSL
 
 ## What It Does
 
-- View, start, stop, restart, and remove containers.
+- View, start, stop, rename, and remove containers.
 - Pull, inspect, and remove container images.
 - Manage volumes and networks.
 - Open container logs and an interactive terminal.
@@ -125,36 +125,39 @@ skills can use it when working in a Wincontainer project.
 
 ### Available Tools
 
+MCP tool names are `snake_case`. Destructive tools require an in-request human Allow/Deny elicitation.
+
 | Tool | Description |
 |---|---|
-| `ListContainers` | List all containers |
-| `RunContainer` | Run a new container from an image, optionally attached to a named network |
-| `StartContainer` | Start a stopped container |
-| `StopContainer` | Stop a running container |
-| `RestartContainer` | Restart a container |
-| `RenameContainer` | Rename a container |
-| `RemoveContainer` | Delete a container — requires in-request human Allow/Deny elicitation |
-| `InspectContainer` | Get detailed container configuration and status |
-| `ExecCommand` | Execute a command inside a running container |
-| `GetContainerLogs` | Retrieve recent container logs |
-| `ListImages` | List downloaded images |
-| `PullImage` | Pull an image from a registry |
-| `RemoveImage` | Delete an image — requires in-request human Allow/Deny elicitation |
-| `InspectImage` | Get detailed image metadata |
-| `ListVolumes` | List storage volumes |
-| `CreateVolume` | Create a volume |
-| `RemoveVolume` | Delete a volume — requires in-request human Allow/Deny elicitation |
-| `InspectVolume` | Get detailed volume information |
-| `ListNetworks` | List container networks |
-| `CreateNetwork` | Create a network |
-| `RemoveNetwork` | Delete a network — requires in-request human Allow/Deny elicitation |
-| `RedeployWebOnly` | Redeploy the web container (stops, removes, and re-creates it) — requires in-request human Allow/Deny elicitation |
-| `HealthCheck` | Check whether the wslc runtime is available |
-| `GetVersion` | Get the wslc runtime version |
-| `LoadImage` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |
-| `StartImageUpload` | Start a chunked image upload and return the upload ID |
-| `UploadImageChunk` | Append a chunk to a chunked image upload |
-| `FinishImageUpload` | Finish a chunked image upload and load it into WSLC |
+| `list_containers` | List all containers |
+| `inspect_container` | Get detailed container configuration and status |
+| `run_container` | Run a new container from an image, optionally attached to a named network, with volumes/env/command overrides |
+| `start_container` | Start a stopped container |
+| `stop_container` | Stop a running container |
+| `remove_container` | Delete a container — requires in-request human Allow/Deny elicitation (pass `force` to remove a running container) |
+| `exec_command` | Execute a command inside a running container |
+| `get_container_logs` | Retrieve recent container logs |
+| `pull_image` | Pull an image from a registry |
+| `list_images` | List downloaded images |
+| `inspect_image` | Get detailed image metadata |
+| `remove_image` | Delete an image — requires in-request human Allow/Deny elicitation |
+| `load_image` | Load a container image from a .tar file or base64-encoded tar data. Examples: `load_image(tarPath="C:\\images\\app.tar")` or `load_image(tarData="<base64 tar data>")`. Exactly one of `tarPath` or `tarData` is required. Only paths ending with `.tar` are accepted. When using `tarPath`, the path is read by the Wincontainer host (not the MCP client machine). Base64 `tarData` is limited to 512 MB after decoding. |
+| `start_image_upload` | Start a chunked image upload and return the upload ID |
+| `upload_image_chunk` | Append an ordered chunk to a chunked image upload |
+| `finish_image_upload` | Finish a chunked image upload and load it into WSLC |
+| `list_volumes` | List storage volumes |
+| `create_volume` | Create a volume |
+| `inspect_volume` | Get detailed volume information |
+| `remove_volume` | Delete a volume — requires in-request human Allow/Deny elicitation |
+| `list_networks` | List container networks |
+| `create_network` | Create a network |
+| `inspect_network` | Get detailed network information |
+| `remove_network` | Delete a network — requires in-request human Allow/Deny elicitation |
+| `redeploy_web_only` | Redeploy the web container (stops, removes, and re-creates it) — requires in-request human Allow/Deny elicitation |
+| `health_check` | Check whether the wslc runtime is available and return its version |
+| `get_version` | Get the wslc runtime version |
+
+> Note: WSLC does not support `restart` or `rename` operations, so there is no `restart_container` or `rename_container` MCP tool. To restart, stop then start (or remove and re-run).
 
 ### Container LAN access
 
@@ -197,7 +200,7 @@ WinContainers includes a built-in AI assistant that manages containers, images, 
 ### What It Does
 
 - Answer questions about your containers, images, volumes, and networks.
-- Start, stop, restart, rename, and remove containers on request.
+- Start, stop, and remove containers on request. To restart a container, it stops and starts it.
 - Pull and remove images, create and remove volumes and networks.
 - Run commands inside a running container.
 - Generate `docker-compose` files for multi-service setups and save them under `Documents\WinContainers\compose`.

@@ -58,7 +58,7 @@ public sealed class ContainerAccessService
         if (IsError(stopResult))
             return ContainerAccessResult.Failure($"Failed to stop container: {stopResult}", config.AllowLocalNetworkAccess);
 
-        var removeResult = await _driver.RemoveContainerAsync(containerId, ct);
+        var removeResult = await _driver.RemoveContainerAsync(containerId, ct: ct);
         if (IsError(removeResult))
         {
             return ContainerAccessResult.Failure(
@@ -73,7 +73,9 @@ public sealed class ContainerAccessService
             config.Volumes,
             config.Env,
             ct,
-            config.Network);
+            config.Network,
+            config.Entrypoint,
+            config.Command);
         if (IsError(runResult))
         {
             return ContainerAccessResult.Failure(

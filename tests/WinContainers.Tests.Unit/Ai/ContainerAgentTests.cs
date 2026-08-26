@@ -378,6 +378,30 @@ public class ContainerAgentTests
     }
 
     [Fact]
+    public void Registry_ShouldNotExposeRenameContainer()
+    {
+        var driver = new FakeDriver();
+        var compose = new ComposeFileSaver(Path.Combine(Path.GetTempPath(), "compose" + Guid.NewGuid().ToString("N")));
+        var registry = new AgentToolRegistry(driver, compose);
+
+        registry.Find("rename_container").Should().BeNull();
+        registry.Tools.Select(t => t.Name).Should().NotContain("rename_container");
+    }
+
+    [Fact]
+    public async Task RunTurnAsync_ShouldForceRemoveRunningContainer_WhenForceRequested()
+    {
+        var (agent, client, driver, _) = Create(confirmDestructive: false);
+
+        client.EnqueueToolCall("call-1", "remove_container", new Dictionary<string, object?> { ["id"] = "web", ["force"] = true });
+        client.EnqueueText("Removed web.");
+
+        await agent.RunTurnAsync(new List<ChatMessage>(), "Force remove container web.", CancellationToken.None);
+
+        driver.RemovedContainerCalls.Should().ContainSingle(c => c.Id == "web" && c.Force);
+    }
+
+    [Fact]
     public void DestructiveToolNames_ShouldContainRemoveOperationsOnly()
     {
         AgentToolRegistry.DestructiveToolNames.Should().BeEquivalentTo(

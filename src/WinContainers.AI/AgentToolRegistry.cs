@@ -69,7 +69,6 @@ public sealed class AgentToolRegistry
             "get_container_logs" => $"Get logs for container '{Get("id")}'",
             "start_container" => $"Start container '{Get("id")}'",
             "stop_container" => $"Stop container '{Get("id")}'",
-            "restart_container" => $"Restart container '{Get("id")}'",
             "rename_container" => $"Rename container '{Get("id")}' to '{Get("name")}'",
             "run_container" => $"Run container from image '{Get("image")}'",
             "exec_command" => $"Run command in container '{Get("id")}': {Get("command")}",
@@ -124,17 +123,6 @@ public sealed class ToolImplementations
     public async Task<string> stop_container([Description("Container ID or name")] string id, CancellationToken ct)
         => await _driver.StopContainerAsync(id, ct);
 
-    [Description("Restart a container by ID or name.")]
-    public async Task<string> restart_container([Description("Container ID or name")] string id, CancellationToken ct)
-        => await _driver.RestartContainerAsync(id, ct);
-
-    [Description("Rename an existing container.")]
-    public async Task<string> rename_container(
-        [Description("Container ID or name")] string id,
-        [Description("New container name")] string name,
-        CancellationToken ct)
-        => await _driver.RenameContainerAsync(id, name, ct);
-
     [Description("Run (create and start) a new container from an image, optionally attached to a named network.")]
     public async Task<string> run_container(
         [Description("Image name, e.g. 'nginx:latest' or 'myapp:1.0'")] string image,
@@ -143,12 +131,13 @@ public sealed class ToolImplementations
         [Description("Comma-separated volume mounts, e.g. '/host:/container,/data:/data'")] string? volumes = null,
         [Description("Comma-separated environment variables, e.g. 'KEY1=value1,KEY2=value2'")] string? env = null,
         [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network = null,
+        [Description("Optional command to run inside the container, e.g. 'sleep 30'")] string? command = null,
         CancellationToken ct = default)
     {
         var portList = ports?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
         var volumeList = volumes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
         var envList = env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
-        var result = await _driver.RunContainerAsync(image, name, portList, volumeList, envList, ct, network);
+        var result = await _driver.RunContainerAsync(image, name, portList, volumeList, envList, ct, network, entrypoint: null, command: command);
         if (!string.IsNullOrWhiteSpace(name)
             && !result.TrimStart().StartsWith("wslc error (", StringComparison.OrdinalIgnoreCase)
             && !result.TrimStart().StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
@@ -160,6 +149,7 @@ public sealed class ToolImplementations
                 Volumes = volumeList,
                 Env = envList,
                 Network = network,
+                Command = command,
                 AllowLocalNetworkAccess = false
             });
         }
@@ -215,9 +205,9 @@ public sealed class ToolImplementations
     public async Task<string> remove_network([Description("Network name")] string name, CancellationToken ct)
         => await _driver.RemoveNetworkAsync(name, ct);
 
-    [Description("Delete a container by ID or name. This is destructive and cannot be undone.")]
-    public async Task<string> remove_container([Description("Container ID or name")] string id, CancellationToken ct)
-        => await _driver.RemoveContainerAsync(id, ct);
+    [Description("Delete a container by ID or name. This is destructive and cannot be undone. Pass force=true to remove a running container.")]
+    public async Task<string> remove_container([Description("Container ID or name")] string id, [Description("Force removal of a running container")] bool force = false, CancellationToken ct = default)
+        => await _driver.RemoveContainerAsync(id, force, ct);
 
     [Description("Save a docker-compose YAML file to disk and return the file path. Use this when the user asks for a multi-service setup or wants to keep a compose file.")]
     public async Task<string> save_compose_file(

@@ -96,9 +96,8 @@ public sealed class ContainerAccessServiceTests
             calls.Add($"stop:{id}");
             return Task.FromResult(FailingOperation == "stop" ? "wslc error (1): stop failed" : "ok");
         }
-        public Task<string> RestartContainerAsync(string id, CancellationToken ct) => Task.FromResult("ok");
         public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult("ok");
-        public Task<string> RemoveContainerAsync(string id, CancellationToken ct)
+        public Task<string> RemoveContainerAsync(string id, bool force = false, CancellationToken ct = default)
         {
             calls.Add($"remove:{id}");
             return Task.FromResult(FailingOperation == "remove" ? "wslc error (1): remove failed" : "ok");
@@ -115,6 +114,8 @@ public sealed class ContainerAccessServiceTests
         public Task<string> RemoveVolumeAsync(string name, CancellationToken ct) => Task.FromResult("ok");
         public Task<string> InspectVolumeAsync(string name, CancellationToken ct) => Task.FromResult("{}");
         public Task<string> GetNetworksAsync(CancellationToken ct) => Task.FromResult("[]");
+
+        public Task<string> InspectNetworkAsync(string name, CancellationToken ct) => Task.FromResult("[]");
         public Task<string> CreateNetworkAsync(string name, CancellationToken ct) => Task.FromResult("ok");
         public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) => Task.FromResult("ok");
 
@@ -125,7 +126,9 @@ public sealed class ContainerAccessServiceTests
             IEnumerable<string>? volumes = null,
             IEnumerable<string>? env = null,
             CancellationToken ct = default,
-            string? network = null)
+            string? network = null,
+            string? entrypoint = null,
+            string? command = null)
         {
             calls.Add($"run:{name}");
             RunArguments = (

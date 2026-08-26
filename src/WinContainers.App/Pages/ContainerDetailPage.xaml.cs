@@ -572,12 +572,6 @@ public sealed partial class ContainerDetailPage : Page, INotifyPropertyChanged
             await _viewModel.RunActionAsync("Stop");
     }
 
-    private async void RestartButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel is not null)
-            await _viewModel.RunActionAsync("Restart");
-    }
-
     private async void DeleteButton_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel is not null)

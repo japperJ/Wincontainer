@@ -116,8 +116,6 @@ from `Description` attributes.
 | `get_container_logs` | Get recent logs of a container. |
 | `start_container` | Start a stopped container. |
 | `stop_container` | Stop a running container. |
-| `restart_container` | Restart a container. |
-| `rename_container` | Rename a container. |
 | `run_container` | Run (create and start) a container from an image. |
 | `exec_command` | Run a command inside a container. |
 | `pull_image` | Pull an image from a registry. |
@@ -133,6 +131,10 @@ from `Description` attributes.
 | `remove_network` | Delete a network. |
 | `remove_container` | Delete a container. |
 | `save_compose_file` | Write a docker-compose YAML file to disk. |
+
+> Note: The in-app assistant has no `restart_container` or `rename_container`
+> tool. To restart a container, ask the assistant to stop then start it (or
+> remove and re-run it from the same image).
 
 The `run_container` tool also saves a config for the container so its settings
 can be reused.

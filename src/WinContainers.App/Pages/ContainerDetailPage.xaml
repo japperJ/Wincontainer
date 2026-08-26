@@ -54,7 +54,6 @@
                 <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6">
                     <Button x:Name="StartButton" Content="Start" Click="StartButton_Click" IsEnabled="{x:Bind ViewModel.IsStartEnabled, Mode=OneWay}" AutomationProperties.Name="Start container" />
                     <Button x:Name="StopButton" Content="Stop" Click="StopButton_Click" IsEnabled="{x:Bind ViewModel.IsStopEnabled, Mode=OneWay}" AutomationProperties.Name="Stop container" />
-                    <Button x:Name="RestartButton" Content="Restart" Click="RestartButton_Click" IsEnabled="{x:Bind ViewModel.IsRestartEnabled, Mode=OneWay}" AutomationProperties.Name="Restart container" />
                     <Button x:Name="DeleteButton" Content="Delete" Click="DeleteButton_Click" IsEnabled="{x:Bind ViewModel.IsDeleteEnabled, Mode=OneWay}" AutomationProperties.Name="Delete container" />
                 </StackPanel>
             </Grid>

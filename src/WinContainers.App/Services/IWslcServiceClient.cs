@@ -9,14 +9,13 @@ public interface IWslcServiceClient
     Task<string> GetContainersAsync();
     Task<string> StartContainerAsync(string id);
     Task<string> StopContainerAsync(string id);
-    Task<string> RestartContainerAsync(string id);
     Task<string> RenameContainerAsync(string id, string name);
     Task<string> InspectContainerAsync(string id);
     Task<string> RemoveContainerAsync(string id);
     Task<string> GetContainerLogsAsync(string id, int tail = 500);
     Task<string> GetImagesAsync();
     Task<string> PullImageAsync(string image);
-    Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? network = null);
+    Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? network = null, string? entrypoint = null, string? command = null);
     Task<ContainerAccessResult> SetContainerAccessAsync(string containerId, bool allowLocalNetworkAccess, string? containerName = null);
     Task<string> RemoveImageAsync(string id);
     Task<string> GetVolumesAsync();
