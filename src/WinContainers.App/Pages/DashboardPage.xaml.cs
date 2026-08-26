@@ -98,7 +98,6 @@ public sealed partial class DashboardPage : Page
         DetailStatusText.Text = vm.ContainerStatus ?? "";
         DetailStartButton.IsEnabled = vm.IsStartEnabled;
         DetailStopButton.IsEnabled = vm.IsStopEnabled;
-        DetailRestartButton.IsEnabled = vm.IsRestartEnabled;
         DetailDeleteButton.IsEnabled = vm.IsDeleteEnabled;
     }
 
@@ -121,12 +120,6 @@ public sealed partial class DashboardPage : Page
     {
         if (_activeDetailPage?.ViewModel is { } vm)
             await vm.RunActionAsync("Stop");
-    }
-
-    private async void DetailRestartButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_activeDetailPage?.ViewModel is { } vm)
-            await vm.RunActionAsync("Restart");
     }
 
     private async void DetailDeleteButton_Click(object sender, RoutedEventArgs e)

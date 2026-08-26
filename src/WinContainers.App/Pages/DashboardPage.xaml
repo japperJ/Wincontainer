@@ -39,7 +39,6 @@
                 <StackPanel x:Name="DetailActionsPanel" Grid.Column="3" Orientation="Horizontal" Spacing="6">
                     <Button x:Name="DetailStartButton" Content="Start" Click="DetailStartButton_Click" AutomationProperties.Name="Start container" />
                     <Button x:Name="DetailStopButton" Content="Stop" Click="DetailStopButton_Click" AutomationProperties.Name="Stop container" />
-                    <Button x:Name="DetailRestartButton" Content="Restart" Click="DetailRestartButton_Click" AutomationProperties.Name="Restart container" />
                     <Button x:Name="DetailDeleteButton" Content="Delete" Click="DetailDeleteButton_Click" AutomationProperties.Name="Delete container" />
                 </StackPanel>
             </Grid>

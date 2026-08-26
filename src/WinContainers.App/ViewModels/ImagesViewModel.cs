@@ -206,7 +206,7 @@ public partial class ImagesViewModel : ViewModelBase
 
                 _output.Write($"Forwarding: {ports?.Count ?? 0} ports, {volumes?.Count ?? 0} volumes, {env?.Count ?? 0} env vars");
 
-                await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes, env, savedConfig?.Network);
+                await _serviceClient.RunContainerAsync(image.FullTag, c.Name, ports, volumes, env, savedConfig?.Network, savedConfig?.Entrypoint, savedConfig?.Command);
                 _output.Write($"Recreated container '{c.Name}' with updated image {image.FullTag}");
 
                 // Save config for future updates — WSLC inspect is unreliable for mounts/env,

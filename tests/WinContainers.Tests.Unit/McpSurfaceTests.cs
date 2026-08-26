@@ -31,7 +31,6 @@ public class McpSurfaceTests
         public Task<string> GetContainersAsync(CancellationToken ct) => _inner.GetContainersAsync(ct);
         public Task<string> StartContainerAsync(string id, CancellationToken ct) => _inner.StartContainerAsync(id, ct);
         public Task<string> StopContainerAsync(string id, CancellationToken ct) => _inner.StopContainerAsync(id, ct);
-        public Task<string> RestartContainerAsync(string id, CancellationToken ct) => _inner.RestartContainerAsync(id, ct);
         public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => _inner.RenameContainerAsync(id, name, ct);
         public Task<string> RemoveContainerAsync(string id, CancellationToken ct) => _inner.RemoveContainerAsync(id, ct);
         public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult(ContainerInspect);
@@ -47,9 +46,10 @@ public class McpSurfaceTests
         public Task<string> InspectVolumeAsync(string name, CancellationToken ct) => _inner.InspectVolumeAsync(name, ct);
         public Task<string> GetNetworksAsync(CancellationToken ct) => _inner.GetNetworksAsync(ct);
         public Task<string> CreateNetworkAsync(string name, CancellationToken ct) => _inner.CreateNetworkAsync(name, ct);
+        public Task<string> InspectNetworkAsync(string name, CancellationToken ct) => _inner.InspectNetworkAsync(name, ct);
         public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) => _inner.RemoveNetworkAsync(name, ct);
-        public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default, string? network = null)
-            => _inner.RunContainerAsync(image, name, ports, volumes, env, ct, network);
+        public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default, string? network = null, string? entrypoint = null, string? command = null)
+            => _inner.RunContainerAsync(image, name, ports, volumes, env, ct, network, entrypoint, command);
         public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default) => _inner.ExecCommandAsync(id, command, ct);
         public Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default) => _inner.ExecShellAsync(id, shellCommand, shell, ct);
     }
@@ -179,6 +179,49 @@ public class McpSurfaceTests
 
         var runtime = await WinContainers.Service.Mcp.WincontainerPrompts.SummarizeRuntime(driver, CancellationToken.None);
         runtime.Should().Contain("Wincontainer");
+    }
+
+    [Theory]
+    [InlineData("", "container id")]
+    [InlineData("   ", "container id")]
+    public async Task StopContainer_RejectsBlankId(string id, string _)
+    {
+        var driver = new ScriptedDriver();
+        var act = async () => await WinContainers.Service.Mcp.WincontainerTools.StopContainer(id, driver, CancellationToken.None);
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task CreateVolume_RejectsBlankName()
+    {
+        var driver = new ScriptedDriver();
+        var act = async () => await WinContainers.Service.Mcp.WincontainerTools.CreateVolume("", driver, CancellationToken.None);
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task CreateNetwork_RejectsBlankName()
+    {
+        var driver = new ScriptedDriver();
+        var act = async () => await WinContainers.Service.Mcp.WincontainerTools.CreateNetwork("", driver, CancellationToken.None);
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task InspectNetwork_RejectsBlankName()
+    {
+        var driver = new ScriptedDriver();
+        var act = async () => await WinContainers.Service.Mcp.WincontainerTools.InspectNetwork("", driver, CancellationToken.None);
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task InspectNetwork_DelegatesToDriver()
+    {
+        var driver = new ScriptedDriver { NetworksJson = "[]" };
+        // ScriptedDriver.InspectNetworkAsync returns FakeDriver default "[]".
+        var result = await WinContainers.Service.Mcp.WincontainerTools.InspectNetwork("bridge", driver, CancellationToken.None);
+        result.Should().Be("[]");
     }
 
     /// <summary>A minimal <see cref="McpServer"/> implementation that only needs to provide

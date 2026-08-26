@@ -705,15 +705,15 @@ public partial class QuickActionsViewModel : ViewModelBase
 
             _output.Write($"Running container '{svc.ContainerName}' from '{svc.Image}' (ports={ports.Count}, volumes={volumes.Count}, env={env.Count})...");
             var runOutput = await _serviceClient.RunContainerAsync(svc.Image, svc.ContainerName, ports, volumes, env);
-            var config = new ContainerRunConfig
-            {
-                Image = svc.Image,
-                Ports = ports,
-                Volumes = volumes,
-                Env = env,
-                Network = null,
-                AllowLocalNetworkAccess = false
-            };
+                var config = new ContainerRunConfig
+                {
+                    Image = svc.Image,
+                    Ports = ports,
+                    Volumes = volumes,
+                    Env = env,
+                    Network = null,
+                    AllowLocalNetworkAccess = false
+                };
             ContainerConfigStore.SaveConfig(svc.ContainerName, config);
             _output.Write($"Saved container config for '{svc.ContainerName}' ({config.Volumes.Count} volumes, {config.Env.Count} env vars)");
             _output.Write($"Run '{svc.ContainerName}': {runOutput}");

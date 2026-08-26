@@ -73,7 +73,9 @@ public sealed class ContainerAccessService
             config.Volumes,
             config.Env,
             ct,
-            config.Network);
+            config.Network,
+            config.Entrypoint,
+            config.Command);
         if (IsError(runResult))
         {
             return ContainerAccessResult.Failure(

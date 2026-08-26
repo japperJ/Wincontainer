@@ -72,9 +72,6 @@ public sealed class WslcServiceClient : IWslcServiceClient
     public async Task<string> StopContainerAsync(string id)
         => await PostCommandAsync($"/api/containers/{id}/stop");
 
-    public async Task<string> RestartContainerAsync(string id)
-        => await PostCommandAsync($"/api/containers/{id}/restart");
-
     public async Task<string> RenameContainerAsync(string id, string name)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/containers/{id}/rename");
@@ -120,11 +117,11 @@ public sealed class WslcServiceClient : IWslcServiceClient
         return ExtractField(json, "output") ?? json;
     }
 
-    public async Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? network = null)
+    public async Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? network = null, string? entrypoint = null, string? command = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/containers/run");
         ApplyAuth(request);
-        request.Content = JsonContent.Create(new { image, name, ports, volumes, env, network });
+        request.Content = JsonContent.Create(new { image, name, ports, volumes, env, network, entrypoint, command });
         var (json, _) = await SendAndReadBodyAsync(request);
         return ExtractField(json, "output") ?? json;
     }

@@ -735,7 +735,6 @@ internal sealed class IntegrationRecordingDriver : IWslcDriver
     public Task<string> GetContainersAsync(CancellationToken ct) => Task.FromResult("[]");
     public Task<string> StartContainerAsync(string id, CancellationToken ct) => Task.FromResult($"started {id}");
     public Task<string> StopContainerAsync(string id, CancellationToken ct) => Task.FromResult($"stopped {id}");
-    public Task<string> RestartContainerAsync(string id, CancellationToken ct) => Task.FromResult($"restarted {id}");
     public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult($"renamed {id}");
 
     public Task<string> RemoveContainerAsync(string id, CancellationToken ct)
@@ -757,6 +756,7 @@ internal sealed class IntegrationRecordingDriver : IWslcDriver
     public Task<string> InspectVolumeAsync(string name, CancellationToken ct) => Task.FromResult("{}");
     public Task<string> GetNetworksAsync(CancellationToken ct) => Task.FromResult("[]");
     public Task<string> CreateNetworkAsync(string name, CancellationToken ct) => Task.FromResult($"created {name}");
+    public Task<string> InspectNetworkAsync(string name, CancellationToken ct) => Task.FromResult($"{{ \"Name\": \"{name}\" }}");
     public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) => Task.FromResult($"removed {name}");
     public Task<string> RunContainerAsync(
         string image,
@@ -765,7 +765,9 @@ internal sealed class IntegrationRecordingDriver : IWslcDriver
         IEnumerable<string>? volumes = null,
         IEnumerable<string>? env = null,
         CancellationToken ct = default,
-        string? network = null) => Task.FromResult($"ran {image}");
+        string? network = null,
+        string? entrypoint = null,
+        string? command = null) => Task.FromResult($"ran {image}");
     public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default) => Task.FromResult(string.Empty);
     public Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
 }

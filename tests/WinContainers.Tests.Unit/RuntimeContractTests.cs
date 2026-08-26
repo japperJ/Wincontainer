@@ -250,6 +250,7 @@ public class RuntimeContractTests
         methods.Should().Contain(nameof(IWslcDriver.GetNetworksAsync));
         methods.Should().Contain(nameof(IWslcDriver.CreateNetworkAsync));
         methods.Should().Contain(nameof(IWslcDriver.RemoveNetworkAsync));
+        methods.Should().Contain(nameof(IWslcDriver.InspectNetworkAsync));
     }
 
     [Fact]
@@ -1485,7 +1486,6 @@ public class RuntimeContractTests
         public Task<string> GetContainersAsync(CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> StartContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> StopContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
-        public Task<string> RestartContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> RenameContainerAsync(string id, string name, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> RemoveContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> InspectContainerAsync(string id, CancellationToken ct) => Task.FromResult(string.Empty);
@@ -1501,8 +1501,9 @@ public class RuntimeContractTests
         public Task<string> InspectVolumeAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> GetNetworksAsync(CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> CreateNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
+        public Task<string> InspectNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
         public Task<string> RemoveNetworkAsync(string name, CancellationToken ct) => Task.FromResult(string.Empty);
-        public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default, string? network = null) => Task.FromResult(string.Empty);
+        public Task<string> RunContainerAsync(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, CancellationToken ct = default, string? network = null, string? entrypoint = null, string? command = null) => Task.FromResult(string.Empty);
         public Task<string> ExecCommandAsync(string id, string command, CancellationToken ct = default) => Task.FromResult(string.Empty);
         public Task<string> ExecShellAsync(string id, string shellCommand, string? shell = null, CancellationToken ct = default) => Task.FromResult(string.Empty);
     }

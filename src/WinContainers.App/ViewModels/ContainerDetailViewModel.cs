@@ -92,13 +92,6 @@ public partial class ContainerDetailViewModel : ViewModelBase
         set => SetProperty(ref _isStopEnabled, value);
     }
 
-    private bool _isRestartEnabled;
-    public bool IsRestartEnabled
-    {
-        get => _isRestartEnabled;
-        set => SetProperty(ref _isRestartEnabled, value);
-    }
-
     private bool _isDeleteEnabled;
     public bool IsDeleteEnabled
     {
@@ -551,7 +544,6 @@ public partial class ContainerDetailViewModel : ViewModelBase
     {
         IsStartEnabled = WslcContainerParser.IsExitedStatus(ContainerStatus) || ContainerStatus == "Created";
         IsStopEnabled = WslcContainerParser.IsRunningStatus(ContainerStatus);
-        IsRestartEnabled = IsStartEnabled || IsStopEnabled;
         IsDeleteEnabled = true;
     }
 
@@ -579,7 +571,6 @@ public partial class ContainerDetailViewModel : ViewModelBase
                 ContainerStatus = "Removed";
                 IsStartEnabled = false;
                 IsStopEnabled = false;
-                IsRestartEnabled = false;
                 IsDeleteEnabled = false;
             }
         }
@@ -597,7 +588,6 @@ public partial class ContainerDetailViewModel : ViewModelBase
             {
                 "Start" => await _serviceClient.StartContainerAsync(ContainerId),
                 "Stop" => await _serviceClient.StopContainerAsync(ContainerId),
-                "Restart" => await _serviceClient.RestartContainerAsync(ContainerId),
                 "Delete" => await _serviceClient.RemoveContainerAsync(ContainerId),
                 _ => null
             };

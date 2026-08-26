@@ -10,8 +10,6 @@ public static class WslcCommands
 
     public static string ContainerStop(string id) => $"container stop {Quote(id)}";
 
-    public static string ContainerRestart(string id) => $"container restart {Quote(id)}";
-
     public static string ContainerRename(string id, string name) => $"container rename {Quote(id)} {Quote(name)}";
 
     public static string ContainerRemove(string id) => $"container rm {Quote(id)}";
@@ -60,7 +58,7 @@ public static class WslcCommands
 
     public static string Login(string host, string username) => $"login {Quote(host)} --username {Quote(username)} --password-stdin";
 
-    public static string Run(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? network = null)
+    public static string Run(string image, string? name = null, IEnumerable<string>? ports = null, IEnumerable<string>? volumes = null, IEnumerable<string>? env = null, string? network = null, string? entrypoint = null, string? command = null)
     {
         var sb = new System.Text.StringBuilder("run --detach");
         if (!string.IsNullOrWhiteSpace(name))
@@ -76,7 +74,11 @@ public static class WslcCommands
                 sb.Append($" --env {Quote(e)}");
         if (!string.IsNullOrWhiteSpace(network))
             sb.Append($" --network {Quote(network)}");
+        if (!string.IsNullOrWhiteSpace(entrypoint))
+            sb.Append($" --entrypoint {Quote(entrypoint)}");
         sb.Append($" {Quote(image)}");
+        if (!string.IsNullOrWhiteSpace(command))
+            sb.Append($" {Quote(command)}");
         return sb.ToString();
     }
 

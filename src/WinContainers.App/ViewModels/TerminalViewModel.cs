@@ -184,15 +184,6 @@ public partial class TerminalViewModel : ViewModelBase
                 BuildWslcArgs: p => WslcCommands.ContainerStop(GetParam(p, "Id", "<id>")),
                 ExecuteAsync: async p => await _serviceClient.StopContainerAsync(GetParam(p, "Id"))),
             new(
-                Name: "Restart-Container",
-                DisplayName: "Restart Container",
-                Category: "Containers",
-                Description: "Restart a container",
-                ApiTemplate: "POST /api/containers/{Id}/restart",
-                Parameters: [new("Id", "Container", CommandParamType.ContainerId)],
-                BuildWslcArgs: p => WslcCommands.ContainerRestart(GetParam(p, "Id", "<id>")),
-                ExecuteAsync: async p => await _serviceClient.RestartContainerAsync(GetParam(p, "Id"))),
-            new(
                 Name: "Remove-Container",
                 DisplayName: "Remove Container",
                 Category: "Containers",

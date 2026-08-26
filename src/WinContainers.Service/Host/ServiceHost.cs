@@ -176,7 +176,7 @@ public static class ServiceHost
             Results.Ok(new { output = await driver.GetContainersAsync(ct) }));
 
         app.MapPost("/api/containers/run", async (RunContainerRequest request, CancellationToken ct) =>
-            Results.Ok(new { output = await driver.RunContainerAsync(request.Image, request.Name, request.Ports, request.Volumes, request.Env, ct, request.Network) }));
+            Results.Ok(new { output = await driver.RunContainerAsync(request.Image, request.Name, request.Ports, request.Volumes, request.Env, ct, request.Network, request.Entrypoint, request.Command) }));
 
         app.MapPost("/api/containers/{id}/access", async (
             string id,
@@ -203,9 +203,6 @@ public static class ServiceHost
 
         app.MapPost("/api/containers/{id}/stop", async (string id, CancellationToken ct) =>
             Results.Ok(new { output = await driver.StopContainerAsync(id, ct) }));
-
-        app.MapPost("/api/containers/{id}/restart", async (string id, CancellationToken ct) =>
-            Results.Ok(new { output = await driver.RestartContainerAsync(id, ct) }));
 
         app.MapPost("/api/containers/{id}/rename", async (string id, RenameContainerRequest request, CancellationToken ct) =>
             Results.Ok(new { output = await driver.RenameContainerAsync(id, request.Name, ct) }));
@@ -557,7 +554,7 @@ public static class ServiceHost
 }
 
 public sealed record PullImageRequest(string Image);
-public sealed record RunContainerRequest(string Image, string? Name, List<string>? Ports, List<string>? Volumes, List<string>? Env, string? Network = null);
+public sealed record RunContainerRequest(string Image, string? Name, List<string>? Ports, List<string>? Volumes, List<string>? Env, string? Network = null, string? Entrypoint = null, string? Command = null);
 public sealed record ContainerAccessRequest(string ContainerId, bool AllowLocalNetworkAccess, string? ContainerName = null);
 public sealed record RenameContainerRequest(string Name);
 public sealed record CreateVolumeRequest(string Name);

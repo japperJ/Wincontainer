@@ -68,5 +68,7 @@ public sealed record ContainerRunConfig
     public List<string> Volumes { get; init; } = [];
     public List<string> Env { get; init; } = [];
     public string? Network { get; init; }
+    public string? Entrypoint { get; init; }
+    public string? Command { get; init; }
     public bool AllowLocalNetworkAccess { get; init; }
 }

@@ -79,6 +79,22 @@ public class WincontainerTools
         return sanitized.Length <= 128 ? sanitized : sanitized[..128] + "…";
     }
 
+    /// <summary>
+    /// Rejects blank identifiers at the MCP boundary. Throwing (rather than returning
+    /// a string) lets the MCP SDK surface the failure as a rejected promise, which is
+    /// the idiomatic error model and avoids silent success / orphaned resources when
+    /// an empty value would otherwise be forwarded verbatim to wslc.
+    /// </summary>
+    private static string RequireNonEmpty(string? value, string label)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException($"A non-empty {label} is required.", label);
+        }
+
+        return value!;
+    }
+
     private static int CountDelimitedValues(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? 0
@@ -206,7 +222,7 @@ public class WincontainerTools
     public static async Task<string> ListContainers(IWslcDriver driver, CancellationToken ct)
         => await driver.GetContainersAsync(ct);
 
-    [McpServerTool, Description("Run (create + start) a new container from an image, optionally attached to a named network.")]
+    [McpServerTool, Description("Run (create + start) a new container from an image, optionally attached to a named network. Supports a custom command/entrypoint override.")]
     public static async Task<string> RunContainer(
         [Description("Image name, e.g. 'ubuntu:latest' or 'myapp:1.0'")] string image,
         [Description("Optional container name")] string? name = null,
@@ -214,6 +230,8 @@ public class WincontainerTools
         [Description("Comma-separated volume mounts, e.g. '/host:/container,/data:/data'")] string? volumes = null,
         [Description("Comma-separated environment variables, e.g. 'KEY1=val1,KEY2=val2'")] string? env = null,
         [Description("Optional network name to attach the container to, e.g. 'famnet'")] string? network = null,
+        [Description("Optional override for the container's entrypoint executable (maps to wslc --entrypoint)")] string? entrypoint = null,
+        [Description("Optional command to run inside the container, e.g. 'sleep 30' (maps to the wslc run command argument)")] string? command = null,
         IWslcDriver driver = null!,
         CancellationToken ct = default)
     {
@@ -224,7 +242,9 @@ public class WincontainerTools
             volumeList,
             env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             ct,
-            network);
+            network,
+            entrypoint,
+            command);
 
         if (IsWslcError(runResult))
         {
@@ -247,6 +267,8 @@ public class WincontainerTools
                 Volumes = volumeList?.ToList() ?? [],
                 Env = env?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [],
                 Network = network,
+                Entrypoint = entrypoint,
+                Command = command,
                 AllowLocalNetworkAccess = false
             });
         }
@@ -261,10 +283,23 @@ public class WincontainerTools
             reachable = IsWslcError(health) ? "unavailable" : "reachable";
         }
 
+        // Parse the inspect JSON so the validation object carries structured state
+        // instead of an escaped JSON string (Defect 4: keep responses object-typed).
+        object inspectParsed = inspectResult;
+        try
+        {
+            using var doc = JsonDocument.Parse(inspectResult);
+            inspectParsed = doc.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            // Leave as the raw string when the driver did not return valid JSON.
+        }
+
         var validation = new
         {
-            containerState = inspectResult,
-            portMapping = inspectResult,
+            containerState = inspectParsed,
+            portMapping = inspectParsed,
             httpHealth = reachable
         };
 
@@ -273,7 +308,7 @@ public class WincontainerTools
             var failure = new
             {
                 reason = "Container failed startup validation.",
-                containerToImageMapping = inspectResult,
+                containerToImageMapping = inspectParsed,
                 finalLogs = logsResult
             };
             return Wrap("run_container", false, runResult, validation: validation, failure: failure);
@@ -287,21 +322,20 @@ public class WincontainerTools
         [Description("Container ID or name")] string id,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.StartContainerAsync(id, ct);
+    {
+        RequireNonEmpty(id, "container id");
+        return await driver.StartContainerAsync(id, ct);
+    }
 
     [McpServerTool, Description("Stop a running container by ID or name.")]
     public static async Task<string> StopContainer(
         [Description("Container ID or name")] string id,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.StopContainerAsync(id, ct);
-
-    [McpServerTool, Description("Restart a container by ID or name.")]
-    public static async Task<string> RestartContainer(
-        [Description("Container ID or name")] string id,
-        IWslcDriver driver,
-        CancellationToken ct)
-        => await driver.RestartContainerAsync(id, ct);
+    {
+        RequireNonEmpty(id, "container id");
+        return await driver.StopContainerAsync(id, ct);
+    }
 
     [McpServerTool, Description("Rename an existing container.")]
     public static async Task<string> RenameContainer(
@@ -309,7 +343,11 @@ public class WincontainerTools
         [Description("New container name")] string name,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.RenameContainerAsync(id, name, ct);
+    {
+        RequireNonEmpty(id, "container id");
+        RequireNonEmpty(name, "container name");
+        return await driver.RenameContainerAsync(id, name, ct);
+    }
 
     [McpServerTool, Description("Remove (delete) a container by ID or name. DESTRUCTIVE: requires an in-request human Allow/Deny elicitation before execution.")]
     public static async Task<string> RemoveContainer(
@@ -319,6 +357,7 @@ public class WincontainerTools
         CancellationToken ct,
         [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false)
     {
+        RequireNonEmpty(id, "container id");
         if (id.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
         {
             return Wrap(
@@ -348,7 +387,10 @@ public class WincontainerTools
         [Description("Container ID or name")] string id,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.InspectContainerAsync(id, ct);
+    {
+        RequireNonEmpty(id, "container id");
+        return await driver.InspectContainerAsync(id, ct);
+    }
 
     [McpServerTool, Description("Execute a command inside a running container and return its output.")]
     public static async Task<string> ExecCommand(
@@ -359,6 +401,7 @@ public class WincontainerTools
         IWslcDriver driver = null!,
         CancellationToken ct = default)
     {
+        RequireNonEmpty(id, "container id");
         if (useShell)
             return await driver.ExecShellAsync(id, command, shell, ct);
         return await driver.ExecCommandAsync(id, command, ct);
@@ -370,7 +413,10 @@ public class WincontainerTools
         [Description("Number of recent log lines to return (default 500)")] int? tail = null,
         IWslcDriver driver = null!,
         CancellationToken ct = default)
-        => await driver.GetContainerLogsAsync(id, tail ?? 500, ct);
+    {
+        RequireNonEmpty(id, "container id");
+        return await driver.GetContainerLogsAsync(id, tail ?? 500, ct);
+    }
 
     // ── Images ───────────────────────────────────────────────────────
 
@@ -383,7 +429,10 @@ public class WincontainerTools
         [Description("Image name to pull, e.g. 'ubuntu:24.04' or 'nginx:alpine'")] string image,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.PullImageAsync(image, ct);
+    {
+        RequireNonEmpty(image, "image name");
+        return await driver.PullImageAsync(image, ct);
+    }
 
     [McpServerTool, Description("Remove (delete) a downloaded image by ID or tag. DESTRUCTIVE: requires an in-request human Allow/Deny elicitation before execution.")]
     public static async Task<string> RemoveImage(
@@ -392,6 +441,7 @@ public class WincontainerTools
         McpServer server,
         CancellationToken ct)
     {
+        RequireNonEmpty(id, "image id");
         var confirmation = await RequestHumanApprovalAsync(
             "remove_image",
             $"Remove image '{SafeDisplayValue(id)}'.",
@@ -412,7 +462,10 @@ public class WincontainerTools
         [Description("Image ID or tag")] string id,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.InspectImageAsync(id, ct);
+    {
+        RequireNonEmpty(id, "image id");
+        return await driver.InspectImageAsync(id, ct);
+    }
 
     [McpServerTool, Description("Start a chunked image tar upload. Returns JSON metadata containing the uploadId property.")]
     public static string StartImageUpload(ImageUploadStore store)
@@ -517,7 +570,10 @@ public class WincontainerTools
         [Description("Volume name")] string name,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.CreateVolumeAsync(name, ct);
+    {
+        RequireNonEmpty(name, "volume name");
+        return await driver.CreateVolumeAsync(name, ct);
+    }
 
     [McpServerTool, Description("Remove (delete) a storage volume by name. DESTRUCTIVE: requires an in-request human Allow/Deny elicitation before execution.")]
     public static async Task<string> RemoveVolume(
@@ -527,6 +583,7 @@ public class WincontainerTools
         CancellationToken ct,
         [Description("Set true to confirm destructive action for DB-related resources.")] bool confirmDestructive = false)
     {
+        RequireNonEmpty(name, "volume name");
         if (name.Contains("db", StringComparison.OrdinalIgnoreCase) && !confirmDestructive)
         {
             return Wrap(
@@ -556,7 +613,10 @@ public class WincontainerTools
         [Description("Volume name")] string name,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.InspectVolumeAsync(name, ct);
+    {
+        RequireNonEmpty(name, "volume name");
+        return await driver.InspectVolumeAsync(name, ct);
+    }
 
     // ── Networks ─────────────────────────────────────────────────────
 
@@ -569,7 +629,10 @@ public class WincontainerTools
         [Description("Network name")] string name,
         IWslcDriver driver,
         CancellationToken ct)
-        => await driver.CreateNetworkAsync(name, ct);
+    {
+        RequireNonEmpty(name, "network name");
+        return await driver.CreateNetworkAsync(name, ct);
+    }
 
     [McpServerTool, Description("Remove (delete) a container network by name. DESTRUCTIVE: requires an in-request human Allow/Deny elicitation before execution.")]
     public static async Task<string> RemoveNetwork(
@@ -578,6 +641,7 @@ public class WincontainerTools
         McpServer server,
         CancellationToken ct)
     {
+        RequireNonEmpty(name, "network name");
         var confirmation = await RequestHumanApprovalAsync(
             "remove_network",
             $"Remove network '{SafeDisplayValue(name)}'.",
@@ -591,6 +655,16 @@ public class WincontainerTools
         ct.ThrowIfCancellationRequested();
         var result = await driver.RemoveNetworkAsync(name, ct);
         return WithSessionWarningPrefixIfNeeded("remove_network", result);
+    }
+
+    [McpServerTool, Description("Inspect a network and return detailed information.")]
+    public static async Task<string> InspectNetwork(
+        [Description("Network name")] string name,
+        IWslcDriver driver,
+        CancellationToken ct)
+    {
+        RequireNonEmpty(name, "network name");
+        return await driver.InspectNetworkAsync(name, ct);
     }
 
     // ── System ───────────────────────────────────────────────────────
