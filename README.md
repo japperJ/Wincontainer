@@ -58,6 +58,64 @@ dotnet publish src/WinContainers.App/WinContainers.App.csproj `
   -p:PublishTrimmed=false -o publish/WinContainers --nologo -v q
 ```
 
+## Runtime architecture
+
+WinContainers is built around a WSLC-only runtime contract instead of a second container engine. The app layer, service layer, and runtime layer intentionally stay separate so that command generation, parsing, validation, and persistence remain explicit and testable.
+
+```mermaid
+flowchart TD
+    A[WinContainers.App UI] --> B[ServiceHost / API]
+    B --> C[WslcDriver]
+    C --> D[wslc.exe]
+    D --> E[JSON/text output]
+    E --> F[WslcContainerParser]
+    E --> G[WslcResourceParser]
+    B --> H[ContainerAccessService]
+    H --> I[ContainerConfigStore]
+    I --> J[PortBindingConverter]
+    F --> K[Container/image models]
+    G --> L[Volume/network models]
+    J --> M[Normalized publish ports]
+    C --> N[WslcCommands]
+    N --> D
+
+    O[Unit + Integration tests] --> F
+    O --> G
+    O --> J
+    O --> N
+    O --> C
+```
+
+### Repository boundaries
+
+```text
+src/
+├── BuildTasks/               # MSBuild task used during build
+├── WinContainers.AI/         # AI assistant + providers
+├── WinContainers.App/        # WinUI app host + UX
+├── WinContainers.Core/       # shared commands and models
+├── WinContainers.Runtime/    # WSLC execution, parsing, config, access changes
+├── WinContainers.Service/    # API and MCP service endpoints
+│   └── Host/                # app host and service bootstrap
+
+tests/
+├── WinContainers.Tests.Unit/
+├── WinContainers.Tests.Integration/
+├── WinContainers.Tests.Playwright/
+└── WinContainers.Tests.Ui/
+```
+
+### Why this matters
+
+- `WslcCommands` is the canonical command builder; it turns app intent into WSLC arguments and is covered by contract tests.
+- `WslcContainerParser` handles container and image JSON/text output by turning raw WSLC payloads into the app’s model objects.
+- `WslcResourceParser` focuses on volume and network resources, including JSON-array and text-fallback parsing for those specific resource lists.
+- `PortBindingConverter` validates and normalizes published port mappings, including local-only vs LAN-enabled binding behavior.
+- `ContainerAccessService` re-creates containers when access policy changes by stopping, removing, re-running, and persisting the updated configuration.
+- `WslcDriver` owns process execution, timeout boundaries, temp file cleanup, and interaction with the `wslc.exe` process.
+
+This architecture is intentionally narrow: container operations are WSLC-only, and the tests verify the runtime contracts that the rest of the app depends on.
+
 ## MCP Server
 
 WinContainers exposes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server so that AI coding assistants (GitHub Copilot, Cursor, Claude, etc.) can manage containers, images, volumes, and networks directly from the editor.
