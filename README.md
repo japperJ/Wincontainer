@@ -68,18 +68,21 @@ flowchart TD
     B --> C[WslcDriver]
     C --> D[wslc.exe]
     D --> E[JSON/text output]
-    E --> F[WslcResourceParser]
-    E --> G[PortBindingConverter]
-    E --> H[ContainerConfigStore]
-    F --> I[Container/image/network/volume models]
-    G --> J[Normalized publish ports]
-    C --> K[WslcCommands]
-    K --> D
+    E --> F[WslcContainerParser]
+    E --> G[WslcResourceParser]
+    E --> H[PortBindingConverter]
+    E --> I[ContainerConfigStore]
+    F --> J[Container/image models]
+    G --> K[Volume/network models]
+    H --> L[Normalized publish ports]
+    C --> M[WslcCommands]
+    M --> D
 
-    L[Unit + Integration tests] --> F
-    L --> G
-    L --> K
-    L --> C
+    N[Unit + Integration tests] --> F
+    N --> G
+    N --> H
+    N --> M
+    N --> C
 ```
 
 ### Repository boundaries
@@ -98,7 +101,8 @@ src/
 ### Why this matters
 
 - `WslcCommands` is the canonical command builder; it turns app intent into WSLC arguments and is covered by contract tests.
-- `WslcResourceParser` handles both JSON and fallback text outputs, normalizing container, image, network, and volume data before it reaches the UI.
+- `WslcContainerParser` handles container and image JSON/text output by turning raw WSLC payloads into the app’s model objects.
+- `WslcResourceParser` focuses on volume and network resources, including JSON-array and text-fallback parsing for those specific resource lists.
 - `PortBindingConverter` validates and normalizes published port mappings, including local-only vs LAN-enabled binding behavior.
 - `ContainerAccessService` re-creates containers when access policy changes by stopping, removing, re-running, and persisting the updated configuration.
 - `WslcDriver` owns process execution, timeout boundaries, temp file cleanup, and interaction with the `wslc.exe` process.
