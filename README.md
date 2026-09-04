@@ -70,32 +70,39 @@ flowchart TD
     D --> E[JSON/text output]
     E --> F[WslcContainerParser]
     E --> G[WslcResourceParser]
-    E --> H[PortBindingConverter]
-    E --> I[ContainerConfigStore]
-    F --> J[Container/image models]
-    G --> K[Volume/network models]
-    H --> L[Normalized publish ports]
-    C --> M[WslcCommands]
-    M --> D
+    B --> H[ContainerAccessService]
+    H --> I[ContainerConfigStore]
+    I --> J[PortBindingConverter]
+    F --> K[Container/image models]
+    G --> L[Volume/network models]
+    J --> M[Normalized publish ports]
+    C --> N[WslcCommands]
+    N --> D
 
-    N[Unit + Integration tests] --> F
-    N --> G
-    N --> H
-    N --> M
-    N --> C
+    O[Unit + Integration tests] --> F
+    O --> G
+    O --> J
+    O --> N
+    O --> C
 ```
 
 ### Repository boundaries
 
 ```text
 src/
-├── WinContainers.App/        # UI + host process
-├── WinContainers.Service/    # REST/service endpoints
-├── WinContainers.Runtime/    # WSLC driver + parsers + config
-├── WinContainers.Core/       # command builders + shared contracts
-└── tests/
-    ├── WinContainers.Tests.Unit/
-    └── WinContainers.Tests.Integration/
+├── BuildTasks/               # MSBuild task used during build
+├── WinContainers.AI/         # AI assistant + providers
+├── WinContainers.App/        # WinUI app host + UX
+├── WinContainers.Core/       # shared commands and models
+├── WinContainers.Runtime/    # WSLC execution, parsing, config, access changes
+├── WinContainers.Service/    # API and MCP service endpoints
+│   └── Host/                # app host and service bootstrap
+
+tests/
+├── WinContainers.Tests.Unit/
+├── WinContainers.Tests.Integration/
+├── WinContainers.Tests.Playwright/
+└── WinContainers.Tests.Ui/
 ```
 
 ### Why this matters
