@@ -33,6 +33,53 @@ Check sessions:
 Use the session list from the current installation. The session used by the elevated
 admin shell or Wincontainer MCP is the one whose containers appear in the UI.
 
+### Why elevation decides the session
+
+WSLC picks the session from the **elevation level of the calling process**. There is no
+`--session` flag on `wslc container list` or `wslc run` to override it. Each session is
+a separate VHD-backed store under `%LOCALAPPDATA%\wslc\sessions\`:
+
+| Calling process | Session directory |
+|---|---|
+| Elevated | `wslc-cli-admin-<user>` |
+| Non-elevated | `wslc-cli-<user>` |
+
+The two stores are independent and invisible to each other. A container created from a
+normal shell simply does not exist as far as the elevated Wincontainer UI is concerned —
+which is the root cause of "the site works locally but Wincontainer is empty."
+
+Elevation is needed for two separate reasons:
+
+1. **Session identity** — container operations must land in the same session as the rest
+   of your tooling. This is a WSLC design constraint, not a Windows privilege need.
+2. **Privileged setup** — enabling WSL2 and installing the WSLC MSI require
+   administrator rights.
+
+Docker Desktop avoids elevating its UI by putting privileged work in a LocalSystem
+service and running the engine unprivileged inside the WSL2 distro. Wincontainer runs
+its service in-process, so the app process itself carries the elevation today.
+
+### Diagnosing session problems
+
+```powershell
+# Which sessions exist on disk
+Get-ChildItem "$env:LOCALAPPDATA\wslc\sessions"
+
+# Which sessions are currently active
+& 'C:\Program Files\WSL\wslc.exe' system session list --verbose
+```
+
+A session directory that holds a `swap.vhdx` but no `storage.vhdx` is a broken leftover
+from an interrupted first run. `wslc` at that elevation level then fails with:
+
+```text
+Cannot use '...\wslc\sessions\wslc-cli-<user>' as session storage because the directory is not empty
+Error code: E_INVALIDARG
+```
+
+Delete the stale directory so WSLC can recreate the session. Confirm the directory
+contains no `storage.vhdx` before removing it — that file is the container store.
+
 ## Deployment workflow
 
 1. Build the image from a normal shell:
@@ -129,6 +176,7 @@ Invoke-WebRequest -Uri 'http://localhost:5230' -UseBasicParsing
 | Problem | Fix |
 |---|---|
 | Site works locally but Wincontainer is empty | The container is in the non-elevated session. Load and run it in the admin session. |
+| `Cannot use ... as session storage because the directory is not empty` | A stale session directory is missing `storage.vhdx`. Remove it so WSLC recreates the session. |
 | `Too many volumes have been mounted (limit: 15)` | Build in a normal shell, then use `save`, elevated `load`, and `run`. |
 | MCP reports `Image not found` | Load the image into the admin session first, or use `pull_image` for a public image. |
 | Host bind mount consumes the limit | Bake site files into the image with a Dockerfile. |
