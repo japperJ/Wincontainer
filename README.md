@@ -24,6 +24,56 @@ A focused Windows desktop manager for containers running through Microsoft's WSL
 
 The onboarding screen checks prerequisites and provides installation actions where possible.
 
+### Sessions and elevation
+
+WSLC stores containers, images, volumes, and networks inside a **session**, and the
+session a `wslc` call lands in is chosen by the elevation level of the calling process —
+not by a flag. Each session has its own VHD-backed store under
+`%LOCALAPPDATA%\wslc\sessions\`:
+
+| Calling process | Session directory | Contents |
+|---|---|---|
+| Elevated | `wslc-cli-admin-<user>` | The store WinContainers manages |
+| Non-elevated | `wslc-cli-<user>` | A separate, independent store |
+
+The two stores cannot see each other, and `wslc container list` has no `--session`
+option to switch between them. This is why WinContainers is launched elevated: the app,
+its in-process service, and the MCP server must all resolve to the same session, or the
+UI shows a different world than the one your containers live in.
+
+The non-elevated session is WSLC's **default**, not a WinContainers concept. WSLC is
+designed to run containers without administrator rights, so any non-elevated caller — a
+terminal, a build script, CI — gets its own session created on demand. WinContainers
+does not need it; it lands in the admin session only because the app runs elevated. The
+non-elevated session is still useful as scratch space: the deploy skill builds images
+there so bind mounts and the volume-mount limit stay out of the admin session.
+
+Elevation is required for two distinct reasons, and it is worth keeping them apart:
+
+1. **Session identity** — daily container operations need to run in the same session as
+   the rest of your tooling. This is a WSLC design constraint, not a Windows privilege
+   requirement.
+2. **Privileged setup** — enabling WSL2 and installing the WSLC MSI genuinely need
+   administrator rights. Onboarding requests elevation only for those steps, via
+   `OnboardingViewModel.RunElevatedCommandAsync`.
+
+Docker Desktop solves the same problem differently: its UI never elevates because
+privileged work lives in a LocalSystem service and the engine runs unprivileged inside
+the WSL2 distro. WinContainers runs the service in-process instead, so elevation is
+currently carried by the app process itself.
+
+Check which sessions exist and which one you are in:
+
+```powershell
+& 'C:\Program Files\WSL\wslc.exe' system session list --verbose
+Get-ChildItem "$env:LOCALAPPDATA\wslc\sessions"
+```
+
+**Known failure mode:** if a session directory contains a `swap.vhdx` but no
+`storage.vhdx` — typically after an interrupted first run — `wslc` in that elevation
+level fails with `Cannot use ... as session storage because the directory is not empty`
+(`E_INVALIDARG`). Removing the stale directory lets WSLC recreate the session.
+
 When running WinContainers inside a Hyper-V virtual machine, enable nested virtualization on the Hyper-V host:
 
 ```powershell
