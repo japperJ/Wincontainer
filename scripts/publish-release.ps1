@@ -7,7 +7,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-if ($Tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') { throw "Tag must be SemVer: $Tag" }
+# Strict SemVer: numeric identifiers must not carry leading zeros. A tag such as
+# v0.2.00-beta.1a is normalized to 0.2.0-beta.1a by vpk, which makes the packed
+# asset names disagree with the version the updater derives from the tag.
+$strictNumber = '0|[1-9]\d*'
+$semverPattern = "($strictNumber)\.($strictNumber)\.($strictNumber)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+if ($Tag -notmatch "^v$semverPattern$") {
+    throw "Tag must be a normalized SemVer value without leading zeros: $Tag"
+}
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) is required." }
 & gh auth status *> $null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI authentication is required. Run gh auth login first." }
@@ -37,19 +44,39 @@ $releaseDir = Join-Path $root "release"
 Copy-Item (Join-Path $root "update-policy.json") $releaseDir -Force
 Copy-Item (Join-Path $releaseDir "*") $output -Recurse -Force
 
-$assets = @(Get-ChildItem $output -File | Where-Object {
-    $_.Name -notmatch "\.iso$" -and (
-    $_.Name -match "^WinContainers-$version(?:[-.]|$)" -or
-    $_.Name -in @(
-        "WinContainers-$($channel.ToLowerInvariant())-Setup.exe",
-        "WinContainers-$($channel.ToLowerInvariant())-Portable.zip",
-        "assets.$($channel.ToLowerInvariant()).json",
-        "releases.$($channel.ToLowerInvariant()).json",
-        "RELEASES-$($channel.ToLowerInvariant())"
-    )
-    )
+$channelName = $channel.ToLowerInvariant()
+$assetManifestPath = Join-Path $output "assets.$channelName.json"
+if (-not (Test-Path $assetManifestPath)) { throw "Missing Velopack asset manifest: $assetManifestPath" }
+$declared = @(Get-Content $assetManifestPath -Raw | ConvertFrom-Json)
+if ($declared.Count -eq 0) { throw "Velopack asset manifest is empty: $assetManifestPath" }
+
+# vpk writes the exact file names the updater needs into assets.<channel>.json.
+# Select from that manifest instead of matching names against the version string:
+# vpk normalizes versions, so a name-based filter silently drops the update
+# packages and ships a release the in-app updater can never install.
+$full = @($declared | Where-Object { $_.Type -eq "Full" })
+if ($full.Count -ne 1) { throw "Velopack asset manifest must declare exactly one Full package; found $($full.Count)." }
+$expectedFull = "WinContainers-$version-$channelName-full.nupkg"
+if ($full[0].RelativeFileName -ne $expectedFull) {
+    throw "Velopack packed the full update package as '$($full[0].RelativeFileName)' but the tag requires '$expectedFull'. Retag with a normalized SemVer version before publishing."
+}
+
+$declaredNames = @($declared | ForEach-Object { $_.RelativeFileName })
+$notProduced = @($declaredNames | Where-Object { -not (Test-Path (Join-Path $output $_)) })
+if ($notProduced.Count -gt 0) { throw "Velopack declared assets that were not produced: $($notProduced -join ', ')." }
+
+$assets = @(foreach ($name in @($declaredNames + @("releases.$channelName.json", "RELEASES-$channelName", "assets.$channelName.json"))) {
+    $path = Join-Path $output $name
+    if (-not (Test-Path $path)) { throw "Missing release asset: $path" }
+    Get-Item $path
 })
-if ($assets.Count -eq 0) { throw "No release assets found in $releaseDir." }
+
+# A package for a different version or channel must never reach a release
+# unannounced; fail instead of publishing an updater that cannot install.
+$stray = @(Get-ChildItem $output -File | Where-Object {
+    $_.Extension -in @(".nupkg", ".zip", ".exe") -and $_.Name -notin $assets.Name
+})
+if ($stray.Count -gt 0) { throw "Release output contains artifacts that would not be published: $($stray.Name -join ', ')." }
 $checksumEntries = foreach ($asset in $assets) {
     $hash = (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     [ordered]@{ name = $asset.Name; sizeBytes = $asset.Length; sha256 = $hash }

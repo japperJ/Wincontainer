@@ -31,8 +31,40 @@ public static class UpdateService
         var updateManager = new UpdateManager(
             new GithubSource(GitHubRepoUrl, null, channel.Equals(BetaChannel, StringComparison.OrdinalIgnoreCase)));
 
-        await updateManager.DownloadUpdatesAsync(update);
+        try
+        {
+            await updateManager.DownloadUpdatesAsync(update);
+        }
+        catch (Exception ex) when (IsMissingAssetFailure(ex))
+        {
+            throw new UpdatePackageMissingException(
+                $"The GitHub release for this version does not contain its update package. " +
+                $"Download the installer from {GitHubRepoUrl}/releases.", ex);
+        }
+
         // Velopack waits for this process to exit before replacing the running release.
         updateManager.WaitExitThenApplyUpdates(update);
+    }
+
+    private static bool IsMissingAssetFailure(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current.Message.Contains("Could not find asset", StringComparison.OrdinalIgnoreCase)
+                || current.Message.Contains("Could not find release", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+public sealed class UpdatePackageMissingException : Exception
+{
+    public UpdatePackageMissingException(string message, Exception innerException)
+        : base(message, innerException)
+    {
     }
 }
