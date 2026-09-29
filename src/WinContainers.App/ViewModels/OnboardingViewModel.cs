@@ -9,6 +9,7 @@ namespace WinContainers_App.ViewModels;
 public partial class OnboardingViewModel : ViewModelBase
 {
     private readonly IOutputService _output;
+    private readonly WslcUpdateService _wslcUpdates;
 
     private bool _wsl2Available;
     public bool Wsl2Available
@@ -89,9 +90,10 @@ public partial class OnboardingViewModel : ViewModelBase
 
     public bool AllPrerequisitesMet => Wsl2Available && WslcAvailable;
 
-    public OnboardingViewModel(IOutputService output)
+    public OnboardingViewModel(IOutputService output, WslcUpdateService wslcUpdates)
     {
         _output = output;
+        _wslcUpdates = wslcUpdates;
     }
 
     public async Task CheckAllAsync()
@@ -248,23 +250,47 @@ public partial class OnboardingViewModel : ViewModelBase
     public async Task InstallWslcAsync()
     {
         IsInstalling = true;
-        InstallProgress = "Installing WSLC (download + install can take several minutes)...";
-        _output.Write("Installing WSLC (WSL Containers)...", LogLevel.Info);
+        InstallProgress = "Looking up the latest WSLC release...";
+        _output.Write("Resolving the latest generally available WSLC release...", LogLevel.Info);
+
+        WslcUpdateInfo? release;
+        try
+        {
+            release = await _wslcUpdates.GetLatestReleaseAsync();
+        }
+        catch (Exception ex)
+        {
+            IsInstalling = false;
+            InstallProgress = "Could not check for a WSLC release. Check your internet connection.";
+            _output.Write($"WSLC release lookup failed: {ex.Message}", LogLevel.Error);
+            return;
+        }
+
+        if (release is null)
+        {
+            IsInstalling = false;
+            InstallProgress = "No generally available WSLC release was found.";
+            _output.Write("No generally available WSLC release was found on GitHub.", LogLevel.Error);
+            return;
+        }
+
+        InstallProgress = $"Installing WSLC {release.Version} (download + install can take several minutes)...";
+        _output.Write($"Installing WSLC {release.Version} (WSL Containers)...", LogLevel.Info);
 
         try
         {
             var result = await RunElevatedCommandAsync(
-                 "$url = 'https://github.com/microsoft/WSL/releases/download/2.9.4/wsl.2.9.4.0.x64.msi'; " +
-                 "$path = Join-Path $env:TEMP 'wsl.2.9.4.0.x64.msi'; " +
-                 "$expected = '826D71865B3A45BEE03B8D9BD100D7217DD7389761D75AFA7C77106EAC5CD78E'; " +
-                 "if (!(Test-Path $path) -or ((Get-FileHash -Algorithm SHA256 $path).Hash -ne $expected)) { Write-Output 'Downloading WSL 2.9.4 MSI...'; Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $path }; " +
+                 $"$url = '{EscapePowerShellString(release.DownloadUrl)}'; " +
+                 $"$path = Join-Path $env:TEMP '{EscapePowerShellString(release.FileName)}'; " +
+                 $"$expected = '{release.Sha256.ToUpperInvariant()}'; " +
+                 $"if (!(Test-Path $path) -or ((Get-FileHash -Algorithm SHA256 $path).Hash -ne $expected)) {{ Write-Output 'Downloading WSL {release.Version} MSI...'; Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $path }}; " +
                 "$hash = (Get-FileHash -Algorithm SHA256 $path).Hash; " +
                 "if ($hash -ne $expected) { throw 'WSL installer hash verification failed.' }; " +
-                 "Write-Output 'Installing WSL 2.9.4 MSI (this can take several minutes)...'; " +
+                 $"Write-Output 'Installing WSL {release.Version} MSI (this can take several minutes)...'; " +
                 "$log = Join-Path $env:LOCALAPPDATA 'WinContainers\\wsl-install.log'; " +
                 "$installer = Start-Process msiexec.exe -ArgumentList '/i', $path, '/qn', '/norestart', '/l*v', $log -Wait -PassThru; " +
                 "if ($installer.ExitCode -notin @(0, 3010)) { exit $installer.ExitCode }; " +
-                 "Write-Output ('WSL 2.9.4 installed. MSI exit code: ' + $installer.ExitCode); Write-Output ('MSI log: ' + $log)", 1200);
+                 $"Write-Output ('WSL {release.Version} installed. MSI exit code: ' + $installer.ExitCode); Write-Output ('MSI log: ' + $log)", 1200);
             _output.Write(result.Output, LogLevel.Info);
 
             if (result.ExitCode == 0)

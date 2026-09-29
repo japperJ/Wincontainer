@@ -7,11 +7,13 @@ using WinContainers.Core.Models;
 
 namespace WinContainers_App.Services;
 
-public sealed record WslcUpdateInfo(string Version, string DownloadUrl, string Sha256);
+public sealed record WslcUpdateInfo(string Version, string FileName, string DownloadUrl, string Sha256);
 
 public sealed class WslcUpdateService
 {
-    private const string ReleasesUrl = "https://api.github.com/repos/microsoft/WSL/releases?per_page=20";
+    // Paged deep enough that a run of preview-ring releases cannot push the newest
+    // generally available build off the first page.
+    private const string ReleasesUrl = "https://api.github.com/repos/microsoft/WSL/releases?per_page=50";
     private readonly HttpClient _http;
 
     public WslcUpdateService(HttpClient httpClient)
@@ -19,6 +21,13 @@ public sealed class WslcUpdateService
         _http = httpClient;
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("WinContainers", "1.0"));
     }
+
+    /// <summary>
+    /// Resolves the newest generally available WSLC release, ignoring what is installed.
+    /// Onboarding needs an installer even on machines where wslc is not present at all.
+    /// </summary>
+    public Task<WslcUpdateInfo?> GetLatestReleaseAsync(CancellationToken cancellationToken = default) =>
+        FindReleaseAsync(minimumVersion: null, cancellationToken);
 
     public async Task<WslcUpdateInfo?> CheckForUpdateAsync(string installedVersion, CancellationToken cancellationToken = default)
     {
@@ -28,6 +37,11 @@ public sealed class WslcUpdateService
             return null;
         }
 
+        return await FindReleaseAsync(installed, cancellationToken);
+    }
+
+    private async Task<WslcUpdateInfo?> FindReleaseAsync(Version? minimumVersion, CancellationToken cancellationToken)
+    {
         using var response = await _http.GetAsync(ReleasesUrl, cancellationToken);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -36,13 +50,20 @@ public sealed class WslcUpdateService
         WslcUpdateInfo? newest = null;
         foreach (var release in document.RootElement.EnumerateArray())
         {
+            // Preview-ring builds are not offered to users; only generally available releases qualify.
+            if (release.TryGetProperty("prerelease", out var prerelease) &&
+                prerelease.ValueKind is JsonValueKind.True)
+            {
+                continue;
+            }
+
             if (!release.TryGetProperty("tag_name", out var tagElement))
             {
                 continue;
             }
 
             var version = ParseVersion(tagElement.GetString());
-            if (version is null || version <= installed)
+            if (version is null || (minimumVersion is not null && version <= minimumVersion))
             {
                 continue;
             }
@@ -50,8 +71,7 @@ public sealed class WslcUpdateService
             foreach (var asset in release.GetProperty("assets").EnumerateArray())
             {
                 var name = asset.GetProperty("name").GetString() ?? string.Empty;
-                if (!name.StartsWith($"wsl.{version}", StringComparison.OrdinalIgnoreCase) ||
-                    !name.EndsWith(".x64.msi", StringComparison.OrdinalIgnoreCase))
+                if (!IsX64MsiAsset(name, version))
                 {
                     continue;
                 }
@@ -64,6 +84,7 @@ public sealed class WslcUpdateService
 
                 var update = new WslcUpdateInfo(
                     version.ToString(),
+                    name,
                     asset.GetProperty("browser_download_url").GetString() ?? string.Empty,
                     digest["sha256:".Length..]);
 
@@ -77,9 +98,35 @@ public sealed class WslcUpdateService
         return newest;
     }
 
+    /// <summary>
+    /// Matches assets named <c>wsl.{version}.{build}.x64.msi</c>. The match is anchored on the build
+    /// number so version 3.0.1 cannot pick up a 3.0.10 asset, which a prefix comparison would allow.
+    /// </summary>
+    private static bool IsX64MsiAsset(string assetName, Version version)
+    {
+        var prefix = $"wsl.{version}.";
+        const string suffix = ".x64.msi";
+        if (assetName.Length <= prefix.Length + suffix.Length ||
+            !assetName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+            !assetName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        foreach (var c in assetName[prefix.Length..^suffix.Length])
+        {
+            if (!char.IsAsciiDigit(c))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public async Task InstallAsync(WslcUpdateInfo update, CancellationToken cancellationToken = default)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"wsl.{update.Version}.x64.msi");
+        var path = Path.Combine(Path.GetTempPath(), update.FileName);
         try
         {
             await using (var source = await _http.GetStreamAsync(update.DownloadUrl, cancellationToken))
