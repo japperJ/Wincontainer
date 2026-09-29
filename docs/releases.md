@@ -6,6 +6,12 @@ Release versions come from SemVer Git tags. Use `v1.2.3` for Stable and
 `v1.2.3-beta.1` for Beta. The tag is passed to .NET assembly metadata and
 Velopack, so no separate application version should be edited.
 
+Tags must be normalized SemVer: no leading zeros in the major, minor or patch
+identifiers. `vpk` rewrites `0.2.00-beta.1a` to `0.2.0-beta.1a` when it names
+the update packages, while Velopack's updater derives the expected package name
+from the raw tag. The two never match, so the release publishes without an
+installable update package. `scripts/publish-release.ps1` rejects such tags.
+
 ## Local Release
 
 Run from the repository root in PowerShell:
@@ -19,6 +25,12 @@ delta packages. ISO files are intentionally not part of normal builds or
 GitHub Releases. It creates a draft
 GitHub Release by default. Add `-Publish` only after reviewing the draft.
 Use `-Force` to remove a failed local output directory before rebuilding.
+
+Release assets are selected from the `assets.<channel>.json` manifest that
+Velopack writes, not from name matching. The script fails the run unless that
+manifest declares exactly one full package named
+`WinContainers-<version>-<channel>-full.nupkg` and every declared asset exists,
+and unless no unlisted package, ZIP or EXE is left in the output directory.
 
 Beta tags create GitHub prereleases and use the Beta update channel.
 Unsigned releases are supported. A local PFX may be supplied to
