@@ -225,6 +225,37 @@ public class RuntimeContractTests
     }
 
     [Fact]
+    public void OnboardingViewModel_ShouldResolveLatestWslcReleaseInsteadOfHardcodingAnMsi()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/ViewModels/OnboardingViewModel.cs"));
+        var source = File.ReadAllText(path);
+
+        // A pinned MSI would hand new users a stale preview build instead of the current GA release.
+        source.Should().NotContain("github.com/microsoft/WSL/releases/download/");
+        source.Should().NotMatch(@"wsl\.\d+\.\d+\.\d+\.x64\.msi");
+        source.Should().Contain("GetLatestReleaseAsync()");
+        source.Should().Contain("release.DownloadUrl");
+        source.Should().Contain("release.Sha256");
+    }
+
+    [Fact]
+    public void WslcUpdateService_ShouldIgnorePrereleasesAndMatchAssetsExactly()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../src/WinContainers.App/Services/WslcUpdateService.cs"));
+        var source = File.ReadAllText(path);
+
+        source.Should().Contain("\"prerelease\"");
+        // A prefix match would let version 3.0.1 pick up a 3.0.10 asset.
+        source.Should().NotContain("StartsWith($\"wsl.{version}\"");
+        source.Should().Contain("IsX64MsiAsset(name, version)");
+        source.Should().Contain("public Task<WslcUpdateInfo?> GetLatestReleaseAsync(");
+    }
+
+    [Fact]
     public void WslcDriver_ShouldExposeExpectedMethods()
     {
         typeof(WslcDriver).GetInterfaces().Should().Contain(typeof(IWslcDriver));
